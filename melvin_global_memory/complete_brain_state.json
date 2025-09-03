@@ -1,0 +1,1089 @@
+{
+  "total_nodes": 56,
+  "total_edges": 2581,
+  "node_types": {
+    "visual": 0,
+    "audio": 0,
+    "language": 18,
+    "code": 5,
+    "concept": 25,
+    "sequence": 0,
+    "memory": 0,
+    "emotion": 8,
+    "action": 0,
+    "sensor": 0
+  },
+  "edge_types": {
+    "hebbian": 0,
+    "similarity": 1509,
+    "temporal": 47,
+    "hierarchical": 0,
+    "multimodal": 1025,
+    "causal": 0,
+    "associative": 0
+  },
+  "stats": {
+    "total_nodes": 56,
+    "total_edges": 2581,
+    "hebbian_updates": 0,
+    "similarity_connections": 0,
+    "temporal_connections": 47,
+    "cross_modal_connections": 1025,
+    "start_time": 1756909315.8166838
+  },
+  "runtime": 57.6887104511261,
+  "nodes": {
+    "language_69ca8720c65d": {
+      "type": "language",
+      "content": "What is artificial intelligence?",
+      "activation": 0.8,
+      "connections": 96,
+      "source": "squad_question_0"
+    },
+    "concept_1601b1b31a70": {
+      "type": "concept",
+      "content": "Artificial intelligence (AI) is intelligence demonstrated by machines, in contrast to natural intell",
+      "activation": 0.8,
+      "connections": 88,
+      "source": "squad_context_0"
+    },
+    "language_c4f59f4b64b6": {
+      "type": "language",
+      "content": "intelligence demonstrated by machines",
+      "activation": 0.8,
+      "connections": 94,
+      "source": "squad_answer_0"
+    },
+    "language_59d3ecd16207": {
+      "type": "language",
+      "content": "How do neural networks learn?",
+      "activation": 0.8,
+      "connections": 98,
+      "source": "squad_question_1"
+    },
+    "concept_d3c6184822d7": {
+      "type": "concept",
+      "content": "Neural networks learn through a process called backpropagation, where errors are propagated backward",
+      "activation": 0.8,
+      "connections": 92,
+      "source": "squad_context_1"
+    },
+    "language_e2ca40066570": {
+      "type": "language",
+      "content": "through backpropagation",
+      "activation": 0.8,
+      "connections": 99,
+      "source": "squad_answer_1"
+    },
+    "language_95cfd84216da": {
+      "type": "language",
+      "content": "What is machine learning?",
+      "activation": 0.8,
+      "connections": 99,
+      "source": "squad_question_2"
+    },
+    "concept_f6926cf4d030": {
+      "type": "concept",
+      "content": "Machine learning is a subset of artificial intelligence that enables computers to learn and improve ",
+      "activation": 0.8,
+      "connections": 92,
+      "source": "squad_context_2"
+    },
+    "language_7ab4905daa7c": {
+      "type": "language",
+      "content": "learning from experience without explicit programming",
+      "activation": 0.8,
+      "connections": 95,
+      "source": "squad_answer_2"
+    },
+    "language_a67f8adbb0a0": {
+      "type": "language",
+      "content": "How do robots perceive their environment?",
+      "activation": 0.8,
+      "connections": 99,
+      "source": "squad_question_3"
+    },
+    "concept_b65fd1eab122": {
+      "type": "concept",
+      "content": "Robots use various sensors like cameras, microphones, and touch sensors to perceive and understand t",
+      "activation": 0.8,
+      "connections": 86,
+      "source": "squad_context_3"
+    },
+    "language_ee01d8c25d37": {
+      "type": "language",
+      "content": "through various sensors like cameras and microphones",
+      "activation": 0.8,
+      "connections": 64,
+      "source": "squad_answer_3"
+    },
+    "language_428006884f55": {
+      "type": "language",
+      "content": "What is computer vision?",
+      "activation": 0.8,
+      "connections": 98,
+      "source": "squad_question_4"
+    },
+    "concept_9cbd8b500153": {
+      "type": "concept",
+      "content": "Computer vision is a field of artificial intelligence that trains computers to interpret and underst",
+      "activation": 0.8,
+      "connections": 90,
+      "source": "squad_context_4"
+    },
+    "language_f4d4398df714": {
+      "type": "language",
+      "content": "training computers to interpret visual information",
+      "activation": 0.8,
+      "connections": 96,
+      "source": "squad_answer_4"
+    },
+    "language_55f3c33c2f2f": {
+      "type": "language",
+      "content": "This AI system is absolutely amazing! It learns so quickly and makes intelligent connections.",
+      "activation": 0.8,
+      "connections": 96,
+      "source": "sentiment_text_0"
+    },
+    "emotion_5554218c9cb7": {
+      "type": "emotion",
+      "content": "emotion: positive",
+      "activation": 0.8,
+      "connections": 103,
+      "source": "sentiment_label_0"
+    },
+    "language_1653b310daee": {
+      "type": "language",
+      "content": "The robot's movements are smooth and natural. Very impressive engineering.",
+      "activation": 0.8,
+      "connections": 93,
+      "source": "sentiment_text_1"
+    },
+    "emotion_8e361b193e45": {
+      "type": "emotion",
+      "content": "emotion: positive",
+      "activation": 0.8,
+      "connections": 103,
+      "source": "sentiment_label_1"
+    },
+    "language_19a97a6703d2": {
+      "type": "language",
+      "content": "Machine learning is fascinating. The way it finds patterns in data is remarkable.",
+      "activation": 0.8,
+      "connections": 95,
+      "source": "sentiment_text_2"
+    },
+    "emotion_d62df309ff3e": {
+      "type": "emotion",
+      "content": "emotion: positive",
+      "activation": 0.8,
+      "connections": 103,
+      "source": "sentiment_label_2"
+    },
+    "language_2c27a6388b0a": {
+      "type": "language",
+      "content": "I'm concerned about the complexity of this system. It might be too difficult to understand.",
+      "activation": 0.8,
+      "connections": 95,
+      "source": "sentiment_text_3"
+    },
+    "emotion_6c2545fd3d2c": {
+      "type": "emotion",
+      "content": "emotion: negative",
+      "activation": 0.8,
+      "connections": 102,
+      "source": "sentiment_label_3"
+    },
+    "language_6fc65a4d0103": {
+      "type": "language",
+      "content": "The neural network failed to converge. Poor performance on this task.",
+      "activation": 0.8,
+      "connections": 90,
+      "source": "sentiment_text_4"
+    },
+    "emotion_614c12e44172": {
+      "type": "emotion",
+      "content": "emotion: negative",
+      "activation": 0.8,
+      "connections": 102,
+      "source": "sentiment_label_4"
+    },
+    "language_87ee4df3aae1": {
+      "type": "language",
+      "content": "Excellent work on the computer vision module. Clear and accurate object detection.",
+      "activation": 0.8,
+      "connections": 93,
+      "source": "sentiment_text_5"
+    },
+    "emotion_a5b52c8109d9": {
+      "type": "emotion",
+      "content": "emotion: positive",
+      "activation": 0.8,
+      "connections": 101,
+      "source": "sentiment_label_5"
+    },
+    "language_d270246832db": {
+      "type": "language",
+      "content": "The Hebbian learning implementation is brilliant. Connections strengthen naturally.",
+      "activation": 0.8,
+      "connections": 90,
+      "source": "sentiment_text_6"
+    },
+    "emotion_810a5ce6fc2f": {
+      "type": "emotion",
+      "content": "emotion: positive",
+      "activation": 0.8,
+      "connections": 101,
+      "source": "sentiment_label_6"
+    },
+    "language_a8329e20bec1": {
+      "type": "language",
+      "content": "This robotic system shows great potential for real-world applications.",
+      "activation": 0.8,
+      "connections": 93,
+      "source": "sentiment_text_7"
+    },
+    "emotion_3002200b89ca": {
+      "type": "emotion",
+      "content": "emotion: positive",
+      "activation": 0.8,
+      "connections": 101,
+      "source": "sentiment_label_7"
+    },
+    "code_ea444f3f4e7f": {
+      "type": "code",
+      "content": "def create_node(content, node_type):\n    node_id = generate_id()\n    return Node(node_id, node_type,",
+      "activation": 0.8,
+      "connections": 106,
+      "source": "code_python_0"
+    },
+    "concept_3c6d2868e444": {
+      "type": "concept",
+      "content": "Node creation function",
+      "activation": 0.8,
+      "connections": 86,
+      "source": "code_desc_0"
+    },
+    "code_59d59d1ccbd0": {
+      "type": "code",
+      "content": "class BrainGraph:\n    def __init__(self):\n        self.nodes = {}\n        self.edges = {}\n    \n    d",
+      "activation": 0.8,
+      "connections": 106,
+      "source": "code_python_1"
+    },
+    "concept_9a1f7949cd95": {
+      "type": "concept",
+      "content": "Brain graph class",
+      "activation": 0.8,
+      "connections": 86,
+      "source": "code_desc_1"
+    },
+    "code_fc1fbc0e4da9": {
+      "type": "code",
+      "content": "for node in active_nodes:\n    if node.activation > threshold:\n        strengthen_connections(node)\n ",
+      "activation": 0.8,
+      "connections": 104,
+      "source": "code_python_2"
+    },
+    "concept_c2d34357688e": {
+      "type": "concept",
+      "content": "Hebbian learning loop",
+      "activation": 0.8,
+      "connections": 83,
+      "source": "code_desc_2"
+    },
+    "code_4153d90e9e33": {
+      "type": "code",
+      "content": "import cv2\nimport numpy as np\n\ndef process_camera_frame(frame):\n    gray = cv2.cvtColor(frame, cv2.C",
+      "activation": 0.8,
+      "connections": 106,
+      "source": "code_python_3"
+    },
+    "concept_98d0460404b7": {
+      "type": "concept",
+      "content": "Camera processing pipeline",
+      "activation": 0.8,
+      "connections": 84,
+      "source": "code_desc_3"
+    },
+    "code_59c66e25d1bf": {
+      "type": "code",
+      "content": "class Node {\npublic:\n    NodeID id;\n    NodeType type;\n    std::vector<Connection> connections;\n    ",
+      "activation": 0.8,
+      "connections": 104,
+      "source": "code_cpp_4"
+    },
+    "concept_49a431bddd5c": {
+      "type": "concept",
+      "content": "C++ node structure",
+      "activation": 0.8,
+      "connections": 86,
+      "source": "code_desc_4"
+    },
+    "concept_05b9e05a1404": {
+      "type": "concept",
+      "content": "The human brain contains approximately 86 billion neurons connected by trillions of synapses",
+      "activation": 0.8,
+      "connections": 86,
+      "source": "knowledge_0"
+    },
+    "concept_645e6b3ff854": {
+      "type": "concept",
+      "content": "Hebbian learning follows the principle that neurons that fire together wire together",
+      "activation": 0.8,
+      "connections": 86,
+      "source": "knowledge_1"
+    },
+    "concept_a8a86d33c476": {
+      "type": "concept",
+      "content": "Computer vision enables machines to interpret and understand visual information from cameras",
+      "activation": 0.8,
+      "connections": 84,
+      "source": "knowledge_2"
+    },
+    "concept_dac2f88db6b8": {
+      "type": "concept",
+      "content": "Natural language processing helps computers understand and generate human language",
+      "activation": 0.8,
+      "connections": 86,
+      "source": "knowledge_3"
+    },
+    "concept_c91fd38b09fd": {
+      "type": "concept",
+      "content": "Robotics combines mechanical engineering, electronics, and computer science",
+      "activation": 0.8,
+      "connections": 86,
+      "source": "knowledge_4"
+    },
+    "concept_aa244ff5ac02": {
+      "type": "concept",
+      "content": "Machine learning algorithms can recognize patterns in large datasets",
+      "activation": 0.8,
+      "connections": 80,
+      "source": "knowledge_5"
+    },
+    "concept_e891019a89bc": {
+      "type": "concept",
+      "content": "Neural networks are inspired by the structure and function of biological brains",
+      "activation": 0.8,
+      "connections": 86,
+      "source": "knowledge_6"
+    },
+    "concept_d192525aee6b": {
+      "type": "concept",
+      "content": "Artificial intelligence aims to create machines that can perform tasks requiring human intelligence",
+      "activation": 0.8,
+      "connections": 80,
+      "source": "knowledge_7"
+    },
+    "concept_a120fb4b00a3": {
+      "type": "concept",
+      "content": "Sensors provide robots with information about their environment and internal state",
+      "activation": 0.8,
+      "connections": 83,
+      "source": "knowledge_8"
+    }
+  },
+  "edges": {
+    "concept_1601b1b31a70\u2192language_69ca8720c65d_similarity": {
+      "source": "concept_1601b1b31a70",
+      "target": "language_69ca8720c65d",
+      "type": "similarity",
+      "weight": 0.7658331556857793,
+      "coactivations": 0
+    },
+    "concept_1601b1b31a70\u2192language_69ca8720c65d_multimodal": {
+      "source": "concept_1601b1b31a70",
+      "target": "language_69ca8720c65d",
+      "type": "multimodal",
+      "weight": 0.6126665245486235,
+      "coactivations": 0
+    },
+    "language_69ca8720c65d\u2192concept_1601b1b31a70_temporal": {
+      "source": "language_69ca8720c65d",
+      "target": "concept_1601b1b31a70",
+      "type": "temporal",
+      "weight": 0.3,
+      "coactivations": 0
+    },
+    "language_c4f59f4b64b6\u2192language_69ca8720c65d_similarity": {
+      "source": "language_c4f59f4b64b6",
+      "target": "language_69ca8720c65d",
+      "type": "similarity",
+      "weight": 0.7322061924905781,
+      "coactivations": 0
+    },
+    "language_c4f59f4b64b6\u2192concept_1601b1b31a70_similarity": {
+      "source": "language_c4f59f4b64b6",
+      "target": "concept_1601b1b31a70",
+      "type": "similarity",
+      "weight": 0.7185201898793707,
+      "coactivations": 0
+    },
+    "language_c4f59f4b64b6\u2192concept_1601b1b31a70_multimodal": {
+      "source": "language_c4f59f4b64b6",
+      "target": "concept_1601b1b31a70",
+      "type": "multimodal",
+      "weight": 0.5748161519034966,
+      "coactivations": 0
+    },
+    "language_69ca8720c65d\u2192language_c4f59f4b64b6_temporal": {
+      "source": "language_69ca8720c65d",
+      "target": "language_c4f59f4b64b6",
+      "type": "temporal",
+      "weight": 0.3,
+      "coactivations": 0
+    },
+    "concept_1601b1b31a70\u2192language_c4f59f4b64b6_temporal": {
+      "source": "concept_1601b1b31a70",
+      "target": "language_c4f59f4b64b6",
+      "type": "temporal",
+      "weight": 0.3,
+      "coactivations": 0
+    },
+    "language_59d3ecd16207\u2192language_69ca8720c65d_similarity": {
+      "source": "language_59d3ecd16207",
+      "target": "language_69ca8720c65d",
+      "type": "similarity",
+      "weight": 0.7593757867059878,
+      "coactivations": 0
+    },
+    "language_59d3ecd16207\u2192concept_1601b1b31a70_similarity": {
+      "source": "language_59d3ecd16207",
+      "target": "concept_1601b1b31a70",
+      "type": "similarity",
+      "weight": 0.7287668075780768,
+      "coactivations": 0
+    },
+    "language_59d3ecd16207\u2192concept_1601b1b31a70_multimodal": {
+      "source": "language_59d3ecd16207",
+      "target": "concept_1601b1b31a70",
+      "type": "multimodal",
+      "weight": 0.5830134460624614,
+      "coactivations": 0
+    },
+    "language_59d3ecd16207\u2192language_c4f59f4b64b6_similarity": {
+      "source": "language_59d3ecd16207",
+      "target": "language_c4f59f4b64b6",
+      "type": "similarity",
+      "weight": 0.7458743859542342,
+      "coactivations": 0
+    },
+    "language_69ca8720c65d\u2192language_59d3ecd16207_temporal": {
+      "source": "language_69ca8720c65d",
+      "target": "language_59d3ecd16207",
+      "type": "temporal",
+      "weight": 0.3,
+      "coactivations": 0
+    },
+    "concept_1601b1b31a70\u2192language_59d3ecd16207_temporal": {
+      "source": "concept_1601b1b31a70",
+      "target": "language_59d3ecd16207",
+      "type": "temporal",
+      "weight": 0.3,
+      "coactivations": 0
+    },
+    "language_c4f59f4b64b6\u2192language_59d3ecd16207_temporal": {
+      "source": "language_c4f59f4b64b6",
+      "target": "language_59d3ecd16207",
+      "type": "temporal",
+      "weight": 0.3,
+      "coactivations": 0
+    },
+    "concept_d3c6184822d7\u2192language_69ca8720c65d_similarity": {
+      "source": "concept_d3c6184822d7",
+      "target": "language_69ca8720c65d",
+      "type": "similarity",
+      "weight": 0.7723339324203231,
+      "coactivations": 0
+    },
+    "concept_d3c6184822d7\u2192language_69ca8720c65d_multimodal": {
+      "source": "concept_d3c6184822d7",
+      "target": "language_69ca8720c65d",
+      "type": "multimodal",
+      "weight": 0.6178671459362586,
+      "coactivations": 0
+    },
+    "concept_d3c6184822d7\u2192concept_1601b1b31a70_similarity": {
+      "source": "concept_d3c6184822d7",
+      "target": "concept_1601b1b31a70",
+      "type": "similarity",
+      "weight": 0.7614954791451196,
+      "coactivations": 0
+    },
+    "concept_d3c6184822d7\u2192language_c4f59f4b64b6_similarity": {
+      "source": "concept_d3c6184822d7",
+      "target": "language_c4f59f4b64b6",
+      "type": "similarity",
+      "weight": 0.7618675279743942,
+      "coactivations": 0
+    },
+    "concept_d3c6184822d7\u2192language_c4f59f4b64b6_multimodal": {
+      "source": "concept_d3c6184822d7",
+      "target": "language_c4f59f4b64b6",
+      "type": "multimodal",
+      "weight": 0.6094940223795153,
+      "coactivations": 0
+    },
+    "concept_d3c6184822d7\u2192language_59d3ecd16207_similarity": {
+      "source": "concept_d3c6184822d7",
+      "target": "language_59d3ecd16207",
+      "type": "similarity",
+      "weight": 0.7681683025925584,
+      "coactivations": 0
+    },
+    "concept_d3c6184822d7\u2192language_59d3ecd16207_multimodal": {
+      "source": "concept_d3c6184822d7",
+      "target": "language_59d3ecd16207",
+      "type": "multimodal",
+      "weight": 0.6145346420740467,
+      "coactivations": 0
+    },
+    "concept_1601b1b31a70\u2192concept_d3c6184822d7_temporal": {
+      "source": "concept_1601b1b31a70",
+      "target": "concept_d3c6184822d7",
+      "type": "temporal",
+      "weight": 0.3,
+      "coactivations": 0
+    },
+    "language_c4f59f4b64b6\u2192concept_d3c6184822d7_temporal": {
+      "source": "language_c4f59f4b64b6",
+      "target": "concept_d3c6184822d7",
+      "type": "temporal",
+      "weight": 0.3,
+      "coactivations": 0
+    },
+    "language_59d3ecd16207\u2192concept_d3c6184822d7_temporal": {
+      "source": "language_59d3ecd16207",
+      "target": "concept_d3c6184822d7",
+      "type": "temporal",
+      "weight": 0.3,
+      "coactivations": 0
+    },
+    "language_e2ca40066570\u2192language_69ca8720c65d_similarity": {
+      "source": "language_e2ca40066570",
+      "target": "language_69ca8720c65d",
+      "type": "similarity",
+      "weight": 0.7210047450946857,
+      "coactivations": 0
+    },
+    "language_e2ca40066570\u2192concept_1601b1b31a70_similarity": {
+      "source": "language_e2ca40066570",
+      "target": "concept_1601b1b31a70",
+      "type": "similarity",
+      "weight": 0.7605139929246768,
+      "coactivations": 0
+    },
+    "language_e2ca40066570\u2192concept_1601b1b31a70_multimodal": {
+      "source": "language_e2ca40066570",
+      "target": "concept_1601b1b31a70",
+      "type": "multimodal",
+      "weight": 0.6084111943397414,
+      "coactivations": 0
+    },
+    "language_e2ca40066570\u2192language_c4f59f4b64b6_similarity": {
+      "source": "language_e2ca40066570",
+      "target": "language_c4f59f4b64b6",
+      "type": "similarity",
+      "weight": 0.7158033418014981,
+      "coactivations": 0
+    },
+    "language_e2ca40066570\u2192language_59d3ecd16207_similarity": {
+      "source": "language_e2ca40066570",
+      "target": "language_59d3ecd16207",
+      "type": "similarity",
+      "weight": 0.7571668124162793,
+      "coactivations": 0
+    },
+    "language_e2ca40066570\u2192concept_d3c6184822d7_similarity": {
+      "source": "language_e2ca40066570",
+      "target": "concept_d3c6184822d7",
+      "type": "similarity",
+      "weight": 0.7442675584733724,
+      "coactivations": 0
+    },
+    "language_e2ca40066570\u2192concept_d3c6184822d7_multimodal": {
+      "source": "language_e2ca40066570",
+      "target": "concept_d3c6184822d7",
+      "type": "multimodal",
+      "weight": 0.595414046778698,
+      "coactivations": 0
+    },
+    "language_c4f59f4b64b6\u2192language_e2ca40066570_temporal": {
+      "source": "language_c4f59f4b64b6",
+      "target": "language_e2ca40066570",
+      "type": "temporal",
+      "weight": 0.3,
+      "coactivations": 0
+    },
+    "language_59d3ecd16207\u2192language_e2ca40066570_temporal": {
+      "source": "language_59d3ecd16207",
+      "target": "language_e2ca40066570",
+      "type": "temporal",
+      "weight": 0.3,
+      "coactivations": 0
+    },
+    "concept_d3c6184822d7\u2192language_e2ca40066570_temporal": {
+      "source": "concept_d3c6184822d7",
+      "target": "language_e2ca40066570",
+      "type": "temporal",
+      "weight": 0.3,
+      "coactivations": 0
+    },
+    "language_95cfd84216da\u2192language_69ca8720c65d_similarity": {
+      "source": "language_95cfd84216da",
+      "target": "language_69ca8720c65d",
+      "type": "similarity",
+      "weight": 0.7396689105433428,
+      "coactivations": 0
+    },
+    "language_95cfd84216da\u2192concept_1601b1b31a70_similarity": {
+      "source": "language_95cfd84216da",
+      "target": "concept_1601b1b31a70",
+      "type": "similarity",
+      "weight": 0.7138230364472097,
+      "coactivations": 0
+    },
+    "language_95cfd84216da\u2192concept_1601b1b31a70_multimodal": {
+      "source": "language_95cfd84216da",
+      "target": "concept_1601b1b31a70",
+      "type": "multimodal",
+      "weight": 0.5710584291577677,
+      "coactivations": 0
+    },
+    "language_95cfd84216da\u2192language_c4f59f4b64b6_similarity": {
+      "source": "language_95cfd84216da",
+      "target": "language_c4f59f4b64b6",
+      "type": "similarity",
+      "weight": 0.7759690391990105,
+      "coactivations": 0
+    },
+    "language_95cfd84216da\u2192language_59d3ecd16207_similarity": {
+      "source": "language_95cfd84216da",
+      "target": "language_59d3ecd16207",
+      "type": "similarity",
+      "weight": 0.7863012554647182,
+      "coactivations": 0
+    },
+    "language_95cfd84216da\u2192concept_d3c6184822d7_similarity": {
+      "source": "language_95cfd84216da",
+      "target": "concept_d3c6184822d7",
+      "type": "similarity",
+      "weight": 0.7797724533845215,
+      "coactivations": 0
+    },
+    "language_95cfd84216da\u2192concept_d3c6184822d7_multimodal": {
+      "source": "language_95cfd84216da",
+      "target": "concept_d3c6184822d7",
+      "type": "multimodal",
+      "weight": 0.6238179627076172,
+      "coactivations": 0
+    },
+    "language_95cfd84216da\u2192language_e2ca40066570_similarity": {
+      "source": "language_95cfd84216da",
+      "target": "language_e2ca40066570",
+      "type": "similarity",
+      "weight": 0.7816004843360099,
+      "coactivations": 0
+    },
+    "language_59d3ecd16207\u2192language_95cfd84216da_temporal": {
+      "source": "language_59d3ecd16207",
+      "target": "language_95cfd84216da",
+      "type": "temporal",
+      "weight": 0.3,
+      "coactivations": 0
+    },
+    "concept_d3c6184822d7\u2192language_95cfd84216da_temporal": {
+      "source": "concept_d3c6184822d7",
+      "target": "language_95cfd84216da",
+      "type": "temporal",
+      "weight": 0.3,
+      "coactivations": 0
+    },
+    "language_e2ca40066570\u2192language_95cfd84216da_temporal": {
+      "source": "language_e2ca40066570",
+      "target": "language_95cfd84216da",
+      "type": "temporal",
+      "weight": 0.3,
+      "coactivations": 0
+    },
+    "concept_f6926cf4d030\u2192language_69ca8720c65d_similarity": {
+      "source": "concept_f6926cf4d030",
+      "target": "language_69ca8720c65d",
+      "type": "similarity",
+      "weight": 0.7661006285435914,
+      "coactivations": 0
+    },
+    "concept_f6926cf4d030\u2192language_69ca8720c65d_multimodal": {
+      "source": "concept_f6926cf4d030",
+      "target": "language_69ca8720c65d",
+      "type": "multimodal",
+      "weight": 0.6128805028348732,
+      "coactivations": 0
+    },
+    "concept_f6926cf4d030\u2192concept_1601b1b31a70_similarity": {
+      "source": "concept_f6926cf4d030",
+      "target": "concept_1601b1b31a70",
+      "type": "similarity",
+      "weight": 0.7225460728329072,
+      "coactivations": 0
+    },
+    "concept_f6926cf4d030\u2192language_c4f59f4b64b6_similarity": {
+      "source": "concept_f6926cf4d030",
+      "target": "language_c4f59f4b64b6",
+      "type": "similarity",
+      "weight": 0.7788232968462911,
+      "coactivations": 0
+    },
+    "concept_f6926cf4d030\u2192language_c4f59f4b64b6_multimodal": {
+      "source": "concept_f6926cf4d030",
+      "target": "language_c4f59f4b64b6",
+      "type": "multimodal",
+      "weight": 0.6230586374770329,
+      "coactivations": 0
+    },
+    "concept_f6926cf4d030\u2192language_59d3ecd16207_similarity": {
+      "source": "concept_f6926cf4d030",
+      "target": "language_59d3ecd16207",
+      "type": "similarity",
+      "weight": 0.7990736782371216,
+      "coactivations": 0
+    },
+    "concept_f6926cf4d030\u2192language_59d3ecd16207_multimodal": {
+      "source": "concept_f6926cf4d030",
+      "target": "language_59d3ecd16207",
+      "type": "multimodal",
+      "weight": 0.6392589425896973,
+      "coactivations": 0
+    },
+    "concept_f6926cf4d030\u2192concept_d3c6184822d7_similarity": {
+      "source": "concept_f6926cf4d030",
+      "target": "concept_d3c6184822d7",
+      "type": "similarity",
+      "weight": 0.7613942591823183,
+      "coactivations": 0
+    },
+    "concept_f6926cf4d030\u2192language_e2ca40066570_similarity": {
+      "source": "concept_f6926cf4d030",
+      "target": "language_e2ca40066570",
+      "type": "similarity",
+      "weight": 0.8031720347069347,
+      "coactivations": 0
+    },
+    "concept_f6926cf4d030\u2192language_e2ca40066570_multimodal": {
+      "source": "concept_f6926cf4d030",
+      "target": "language_e2ca40066570",
+      "type": "multimodal",
+      "weight": 0.6425376277655478,
+      "coactivations": 0
+    },
+    "concept_f6926cf4d030\u2192language_95cfd84216da_similarity": {
+      "source": "concept_f6926cf4d030",
+      "target": "language_95cfd84216da",
+      "type": "similarity",
+      "weight": 0.7971937016837704,
+      "coactivations": 0
+    },
+    "concept_f6926cf4d030\u2192language_95cfd84216da_multimodal": {
+      "source": "concept_f6926cf4d030",
+      "target": "language_95cfd84216da",
+      "type": "multimodal",
+      "weight": 0.6377549613470164,
+      "coactivations": 0
+    },
+    "concept_d3c6184822d7\u2192concept_f6926cf4d030_temporal": {
+      "source": "concept_d3c6184822d7",
+      "target": "concept_f6926cf4d030",
+      "type": "temporal",
+      "weight": 0.3,
+      "coactivations": 0
+    },
+    "language_e2ca40066570\u2192concept_f6926cf4d030_temporal": {
+      "source": "language_e2ca40066570",
+      "target": "concept_f6926cf4d030",
+      "type": "temporal",
+      "weight": 0.3,
+      "coactivations": 0
+    },
+    "language_95cfd84216da\u2192concept_f6926cf4d030_temporal": {
+      "source": "language_95cfd84216da",
+      "target": "concept_f6926cf4d030",
+      "type": "temporal",
+      "weight": 0.3,
+      "coactivations": 0
+    },
+    "language_7ab4905daa7c\u2192language_69ca8720c65d_similarity": {
+      "source": "language_7ab4905daa7c",
+      "target": "language_69ca8720c65d",
+      "type": "similarity",
+      "weight": 0.737655457289849,
+      "coactivations": 0
+    },
+    "language_7ab4905daa7c\u2192concept_1601b1b31a70_similarity": {
+      "source": "language_7ab4905daa7c",
+      "target": "concept_1601b1b31a70",
+      "type": "similarity",
+      "weight": 0.7460808986418571,
+      "coactivations": 0
+    },
+    "language_7ab4905daa7c\u2192concept_1601b1b31a70_multimodal": {
+      "source": "language_7ab4905daa7c",
+      "target": "concept_1601b1b31a70",
+      "type": "multimodal",
+      "weight": 0.5968647189134857,
+      "coactivations": 0
+    },
+    "language_7ab4905daa7c\u2192language_c4f59f4b64b6_similarity": {
+      "source": "language_7ab4905daa7c",
+      "target": "language_c4f59f4b64b6",
+      "type": "similarity",
+      "weight": 0.7239616349891463,
+      "coactivations": 0
+    },
+    "language_7ab4905daa7c\u2192language_59d3ecd16207_similarity": {
+      "source": "language_7ab4905daa7c",
+      "target": "language_59d3ecd16207",
+      "type": "similarity",
+      "weight": 0.7304480043533704,
+      "coactivations": 0
+    },
+    "language_7ab4905daa7c\u2192concept_d3c6184822d7_similarity": {
+      "source": "language_7ab4905daa7c",
+      "target": "concept_d3c6184822d7",
+      "type": "similarity",
+      "weight": 0.7571532122356265,
+      "coactivations": 0
+    },
+    "language_7ab4905daa7c\u2192concept_d3c6184822d7_multimodal": {
+      "source": "language_7ab4905daa7c",
+      "target": "concept_d3c6184822d7",
+      "type": "multimodal",
+      "weight": 0.6057225697885013,
+      "coactivations": 0
+    },
+    "language_7ab4905daa7c\u2192language_e2ca40066570_similarity": {
+      "source": "language_7ab4905daa7c",
+      "target": "language_e2ca40066570",
+      "type": "similarity",
+      "weight": 0.7591482757972382,
+      "coactivations": 0
+    },
+    "language_7ab4905daa7c\u2192language_95cfd84216da_similarity": {
+      "source": "language_7ab4905daa7c",
+      "target": "language_95cfd84216da",
+      "type": "similarity",
+      "weight": 0.7663951855587701,
+      "coactivations": 0
+    },
+    "language_7ab4905daa7c\u2192concept_f6926cf4d030_similarity": {
+      "source": "language_7ab4905daa7c",
+      "target": "concept_f6926cf4d030",
+      "type": "similarity",
+      "weight": 0.793083101879717,
+      "coactivations": 0
+    },
+    "language_7ab4905daa7c\u2192concept_f6926cf4d030_multimodal": {
+      "source": "language_7ab4905daa7c",
+      "target": "concept_f6926cf4d030",
+      "type": "multimodal",
+      "weight": 0.6344664815037736,
+      "coactivations": 0
+    },
+    "language_e2ca40066570\u2192language_7ab4905daa7c_temporal": {
+      "source": "language_e2ca40066570",
+      "target": "language_7ab4905daa7c",
+      "type": "temporal",
+      "weight": 0.3,
+      "coactivations": 0
+    },
+    "language_95cfd84216da\u2192language_7ab4905daa7c_temporal": {
+      "source": "language_95cfd84216da",
+      "target": "language_7ab4905daa7c",
+      "type": "temporal",
+      "weight": 0.3,
+      "coactivations": 0
+    },
+    "concept_f6926cf4d030\u2192language_7ab4905daa7c_temporal": {
+      "source": "concept_f6926cf4d030",
+      "target": "language_7ab4905daa7c",
+      "type": "temporal",
+      "weight": 0.3,
+      "coactivations": 0
+    },
+    "language_a67f8adbb0a0\u2192language_69ca8720c65d_similarity": {
+      "source": "language_a67f8adbb0a0",
+      "target": "language_69ca8720c65d",
+      "type": "similarity",
+      "weight": 0.7342510559496856,
+      "coactivations": 0
+    },
+    "language_a67f8adbb0a0\u2192concept_1601b1b31a70_similarity": {
+      "source": "language_a67f8adbb0a0",
+      "target": "concept_1601b1b31a70",
+      "type": "similarity",
+      "weight": 0.762779270451937,
+      "coactivations": 0
+    },
+    "language_a67f8adbb0a0\u2192concept_1601b1b31a70_multimodal": {
+      "source": "language_a67f8adbb0a0",
+      "target": "concept_1601b1b31a70",
+      "type": "multimodal",
+      "weight": 0.6102234163615496,
+      "coactivations": 0
+    },
+    "language_a67f8adbb0a0\u2192language_c4f59f4b64b6_similarity": {
+      "source": "language_a67f8adbb0a0",
+      "target": "language_c4f59f4b64b6",
+      "type": "similarity",
+      "weight": 0.7303405555398306,
+      "coactivations": 0
+    },
+    "language_a67f8adbb0a0\u2192language_59d3ecd16207_similarity": {
+      "source": "language_a67f8adbb0a0",
+      "target": "language_59d3ecd16207",
+      "type": "similarity",
+      "weight": 0.7680740372503195,
+      "coactivations": 0
+    },
+    "language_a67f8adbb0a0\u2192concept_d3c6184822d7_similarity": {
+      "source": "language_a67f8adbb0a0",
+      "target": "concept_d3c6184822d7",
+      "type": "similarity",
+      "weight": 0.7936616760501003,
+      "coactivations": 0
+    },
+    "language_a67f8adbb0a0\u2192concept_d3c6184822d7_multimodal": {
+      "source": "language_a67f8adbb0a0",
+      "target": "concept_d3c6184822d7",
+      "type": "multimodal",
+      "weight": 0.6349293408400802,
+      "coactivations": 0
+    },
+    "language_a67f8adbb0a0\u2192language_e2ca40066570_similarity": {
+      "source": "language_a67f8adbb0a0",
+      "target": "language_e2ca40066570",
+      "type": "similarity",
+      "weight": 0.7639107177186173,
+      "coactivations": 0
+    },
+    "language_a67f8adbb0a0\u2192language_95cfd84216da_similarity": {
+      "source": "language_a67f8adbb0a0",
+      "target": "language_95cfd84216da",
+      "type": "similarity",
+      "weight": 0.755144510661235,
+      "coactivations": 0
+    },
+    "language_a67f8adbb0a0\u2192concept_f6926cf4d030_similarity": {
+      "source": "language_a67f8adbb0a0",
+      "target": "concept_f6926cf4d030",
+      "type": "similarity",
+      "weight": 0.8175103668721854,
+      "coactivations": 0
+    },
+    "language_a67f8adbb0a0\u2192concept_f6926cf4d030_multimodal": {
+      "source": "language_a67f8adbb0a0",
+      "target": "concept_f6926cf4d030",
+      "type": "multimodal",
+      "weight": 0.6540082934977484,
+      "coactivations": 0
+    },
+    "language_a67f8adbb0a0\u2192language_7ab4905daa7c_similarity": {
+      "source": "language_a67f8adbb0a0",
+      "target": "language_7ab4905daa7c",
+      "type": "similarity",
+      "weight": 0.7537598261103202,
+      "coactivations": 0
+    },
+    "language_95cfd84216da\u2192language_a67f8adbb0a0_temporal": {
+      "source": "language_95cfd84216da",
+      "target": "language_a67f8adbb0a0",
+      "type": "temporal",
+      "weight": 0.3,
+      "coactivations": 0
+    },
+    "concept_f6926cf4d030\u2192language_a67f8adbb0a0_temporal": {
+      "source": "concept_f6926cf4d030",
+      "target": "language_a67f8adbb0a0",
+      "type": "temporal",
+      "weight": 0.3,
+      "coactivations": 0
+    },
+    "language_7ab4905daa7c\u2192language_a67f8adbb0a0_temporal": {
+      "source": "language_7ab4905daa7c",
+      "target": "language_a67f8adbb0a0",
+      "type": "temporal",
+      "weight": 0.3,
+      "coactivations": 0
+    },
+    "concept_b65fd1eab122\u2192language_69ca8720c65d_similarity": {
+      "source": "concept_b65fd1eab122",
+      "target": "language_69ca8720c65d",
+      "type": "similarity",
+      "weight": 0.7460794779993638,
+      "coactivations": 0
+    },
+    "concept_b65fd1eab122\u2192language_69ca8720c65d_multimodal": {
+      "source": "concept_b65fd1eab122",
+      "target": "language_69ca8720c65d",
+      "type": "multimodal",
+      "weight": 0.5968635823994911,
+      "coactivations": 0
+    },
+    "concept_b65fd1eab122\u2192concept_1601b1b31a70_similarity": {
+      "source": "concept_b65fd1eab122",
+      "target": "concept_1601b1b31a70",
+      "type": "similarity",
+      "weight": 0.717663380816033,
+      "coactivations": 0
+    },
+    "concept_b65fd1eab122\u2192language_59d3ecd16207_similarity": {
+      "source": "concept_b65fd1eab122",
+      "target": "language_59d3ecd16207",
+      "type": "similarity",
+      "weight": 0.7899083475654773,
+      "coactivations": 0
+    },
+    "concept_b65fd1eab122\u2192language_59d3ecd16207_multimodal": {
+      "source": "concept_b65fd1eab122",
+      "target": "language_59d3ecd16207",
+      "type": "multimodal",
+      "weight": 0.6319266780523819,
+      "coactivations": 0
+    },
+    "concept_b65fd1eab122\u2192concept_d3c6184822d7_similarity": {
+      "source": "concept_b65fd1eab122",
+      "target": "concept_d3c6184822d7",
+      "type": "similarity",
+      "weight": 0.7711243941117175,
+      "coactivations": 0
+    },
+    "concept_b65fd1eab122\u2192language_e2ca40066570_similarity": {
+      "source": "concept_b65fd1eab122",
+      "target": "language_e2ca40066570",
+      "type": "similarity",
+      "weight": 0.7202880842770917,
+      "coactivations": 0
+    },
+    "concept_b65fd1eab122\u2192language_e2ca40066570_multimodal": {
+      "source": "concept_b65fd1eab122",
+      "target": "language_e2ca40066570",
+      "type": "multimodal",
+      "weight": 0.5762304674216734,
+      "coactivations": 0
+    },
+    "concept_b65fd1eab122\u2192language_95cfd84216da_similarity": {
+      "source": "concept_b65fd1eab122",
+      "target": "language_95cfd84216da",
+      "type": "similarity",
+      "weight": 0.7503043762848289,
+      "coactivations": 0
+    },
+    "concept_b65fd1eab122\u2192language_95cfd84216da_multimodal": {
+      "source": "concept_b65fd1eab122",
+      "target": "language_95cfd84216da",
+      "type": "multimodal",
+      "weight": 0.6002435010278632,
+      "coactivations": 0
+    }
+  }
+}
