@@ -1,0 +1,254 @@
+{
+  "collection_timestamp": 1756918056.412031,
+  "session_stats": {
+    "total_runtime": 0,
+    "datasets_processed": 5,
+    "total_samples": 210,
+    "nodes_created": 490,
+    "connections_created": 3949,
+    "errors_encountered": 0
+  },
+  "config_used": {
+    "brain_settings": {
+      "embedding_dim": 512,
+      "memory_path": "melvin_global_memory",
+      "enable_hebbian_learning": true,
+      "hebbian_learning_rate": 0.01,
+      "coactivation_window": 2.0
+    },
+    "collection_settings": {
+      "output_dir": "melvin_datasets",
+      "max_samples_per_dataset": 50,
+      "enable_cross_modal_connections": true,
+      "save_intermediate_results": true,
+      "parallel_processing": false
+    },
+    "dataset_configs": [
+      {
+        "name": "squad",
+        "source": "huggingface",
+        "data_type": "text",
+        "max_samples": 30,
+        "enabled": true
+      },
+      {
+        "name": "imdb",
+        "source": "huggingface",
+        "data_type": "text",
+        "max_samples": 50,
+        "enabled": true
+      },
+      {
+        "name": "code_examples",
+        "source": "generated",
+        "data_type": "code",
+        "max_samples": 40,
+        "enabled": true
+      },
+      {
+        "name": "visual_features",
+        "source": "generated",
+        "data_type": "visual",
+        "max_samples": 60,
+        "enabled": true
+      },
+      {
+        "name": "audio_features",
+        "source": "generated",
+        "data_type": "audio",
+        "max_samples": 30,
+        "enabled": true
+      }
+    ]
+  },
+  "brain_state_snapshot": {
+    "global_memory": {
+      "stats": {
+        "total_nodes": 490,
+        "total_edges": 60355,
+        "hebbian_updates": 17780,
+        "similarity_connections": 0,
+        "temporal_connections": 2424,
+        "cross_modal_connections": 3949,
+        "start_time": 1756918014.77719
+      },
+      "total_nodes": 490,
+      "total_edges": 60355,
+      "node_types": {
+        "language": 360,
+        "code": 40,
+        "visual": 60,
+        "audio": 30
+      },
+      "edge_types": {
+        "temporal": 2424,
+        "similarity": 36202,
+        "hebbian": 17780,
+        "multimodal": 3949
+      },
+      "most_active_nodes": [
+        {
+          "id": "language_c2c3d897d02d",
+          "type": "language",
+          "content": "To whom did the Virgin Mary allegedly appear in 18",
+          "activation": 0.8,
+          "connections": 375
+        },
+        {
+          "id": "language_fae3608a5e8c",
+          "type": "language",
+          "content": "Architecturally, the school has a Catholic charact",
+          "activation": 0.8,
+          "connections": 321
+        },
+        {
+          "id": "language_5f9aefb033a8",
+          "type": "language",
+          "content": "Saint Bernadette Soubirous",
+          "activation": 0.8,
+          "connections": 464
+        },
+        {
+          "id": "language_bb629c9c9189",
+          "type": "language",
+          "content": "What is in front of the Notre Dame Main Building?",
+          "activation": 0.8,
+          "connections": 334
+        },
+        {
+          "id": "language_f772ab55601b",
+          "type": "language",
+          "content": "Architecturally, the school has a Catholic charact",
+          "activation": 0.8,
+          "connections": 324
+        },
+        {
+          "id": "language_2c152acc53f5",
+          "type": "language",
+          "content": "a copper statue of Christ",
+          "activation": 0.8,
+          "connections": 530
+        },
+        {
+          "id": "language_f0414f126756",
+          "type": "language",
+          "content": "The Basilica of the Sacred heart at Notre Dame is ",
+          "activation": 0.8,
+          "connections": 357
+        },
+        {
+          "id": "language_9c9a05ea6507",
+          "type": "language",
+          "content": "Architecturally, the school has a Catholic charact",
+          "activation": 0.8,
+          "connections": 325
+        },
+        {
+          "id": "language_316c0823fcb9",
+          "type": "language",
+          "content": "the Main Building",
+          "activation": 0.8,
+          "connections": 524
+        },
+        {
+          "id": "language_fcc25139a739",
+          "type": "language",
+          "content": "What is the Grotto at Notre Dame?",
+          "activation": 0.8,
+          "connections": 339
+        }
+      ],
+      "most_connected_nodes": [
+        {
+          "id": "language_2c152acc53f5",
+          "type": "language",
+          "content": "a copper statue of Christ",
+          "connections": 530,
+          "activation": 0.8
+        },
+        {
+          "id": "language_ff376be9ff5d",
+          "type": "language",
+          "content": "a golden statue of the Virgin Mary",
+          "connections": 530,
+          "activation": 0.8
+        },
+        {
+          "id": "language_9c432b57a99e",
+          "type": "language",
+          "content": "twice",
+          "connections": 530,
+          "activation": 0.8
+        },
+        {
+          "id": "language_0dce98fe8af7",
+          "type": "language",
+          "content": "three",
+          "connections": 530,
+          "activation": 0.8
+        },
+        {
+          "id": "language_160871fa06c4",
+          "type": "language",
+          "content": "eight",
+          "connections": 530,
+          "activation": 0.8
+        },
+        {
+          "id": "language_d9d59dc5879a",
+          "type": "language",
+          "content": "five",
+          "connections": 530,
+          "activation": 0.8
+        },
+        {
+          "id": "language_c57034fcfaf0",
+          "type": "language",
+          "content": "five",
+          "connections": 530,
+          "activation": 0.8
+        },
+        {
+          "id": "language_a64fe33eb0eb",
+          "type": "language",
+          "content": "a Marian place of prayer and reflection",
+          "connections": 528,
+          "activation": 0.8
+        },
+        {
+          "id": "language_fe7b4073619f",
+          "type": "language",
+          "content": "U.S. News & World Report",
+          "connections": 525,
+          "activation": 0.8
+        },
+        {
+          "id": "language_316c0823fcb9",
+          "type": "language",
+          "content": "the Main Building",
+          "connections": 524,
+          "activation": 0.8
+        }
+      ],
+      "runtime": 41.643446922302246
+    },
+    "session_stats": {
+      "inputs_processed": 490,
+      "visual_inputs": 60,
+      "text_inputs": 360,
+      "code_inputs": 40,
+      "audio_inputs": 30,
+      "start_time": 1756918014.778414
+    },
+    "processing_rate": 11.766902457332698,
+    "conscious_mode": true,
+    "processing_enabled": true,
+    "modality_distribution": {
+      "visual": 60,
+      "text": 360,
+      "code": 40,
+      "audio": 30
+    },
+    "runtime": 41.64222502708435
+  }
+}

@@ -434,8 +434,8 @@ class MelvinGlobalMemory:
                     # Migrate nodes
                     if 'nodes' in old_data:
                         for node_id, node_data in old_data['nodes'].items():
-                            # Create embedding from old data
-                            embedding = np.random.random(256) * 0.1 + 0.5  # Placeholder
+                            # Create embedding from old data - match current embedding dimension
+                            embedding = np.random.random(self.embedder.embedding_dim) * 0.1 + 0.5  # Match current dimension
                             
                             # Determine node type
                             node_type = NodeType.CONCEPT
