@@ -1,0 +1,33 @@
+# MELVIN OPTIMIZED V2 C++ REQUIREMENTS
+# ===================================
+# Pure binary storage + Intelligent pruning + Advanced compression + 4TB optimization
+
+# Build tools
+cmake>=3.16.0
+pkg-config>=0.29.0
+
+# Compression libraries
+zlib>=1.2.11
+liblzma>=5.2.5
+libzstd>=1.5.0
+
+# System libraries
+build-essential
+pthread
+
+# Optional for enhanced functionality
+# OpenMP (for parallel processing)
+# libomp (macOS) or libgomp (Linux)
+
+# Installation commands:
+# macOS (using Homebrew):
+#   brew install cmake pkg-config zlib xz zstd
+#
+# Ubuntu/Debian:
+#   sudo apt-get install build-essential cmake pkg-config libzlib1g-dev liblzma-dev libzstd-dev
+#
+# CentOS/RHEL:
+#   sudo yum install gcc-c++ cmake pkgconfig zlib-devel xz-devel libzstd-devel
+#
+# Arch Linux:
+#   sudo pacman -S base-devel cmake pkg-config zlib xz zstd
