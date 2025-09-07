@@ -19,6 +19,8 @@
 #include <queue>
 #include <sstream>
 #include <iomanip>
+#include <cmath>
+#include <functional>
 #include <zlib.h>
 #include <lzma.h>
 #include <zstd.h>
@@ -60,7 +62,7 @@ enum class ConnectionType : uint8_t {
     EXPERIENTIAL = 8
 };
 
-// Binary Node Structure - 28 bytes header + content
+// Binary Node Structure - 32 bytes header + content
 struct BinaryNode {
     uint64_t id;                    // 8 bytes - unique identifier
     uint64_t creation_time;         // 8 bytes - timestamp
@@ -70,12 +72,16 @@ struct BinaryNode {
     uint8_t activation_strength;    // 1 byte - 0-255 activation strength
     uint32_t content_length;       // 4 bytes - length of content
     uint32_t connection_count;     // 4 bytes - number of connections
+    uint8_t emotional_tag;         // 1 byte - emotional context (0-255)
+    uint8_t source_confidence;     // 1 byte - confidence in source (0-255)
+    uint16_t reserved;             // 2 bytes - reserved for future use
     
     std::vector<uint8_t> content;  // Raw binary content
     
     BinaryNode() : id(0), creation_time(0), content_type(ContentType::TEXT),
                    compression(CompressionType::NONE), importance(0),
-                   activation_strength(0), content_length(0), connection_count(0) {}
+                   activation_strength(0), content_length(0), connection_count(0),
+                   emotional_tag(128), source_confidence(255), reserved(0) {}
     
     // Convert to binary format
     std::vector<uint8_t> to_bytes() const;
@@ -245,6 +251,117 @@ struct CandidateResponse {
     std::string reasoning;
     
     CandidateResponse() : confidence(0.0f) {}
+};
+
+// ============================================================================
+// PRESSURE-BASED INSTINCT SYSTEM
+// ============================================================================
+
+struct InstinctForces {
+    double curiosity;      // Drive to learn/expand knowledge
+    double efficiency;    // Drive to conserve effort/time
+    double social;        // Drive to respond empathetically and appropriately
+    double consistency;   // Drive to maintain logical/identity coherence
+    double survival;      // Drive to protect stability, avoid errors/contradictions
+    
+    InstinctForces() : curiosity(0.0), efficiency(0.0), social(0.0), consistency(0.0), survival(0.0) {}
+    InstinctForces(double c, double e, double s, double con, double sur)
+        : curiosity(c), efficiency(e), social(s), consistency(con), survival(sur) {}
+    
+    // Normalize forces using softmax
+    void normalize();
+    
+    // Get dominant instinct
+    std::string get_dominant_instinct() const;
+    
+    // Get force balance description
+    std::string get_balance_description() const;
+};
+
+struct Context {
+    float recall_confidence;      // How confident we are in memory recall (0.0-1.0)
+    float resource_usage;          // Current resource usage/cost (0.0-1.0)
+    float user_emotion_score;     // Detected user emotional state (0.0-1.0)
+    float memory_conflict_score;  // Level of memory conflicts (0.0-1.0)
+    float system_risk_score;      // System risk level (0.0-1.0)
+    std::string user_input;       // Original user input
+    std::vector<uint64_t> activated_nodes; // Currently activated memory nodes
+    double timestamp;            // Current timestamp
+    
+    Context() : recall_confidence(0.0f), resource_usage(0.0f), user_emotion_score(0.0f),
+                memory_conflict_score(0.0f), system_risk_score(0.0f), timestamp(0.0) {}
+};
+
+struct DynamicOutput {
+    std::string response_text;
+    InstinctForces forces_used;
+    std::string reasoning_path;
+    float overall_confidence;
+    std::vector<uint64_t> contributing_nodes;
+    std::string emotional_tone;
+    std::string response_style;  // "exploratory", "empathetic", "concise", "consistent", "safe"
+    
+    DynamicOutput() : overall_confidence(0.0f) {}
+};
+
+// ============================================================================
+// META-REASONING LAYER STRUCTURES
+// ============================================================================
+
+struct InstinctProposal {
+    std::string instinct_name;
+    double force_strength;
+    std::string proposed_bias;
+    std::string reasoning;
+    float confidence;
+    
+    InstinctProposal() : force_strength(0.0), confidence(0.0f) {}
+    InstinctProposal(const std::string& name, double strength, const std::string& bias, 
+                    const std::string& reason, float conf)
+        : instinct_name(name), force_strength(strength), proposed_bias(bias), 
+          reasoning(reason), confidence(conf) {}
+};
+
+struct InstinctArbitration {
+    std::vector<InstinctProposal> proposals;
+    std::vector<std::string> amplifications;  // Instincts to amplify
+    std::vector<std::string> suppressions;    // Instincts to suppress
+    std::vector<std::string> blends;          // Instincts to blend
+    std::string arbitration_reasoning;
+    InstinctForces adjusted_forces;
+    
+    InstinctArbitration() {}
+};
+
+struct CandidateOutput {
+    std::string instinct_source;
+    std::string candidate_text;
+    float instinct_weight;
+    std::string reasoning;
+    std::vector<uint64_t> supporting_nodes;
+    
+    CandidateOutput() : instinct_weight(0.0f) {}
+};
+
+struct MetaReasoningResult {
+    InstinctArbitration arbitration;
+    std::vector<CandidateOutput> candidates;
+    std::string final_blend_reasoning;
+    std::string meta_trace;
+    float meta_confidence;
+    uint64_t meta_decision_node_id;  // Stored in binary memory
+    
+    MetaReasoningResult() : meta_confidence(0.0f), meta_decision_node_id(0) {}
+};
+
+struct EmotionalGrounding {
+    bool has_grounding_signal;
+    std::string grounding_type;  // "keyword", "repeated_focus", "inferred_intent"
+    std::string grounding_evidence;
+    float emotional_intensity;
+    std::string emotional_tag;
+    
+    EmotionalGrounding() : has_grounding_signal(false), emotional_intensity(0.0f) {}
 };
 
 // ============================================================================
@@ -685,6 +802,15 @@ struct ProcessingResult {
     MetaToolEngineerResult meta_tool_engineer;
     CuriosityExecutionResult curiosity_execution;
     
+    // Pressure-based instinct system results
+    Context context_analysis;
+    InstinctForces computed_forces;
+    DynamicOutput instinct_driven_output;
+    
+    // Meta-reasoning layer results
+    MetaReasoningResult meta_reasoning;
+    EmotionalGrounding emotional_grounding;
+    
     ProcessingResult() : confidence(0.0f) {}
 };
 
@@ -696,6 +822,9 @@ class CognitiveProcessor {
 private:
     std::unique_ptr<PureBinaryStorage> binary_storage;
     std::mutex cognitive_mutex;
+    
+    // Instinct Engine Integration
+    std::unique_ptr<InstinctEngine> instinct_engine;
     
     // Context tracking
     std::vector<uint64_t> recent_dialogue_nodes;
@@ -776,6 +905,29 @@ public:
     ExplorationTrack generate_exploration_track(const std::string& input, const std::vector<ActivationNode>& activations);
     BlendedReasoningResult perform_blended_reasoning(const std::string& input, const std::vector<ActivationNode>& activations);
     std::string format_blended_reasoning_response(const BlendedReasoningResult& result);
+    
+    // Pressure-based instinct system
+    Context analyze_context(const std::string& user_input, const std::vector<ActivationNode>& activations);
+    InstinctForces compute_forces(const Context& ctx);
+    DynamicOutput generate_dynamic_output(const std::string& user_input, const InstinctForces& forces, 
+                                         const std::vector<ActivationNode>& activations);
+    std::string synthesize_response_from_forces(const InstinctForces& forces, const std::vector<InterpretationCluster>& clusters);
+    float detect_user_emotion(const std::string& input);
+    float calculate_memory_conflicts(const std::vector<ActivationNode>& activations);
+    float assess_system_risk(const std::string& input, const std::vector<ActivationNode>& activations);
+    
+    // Meta-reasoning layer
+    MetaReasoningResult perform_meta_reasoning_loop(const std::string& user_input, const InstinctForces& forces, 
+                                                   const Context& ctx, const std::vector<ActivationNode>& activations);
+    InstinctArbitration arbitrate_instincts(const InstinctForces& forces, const Context& ctx);
+    std::vector<InstinctProposal> collect_instinct_proposals(const InstinctForces& forces, const Context& ctx);
+    std::vector<CandidateOutput> generate_instinct_candidates(const std::string& user_input, 
+                                                             const InstinctArbitration& arbitration,
+                                                             const std::vector<ActivationNode>& activations);
+    std::string blend_candidate_outputs(const std::vector<CandidateOutput>& candidates, 
+                                        const InstinctArbitration& arbitration);
+    EmotionalGrounding assess_emotional_grounding(const std::string& user_input, const Context& ctx);
+    uint64_t store_meta_decision(const MetaReasoningResult& result);
     
     // Main processing function
     ProcessingResult process_input(const std::string& user_input);
@@ -873,6 +1025,11 @@ public:
     std::string generate_conversational_output(const CuriosityExecutionResult& execution_result, const std::string& original_input);
     bool is_curiosity_morally_safe(const CuriosityQuestion& question);
     std::string format_curiosity_execution_result(const CuriosityExecutionResult& result);
+    
+    // Instinct-driven processing
+    InstinctBias get_instinct_bias_for_input(const std::string& input, const std::vector<ActivationNode>& activations);
+    bool should_trigger_tool_usage(const InstinctBias& instinct_bias, const CuriosityGapDetectionResult& curiosity_result);
+    void reinforce_instincts_from_outcome(const std::string& input, bool success, const std::string& reason);
     
     // Utility functions
     std::vector<std::string> tokenize(const std::string& input);

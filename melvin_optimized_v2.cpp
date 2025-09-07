@@ -7,9 +7,9 @@
 // BinaryNode implementation
 std::vector<uint8_t> BinaryNode::to_bytes() const {
     std::vector<uint8_t> data;
-    data.reserve(28 + content.size());
+    data.reserve(32 + content.size());
     
-    // Pack header (28 bytes)
+    // Pack header (32 bytes)
     data.insert(data.end(), (uint8_t*)&id, (uint8_t*)&id + 8);
     data.insert(data.end(), (uint8_t*)&creation_time, (uint8_t*)&creation_time + 8);
     data.push_back(static_cast<uint8_t>(content_type));
@@ -18,6 +18,9 @@ std::vector<uint8_t> BinaryNode::to_bytes() const {
     data.push_back(activation_strength);
     data.insert(data.end(), (uint8_t*)&content_length, (uint8_t*)&content_length + 4);
     data.insert(data.end(), (uint8_t*)&connection_count, (uint8_t*)&connection_count + 4);
+    data.push_back(emotional_tag);
+    data.push_back(source_confidence);
+    data.insert(data.end(), (uint8_t*)&reserved, (uint8_t*)&reserved + 2);
     
     // Add content
     data.insert(data.end(), content.begin(), content.end());
@@ -26,7 +29,7 @@ std::vector<uint8_t> BinaryNode::to_bytes() const {
 }
 
 BinaryNode BinaryNode::from_bytes(const std::vector<uint8_t>& data) {
-    if (data.size() < 28) {
+    if (data.size() < 32) {
         throw std::runtime_error("Invalid binary node data");
     }
     
@@ -46,6 +49,10 @@ BinaryNode BinaryNode::from_bytes(const std::vector<uint8_t>& data) {
     offset += 4;
     std::memcpy(&node.connection_count, &data[offset], 4);
     offset += 4;
+    node.emotional_tag = data[offset++];
+    node.source_confidence = data[offset++];
+    std::memcpy(&node.reserved, &data[offset], 2);
+    offset += 2;
     
     // Copy content
     if (offset < data.size()) {
@@ -3933,4 +3940,1169 @@ int main() {
     }
     
     return 0;
+}
+
+// ============================================================================
+// PRESSURE-BASED INSTINCT SYSTEM IMPLEMENTATION
+// ============================================================================
+
+// InstinctForces implementation
+void InstinctForces::normalize() {
+    // Apply softmax normalization
+    double max_force = std::max({curiosity, efficiency, social, consistency, survival});
+    
+    // Subtract max for numerical stability
+    curiosity = std::exp(curiosity - max_force);
+    efficiency = std::exp(efficiency - max_force);
+    social = std::exp(social - max_force);
+    consistency = std::exp(consistency - max_force);
+    survival = std::exp(survival - max_force);
+    
+    // Normalize to sum to 1.0
+    double sum = curiosity + efficiency + social + consistency + survival;
+    curiosity /= sum;
+    efficiency /= sum;
+    social /= sum;
+    consistency /= sum;
+    survival /= sum;
+}
+
+std::string InstinctForces::get_dominant_instinct() const {
+    if (curiosity >= efficiency && curiosity >= social && curiosity >= consistency && curiosity >= survival) {
+        return "curiosity";
+    } else if (efficiency >= social && efficiency >= consistency && efficiency >= survival) {
+        return "efficiency";
+    } else if (social >= consistency && social >= survival) {
+        return "social";
+    } else if (consistency >= survival) {
+        return "consistency";
+    } else {
+        return "survival";
+    }
+}
+
+std::string InstinctForces::get_balance_description() const {
+    std::ostringstream desc;
+    desc << "Instinct Balance: ";
+    desc << "Curiosity(" << std::fixed << std::setprecision(2) << curiosity * 100 << "%) ";
+    desc << "Efficiency(" << std::fixed << std::setprecision(2) << efficiency * 100 << "%) ";
+    desc << "Social(" << std::fixed << std::setprecision(2) << social * 100 << "%) ";
+    desc << "Consistency(" << std::fixed << std::setprecision(2) << consistency * 100 << "%) ";
+    desc << "Survival(" << std::fixed << std::setprecision(2) << survival * 100 << "%)";
+    return desc.str();
+}
+
+// Sigmoid activation function
+double sigmoid(double x) {
+    return 1.0 / (1.0 + std::exp(-x));
+}
+
+// Context analysis implementation
+Context CognitiveProcessor::analyze_context(const std::string& user_input, const std::vector<ActivationNode>& activations) {
+    Context ctx;
+    ctx.user_input = user_input;
+    ctx.timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::system_clock::now().time_since_epoch()).count();
+    
+    // Extract activated nodes
+    for (const auto& activation : activations) {
+        ctx.activated_nodes.push_back(activation.node_id);
+    }
+    
+    // Calculate recall confidence based on activation strength
+    float total_activation = 0.0f;
+    for (const auto& activation : activations) {
+        total_activation += activation.weight;
+    }
+    ctx.recall_confidence = std::min(1.0f, total_activation / activations.size());
+    
+    // Estimate resource usage based on input complexity
+    ctx.resource_usage = std::min(1.0f, user_input.length() / 1000.0f);
+    
+    // Detect user emotion
+    ctx.user_emotion_score = detect_user_emotion(user_input);
+    
+    // Calculate memory conflicts
+    ctx.memory_conflict_score = calculate_memory_conflicts(activations);
+    
+    // Assess system risk
+    ctx.system_risk_score = assess_system_risk(user_input, activations);
+    
+    return ctx;
+}
+
+// Force computation implementation
+InstinctForces CognitiveProcessor::compute_forces(const Context& ctx) {
+    InstinctForces forces;
+    
+    // Curiosity: inversely related to recall confidence
+    // Less memory → more curiosity
+    forces.curiosity = sigmoid(1.0 - ctx.recall_confidence);
+    
+    // Efficiency: directly related to resource usage
+    // High resource cost → higher efficiency need
+    forces.efficiency = sigmoid(ctx.resource_usage);
+    
+    // Social: directly related to user emotion
+    // More user emotion → higher social pull
+    forces.social = sigmoid(ctx.user_emotion_score);
+    
+    // Consistency: directly related to memory conflicts
+    // Conflict → stronger consistency force
+    forces.consistency = sigmoid(ctx.memory_conflict_score);
+    
+    // Survival: directly related to system risk
+    // High risk → stronger survival instinct
+    forces.survival = sigmoid(ctx.system_risk_score);
+    
+    // Normalize forces using softmax
+    forces.normalize();
+    
+    return forces;
+}
+
+// Dynamic output generation
+DynamicOutput CognitiveProcessor::generate_dynamic_output(const std::string& user_input, 
+                                                          const InstinctForces& forces, 
+                                                          const std::vector<ActivationNode>& activations) {
+    DynamicOutput output;
+    output.forces_used = forces;
+    
+    // Generate clusters for synthesis
+    auto clusters = synthesize_hypotheses(activations);
+    
+    // Synthesize response based on force balance
+    output.response_text = synthesize_response_from_forces(forces, clusters);
+    
+    // Determine emotional tone based on dominant instinct
+    std::string dominant = forces.get_dominant_instinct();
+    if (dominant == "curiosity") {
+        output.emotional_tone = "curious and exploratory";
+        output.response_style = "exploratory";
+    } else if (dominant == "social") {
+        output.emotional_tone = "empathetic and supportive";
+        output.response_style = "empathetic";
+    } else if (dominant == "efficiency") {
+        output.emotional_tone = "direct and focused";
+        output.response_style = "concise";
+    } else if (dominant == "consistency") {
+        output.emotional_tone = "logical and coherent";
+        output.response_style = "consistent";
+    } else {
+        output.emotional_tone = "cautious and measured";
+        output.response_style = "safe";
+    }
+    
+    // Calculate overall confidence
+    output.overall_confidence = (forces.curiosity * 0.2f + forces.efficiency * 0.1f + 
+                                forces.social * 0.3f + forces.consistency * 0.3f + 
+                                forces.survival * 0.1f);
+    
+    // Build reasoning path
+    std::ostringstream reasoning;
+    reasoning << "[Instinct-Driven Response]\n";
+    reasoning << "Dominant instinct: " << dominant << "\n";
+    reasoning << forces.get_balance_description() << "\n";
+    reasoning << "Emotional tone: " << output.emotional_tone << "\n";
+    reasoning << "Response style: " << output.response_style << "\n";
+    reasoning << "Overall confidence: " << std::fixed << std::setprecision(2) 
+              << output.overall_confidence * 100 << "%";
+    output.reasoning_path = reasoning.str();
+    
+    // Add contributing nodes
+    for (const auto& activation : activations) {
+        output.contributing_nodes.push_back(activation.node_id);
+    }
+    
+    return output;
+}
+
+// Response synthesis based on forces
+std::string CognitiveProcessor::synthesize_response_from_forces(const InstinctForces& forces, 
+                                                               const std::vector<InterpretationCluster>& clusters) {
+    std::ostringstream response;
+    std::string dominant = forces.get_dominant_instinct();
+    
+    if (dominant == "curiosity") {
+        // Curiosity-driven: explore ideas, ask follow-ups, suggest research
+        response << "That's an interesting question! ";
+        if (!clusters.empty()) {
+            response << "Based on what I know about " << clusters[0].summary << ", ";
+        }
+        response << "I'd love to explore this further. ";
+        if (forces.social > 0.3) {
+            response << "What aspects are you most curious about? ";
+        }
+        response << "Would you like me to look into related concepts or research this topic more deeply?";
+        
+    } else if (dominant == "social") {
+        // Social-driven: empathetic phrasing, mirror user's emotions
+        response << "I understand this might be important to you. ";
+        if (!clusters.empty()) {
+            response << "From what I can see, " << clusters[0].summary << " ";
+        }
+        response << "Let me help you with this. ";
+        if (forces.curiosity > 0.2) {
+            response << "I'm also curious about the broader implications. ";
+        }
+        response << "How can I best support you with this?";
+        
+    } else if (dominant == "efficiency") {
+        // Efficiency-driven: concise answers, avoid tangents
+        if (!clusters.empty()) {
+            response << clusters[0].summary << ". ";
+        }
+        response << "Key points: ";
+        for (size_t i = 0; i < std::min(clusters.size(), size_t(3)); ++i) {
+            response << clusters[i].summary;
+            if (i < std::min(clusters.size(), size_t(3)) - 1) response << "; ";
+        }
+        response << ".";
+        
+    } else if (dominant == "consistency") {
+        // Consistency-driven: reference past conversations, align style
+        response << "Building on our previous discussions, ";
+        if (!clusters.empty()) {
+            response << "this relates to " << clusters[0].summary << ". ";
+        }
+        response << "This aligns with the patterns we've established. ";
+        if (forces.social > 0.2) {
+            response << "Does this make sense in the context of what we've talked about before?";
+        }
+        
+    } else {
+        // Survival-driven: safe fallback, avoid risky claims
+        response << "I want to be careful and accurate here. ";
+        if (!clusters.empty()) {
+            response << "From what I can reliably recall about " << clusters[0].summary << ", ";
+        }
+        response << "I'd recommend being cautious and verifying this information. ";
+        if (forces.social > 0.3) {
+            response << "Would you like me to help you find reliable sources to confirm this?";
+        }
+    }
+    
+    return response.str();
+}
+
+// Emotion detection
+float CognitiveProcessor::detect_user_emotion(const std::string& input) {
+    std::string lower_input = input;
+    std::transform(lower_input.begin(), lower_input.end(), lower_input.begin(), ::tolower);
+    
+    // Emotional indicators
+    std::vector<std::string> positive_words = {"happy", "excited", "great", "wonderful", "amazing", "love", "enjoy"};
+    std::vector<std::string> negative_words = {"sad", "angry", "frustrated", "worried", "scared", "hurt", "difficult", "problem"};
+    std::vector<std::string> urgent_words = {"urgent", "emergency", "help", "quickly", "asap", "critical"};
+    
+    float emotion_score = 0.5f; // Neutral baseline
+    
+    // Check for positive emotions
+    for (const auto& word : positive_words) {
+        if (lower_input.find(word) != std::string::npos) {
+            emotion_score += 0.2f;
+        }
+    }
+    
+    // Check for negative emotions
+    for (const auto& word : negative_words) {
+        if (lower_input.find(word) != std::string::npos) {
+            emotion_score += 0.3f; // Negative emotions are stronger signals
+        }
+    }
+    
+    // Check for urgency
+    for (const auto& word : urgent_words) {
+        if (lower_input.find(word) != std::string::npos) {
+            emotion_score += 0.4f; // Urgency is highest signal
+        }
+    }
+    
+    return std::min(1.0f, emotion_score);
+}
+
+// Memory conflict calculation
+float CognitiveProcessor::calculate_memory_conflicts(const std::vector<ActivationNode>& activations) {
+    if (activations.size() < 2) return 0.0f;
+    
+    float conflict_score = 0.0f;
+    int conflict_count = 0;
+    
+    // Simple heuristic: check for contradictory concepts
+    std::vector<std::string> concepts;
+    for (const auto& activation : activations) {
+        concepts.push_back(activation.token);
+    }
+    
+    // Look for contradictory pairs
+    std::vector<std::pair<std::string, std::string>> contradictions = {
+        {"yes", "no"}, {"true", "false"}, {"good", "bad"}, {"hot", "cold"},
+        {"big", "small"}, {"fast", "slow"}, {"old", "new"}, {"high", "low"}
+    };
+    
+    for (const auto& contradiction : contradictions) {
+        bool has_first = false, has_second = false;
+        for (const auto& concept : concepts) {
+            if (concept.find(contradiction.first) != std::string::npos) has_first = true;
+            if (concept.find(contradiction.second) != std::string::npos) has_second = true;
+        }
+        if (has_first && has_second) {
+            conflict_count++;
+        }
+    }
+    
+    return std::min(1.0f, conflict_count / 3.0f); // Normalize to 0-1
+}
+
+// System risk assessment
+float CognitiveProcessor::assess_system_risk(const std::string& input, const std::vector<ActivationNode>& activations) {
+    std::string lower_input = input;
+    std::transform(lower_input.begin(), lower_input.end(), lower_input.begin(), ::tolower);
+    
+    float risk_score = 0.0f;
+    
+    // High-risk keywords
+    std::vector<std::string> risk_keywords = {
+        "delete", "remove", "destroy", "crash", "error", "bug", "hack", "security",
+        "password", "private", "secret", "confidential", "illegal", "harmful"
+    };
+    
+    for (const auto& keyword : risk_keywords) {
+        if (lower_input.find(keyword) != std::string::npos) {
+            risk_score += 0.2f;
+        }
+    }
+    
+    // Check for system commands
+    if (lower_input.find("system") != std::string::npos || 
+        lower_input.find("admin") != std::string::npos ||
+        lower_input.find("root") != std::string::npos) {
+        risk_score += 0.3f;
+    }
+    
+    // Check activation complexity (more activations = potentially more risk)
+    if (activations.size() > 10) {
+        risk_score += 0.1f;
+    }
+    
+    return std::min(1.0f, risk_score);
+}
+
+// ============================================================================
+// MELVIN OPTIMIZED V2 IMPLEMENTATION
+// ============================================================================
+
+MelvinOptimizedV2::MelvinOptimizedV2(const std::string& storage_path) 
+    : binary_storage(std::make_unique<PureBinaryStorage>(storage_path)),
+      cognitive_processor(std::make_unique<CognitiveProcessor>(binary_storage)) {
+    
+    stats.total_nodes = 0;
+    stats.total_connections = 0;
+    stats.hebbian_updates = 0;
+    stats.similarity_connections = 0;
+    stats.temporal_connections = 0;
+    stats.cross_modal_connections = 0;
+    stats.start_time = std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::system_clock::now().time_since_epoch()).count();
+    
+    std::cout << "🧠 Melvin Optimized V2 initialized with pressure-based instinct system" << std::endl;
+}
+
+uint64_t MelvinOptimizedV2::process_text_input(const std::string& text, const std::string& source) {
+    std::lock_guard<std::mutex> lock(brain_mutex);
+    
+    // Store the text as a binary node
+    std::vector<uint8_t> text_bytes(text.begin(), text.end());
+    uint64_t node_id = binary_storage->store_node(text_bytes, ContentType::TEXT);
+    
+    // Update statistics
+    stats.total_nodes++;
+    
+    // Update Hebbian learning
+    update_hebbian_learning(node_id);
+    
+    return node_id;
+}
+
+uint64_t MelvinOptimizedV2::process_code_input(const std::string& code, const std::string& source) {
+    std::lock_guard<std::mutex> lock(brain_mutex);
+    
+    // Store the code as a binary node
+    std::vector<uint8_t> code_bytes(code.begin(), code.end());
+    uint64_t node_id = binary_storage->store_node(code_bytes, ContentType::CODE);
+    
+    // Update statistics
+    stats.total_nodes++;
+    
+    // Update Hebbian learning
+    update_hebbian_learning(node_id);
+    
+    return node_id;
+}
+
+void MelvinOptimizedV2::update_hebbian_learning(uint64_t node_id) {
+    std::lock_guard<std::mutex> lock(activation_mutex);
+    
+    uint64_t current_time = std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::system_clock::now().time_since_epoch()).count();
+    
+    // Add current activation
+    recent_activations.push_back({node_id, current_time, 1.0f});
+    
+    // Remove old activations
+    recent_activations.erase(
+        std::remove_if(recent_activations.begin(), recent_activations.end(),
+                      [current_time](const Activation& a) {
+                          return current_time - a.timestamp > COACTIVATION_WINDOW;
+                      }),
+        recent_activations.end());
+    
+    // Create connections between co-activated nodes
+    for (size_t i = 0; i < recent_activations.size(); ++i) {
+        for (size_t j = i + 1; j < recent_activations.size(); ++j) {
+            if (recent_activations[i].node_id != recent_activations[j].node_id) {
+                binary_storage->store_connection(
+                    recent_activations[i].node_id,
+                    recent_activations[j].node_id,
+                    ConnectionType::HEBBIAN,
+                    128
+                );
+                stats.hebbian_updates++;
+            }
+        }
+    }
+    
+    // Limit activations
+    if (recent_activations.size() > MAX_ACTIVATIONS) {
+        recent_activations.erase(recent_activations.begin(), 
+                                recent_activations.begin() + (recent_activations.size() - MAX_ACTIVATIONS));
+    }
+}
+
+std::string MelvinOptimizedV2::get_node_content(uint64_t node_id) {
+    return binary_storage->get_node_as_text(node_id);
+}
+
+// Main cognitive processing with meta-reasoning integration
+ProcessingResult MelvinOptimizedV2::process_cognitive_input(const std::string& user_input) {
+    std::lock_guard<std::mutex> lock(brain_mutex);
+    
+    ProcessingResult result;
+    
+    // Phase 1: Parse input to activations
+    auto activations = cognitive_processor->parse_to_activations(user_input);
+    for (const auto& activation : activations) {
+        result.activated_nodes.push_back(activation.node_id);
+    }
+    
+    // Phase 2: Analyze context for instinct computation
+    result.context_analysis = cognitive_processor->analyze_context(user_input, activations);
+    
+    // Phase 3: Compute instinct forces
+    result.computed_forces = cognitive_processor->compute_forces(result.context_analysis);
+    
+    // Phase 4: Meta-reasoning loop - reason about instincts themselves
+    result.meta_reasoning = cognitive_processor->perform_meta_reasoning_loop(
+        user_input, result.computed_forces, result.context_analysis, activations);
+    
+    // Phase 5: Generate instinct-driven output (original system)
+    result.instinct_driven_output = cognitive_processor->generate_dynamic_output(
+        user_input, result.computed_forces, activations);
+    
+    // Phase 6: Perform blended reasoning (existing system)
+    result.blended_reasoning = cognitive_processor->perform_blended_reasoning(user_input, activations);
+    
+    // Phase 7: Integrate all reasoning systems
+    std::ostringstream integrated_response;
+    integrated_response << "[Meta-Reasoning Response]\n";
+    integrated_response << "Instinct Council Decision: " << result.meta_reasoning.arbitration.arbitration_reasoning << "\n";
+    integrated_response << "Final Output: " << result.meta_reasoning.candidates.empty() ? 
+                        "No candidates generated" : "Blended from " + std::to_string(result.meta_reasoning.candidates.size()) + " candidates";
+    integrated_response << "\n\n";
+    
+    integrated_response << "[Instinct-Driven Response]\n";
+    integrated_response << result.instinct_driven_output.response_text << "\n\n";
+    
+    integrated_response << "[Blended Reasoning Response]\n";
+    integrated_response << result.blended_reasoning.integrated_response << "\n\n";
+    
+    integrated_response << "[Complete Reasoning Analysis]\n";
+    integrated_response << result.meta_reasoning.meta_trace << "\n\n";
+    integrated_response << result.instinct_driven_output.reasoning_path << "\n";
+    integrated_response << "Blended reasoning confidence: " << std::fixed << std::setprecision(2) 
+                        << result.blended_reasoning.overall_confidence * 100 << "%";
+    
+    result.final_response = integrated_response.str();
+    result.confidence = (result.meta_reasoning.meta_confidence + 
+                        result.instinct_driven_output.overall_confidence + 
+                        result.blended_reasoning.overall_confidence) / 3.0f;
+    
+    // Phase 8: Update conversation context
+    for (const auto& activation : activations) {
+        update_conversation_context(activation.node_id);
+    }
+    
+    return result;
+}
+
+std::string MelvinOptimizedV2::generate_intelligent_response(const std::string& user_input) {
+    auto result = process_cognitive_input(user_input);
+    return result.final_response;
+}
+
+void MelvinOptimizedV2::update_conversation_context(uint64_t node_id) {
+    // This would update the conversation context in the cognitive processor
+    // For now, we'll just update Hebbian learning
+    update_hebbian_learning(node_id);
+}
+
+void MelvinOptimizedV2::set_current_goals(const std::vector<uint64_t>& goals) {
+    // This would set current goals in the cognitive processor
+    // Implementation depends on the cognitive processor's goal system
+}
+
+MelvinOptimizedV2::BrainState MelvinOptimizedV2::get_unified_state() {
+    BrainState state;
+    
+    auto storage_stats = binary_storage->get_storage_stats();
+    state.global_memory.total_nodes = storage_stats.total_nodes;
+    state.global_memory.total_edges = storage_stats.total_connections;
+    state.global_memory.storage_used_mb = storage_stats.total_mb;
+    state.global_memory.stats = stats;
+    
+    state.system.running = true;
+    state.system.uptime_seconds = std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::system_clock::now().time_since_epoch()).count() - stats.start_time;
+    
+    return state;
+}
+
+std::vector<uint64_t> MelvinOptimizedV2::prune_old_nodes(uint32_t max_nodes_to_prune) {
+    return binary_storage->prune_nodes(max_nodes_to_prune);
+}
+
+// ============================================================================
+// COGNITIVE PROCESSOR IMPLEMENTATION
+// ============================================================================
+
+CognitiveProcessor::CognitiveProcessor(std::unique_ptr<PureBinaryStorage>& storage) 
+    : binary_storage(std::move(storage)) {
+    initialize_response_templates();
+    initialize_moral_supernodes();
+}
+
+std::vector<ActivationNode> CognitiveProcessor::parse_to_activations(const std::string& input) {
+    std::vector<ActivationNode> activations;
+    
+    // Simple tokenization
+    std::istringstream iss(input);
+    std::string token;
+    uint64_t timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::system_clock::now().time_since_epoch()).count();
+    
+    while (iss >> token) {
+        // Create a simple hash-based node ID
+        uint64_t node_id = std::hash<std::string>{}(token);
+        
+        // Store the token as a node if it doesn't exist
+        std::vector<uint8_t> token_bytes(token.begin(), token.end());
+        binary_storage->store_node(token_bytes, ContentType::TEXT, node_id);
+        
+        // Create activation
+        activations.emplace_back(node_id, 1.0f, timestamp, token);
+    }
+    
+    return activations;
+}
+
+void CognitiveProcessor::apply_context_bias(std::vector<ActivationNode>& activations) {
+    // Apply context bias to activations
+    // This would boost activations based on recent dialogue and goals
+    for (auto& activation : activations) {
+        // Boost based on recent dialogue
+        for (uint64_t recent_node : recent_dialogue_nodes) {
+            if (activation.node_id == recent_node) {
+                activation.weight *= 1.5f;
+            }
+        }
+        
+        // Boost based on current goals
+        for (uint64_t goal_node : current_goal_nodes) {
+            if (activation.node_id == goal_node) {
+                activation.weight *= 1.3f;
+            }
+        }
+    }
+}
+
+std::vector<ConnectionWalk> CognitiveProcessor::traverse_connections(uint64_t node_id, int max_distance) {
+    std::vector<ConnectionWalk> walks;
+    
+    // Simple implementation - would need actual connection traversal
+    // For now, return empty walks
+    return walks;
+}
+
+std::vector<InterpretationCluster> CognitiveProcessor::synthesize_hypotheses(const std::vector<ActivationNode>& activations) {
+    std::vector<InterpretationCluster> clusters;
+    
+    if (activations.empty()) return clusters;
+    
+    // Create a simple cluster from activations
+    InterpretationCluster cluster;
+    for (const auto& activation : activations) {
+        cluster.node_ids.push_back(activation.node_id);
+    }
+    cluster.confidence = 0.8f;
+    cluster.summary = "Input analysis";
+    cluster.keywords = {"analysis", "processing"};
+    
+    clusters.push_back(cluster);
+    return clusters;
+}
+
+std::vector<CandidateResponse> CognitiveProcessor::generate_candidates(const std::vector<InterpretationCluster>& clusters) {
+    std::vector<CandidateResponse> candidates;
+    
+    if (clusters.empty()) return candidates;
+    
+    // Create a simple candidate response
+    CandidateResponse candidate;
+    candidate.text = "I understand your input and I'm processing it.";
+    candidate.confidence = 0.7f;
+    candidate.reasoning = "Based on input analysis";
+    
+    for (const auto& cluster : clusters) {
+        candidate.source_nodes.insert(candidate.source_nodes.end(), 
+                                    cluster.node_ids.begin(), cluster.node_ids.end());
+    }
+    
+    candidates.push_back(candidate);
+    return candidates;
+}
+
+ResponseScore CognitiveProcessor::evaluate_response(const CandidateResponse& candidate, const std::string& user_input) {
+    ResponseScore score;
+    score.relevance = 0.8f;
+    score.confidence = candidate.confidence;
+    score.novelty = 0.6f;
+    score.total_score = (score.relevance + score.confidence + score.novelty) / 3.0f;
+    return score;
+}
+
+CandidateResponse CognitiveProcessor::select_best_response(const std::vector<CandidateResponse>& candidates, float threshold) {
+    if (candidates.empty()) {
+        CandidateResponse empty;
+        empty.text = "I don't have enough information to respond.";
+        empty.confidence = 0.0f;
+        return empty;
+    }
+    
+    // Select candidate with highest confidence
+    auto best = std::max_element(candidates.begin(), candidates.end(),
+                               [](const CandidateResponse& a, const CandidateResponse& b) {
+                                   return a.confidence < b.confidence;
+                               });
+    
+    return *best;
+}
+
+RecallTrack CognitiveProcessor::generate_recall_track(const std::string& input, const std::vector<ActivationNode>& activations) {
+    RecallTrack track;
+    
+    for (const auto& activation : activations) {
+        track.activated_nodes.push_back(activation.node_id);
+    }
+    
+    track.direct_interpretation = "Memory-based interpretation of: " + input;
+    track.recall_confidence = 0.7f;
+    
+    return track;
+}
+
+ExplorationTrack CognitiveProcessor::generate_exploration_track(const std::string& input, const std::vector<ActivationNode>& activations) {
+    ExplorationTrack track;
+    
+    track.analogies_tried = {"This reminds me of...", "Similar to..."};
+    track.counterfactuals_tested = {"What if...", "Alternative approach..."};
+    track.weak_link_traversal_results = {"Weak connections found..."};
+    track.speculative_synthesis = "Exploratory analysis suggests...";
+    track.exploration_confidence = 0.6f;
+    
+    return track;
+}
+
+BlendedReasoningResult CognitiveProcessor::perform_blended_reasoning(const std::string& input, const std::vector<ActivationNode>& activations) {
+    BlendedReasoningResult result;
+    
+    result.recall_track = generate_recall_track(input, activations);
+    result.exploration_track = generate_exploration_track(input, activations);
+    
+    result.overall_confidence = (result.recall_track.recall_confidence + 
+                                result.exploration_track.exploration_confidence) / 2.0f;
+    
+    // Determine weighting based on confidence
+    if (result.overall_confidence >= 0.7f) {
+        result.recall_weight = 0.7f;
+        result.exploration_weight = 0.3f;
+    } else if (result.overall_confidence <= 0.4f) {
+        result.recall_weight = 0.3f;
+        result.exploration_weight = 0.7f;
+    } else {
+        result.recall_weight = 0.5f;
+        result.exploration_weight = 0.5f;
+    }
+    
+    // Generate integrated response
+    std::ostringstream response;
+    response << "[Recall Track] " << result.recall_track.direct_interpretation << "\n";
+    response << "[Exploration Track] " << result.exploration_track.speculative_synthesis << "\n";
+    response << "[Integration Phase] Based on " << std::fixed << std::setprecision(0) 
+             << result.recall_weight * 100 << "% recall and " 
+             << result.exploration_weight * 100 << "% exploration, ";
+    response << "here's my integrated response.";
+    
+    result.integrated_response = response.str();
+    
+    return result;
+}
+
+std::string CognitiveProcessor::format_blended_reasoning_response(const BlendedReasoningResult& result) {
+    return result.integrated_response;
+}
+
+ProcessingResult CognitiveProcessor::process_input(const std::string& user_input) {
+    ProcessingResult result;
+    
+    // Phase 1: Parse input to activations
+    auto activations = parse_to_activations(user_input);
+    for (const auto& activation : activations) {
+        result.activated_nodes.push_back(activation.node_id);
+    }
+    
+    // Phase 2: Apply context bias
+    apply_context_bias(activations);
+    
+    // Phase 3: Traverse connections
+    std::vector<ConnectionWalk> all_walks;
+    for (const auto& activation : activations) {
+        auto walks = traverse_connections(activation.node_id, 3);
+        all_walks.insert(all_walks.end(), walks.begin(), walks.end());
+    }
+    
+    // Phase 4: Synthesize hypotheses
+    result.clusters = synthesize_hypotheses(activations);
+    
+    // Phase 5: Generate candidate responses
+    auto candidates = generate_candidates(result.clusters);
+    
+    // Phase 6: Evaluate and select best response
+    auto best_candidate = select_best_response(candidates);
+    
+    // Phase 7: Perform blended reasoning
+    result.blended_reasoning = perform_blended_reasoning(user_input, activations);
+    
+    // Phase 8: Package output
+    result.final_response = result.blended_reasoning.integrated_response;
+    result.confidence = result.blended_reasoning.overall_confidence;
+    result.reasoning = "Blended reasoning: " + std::to_string(result.confidence);
+    
+    return result;
+}
+
+void CognitiveProcessor::update_dialogue_context(uint64_t node_id) {
+    recent_dialogue_nodes.push_back(node_id);
+    if (recent_dialogue_nodes.size() > MAX_RECENT_DIALOGUE) {
+        recent_dialogue_nodes.erase(recent_dialogue_nodes.begin());
+    }
+}
+
+void CognitiveProcessor::set_current_goals(const std::vector<uint64_t>& goals) {
+    current_goal_nodes = goals;
+    if (current_goal_nodes.size() > MAX_CURRENT_GOALS) {
+        current_goal_nodes.resize(MAX_CURRENT_GOALS);
+    }
+}
+
+void CognitiveProcessor::initialize_response_templates() {
+    // Initialize response templates
+    response_templates["greeting"] = {"Hello!", "Hi there!", "Greetings!"};
+    response_templates["question"] = {"Let me think about that.", "That's interesting.", "I'll help you with that."};
+}
+
+void CognitiveProcessor::initialize_moral_supernodes() {
+    // Initialize moral supernodes
+    MoralSupernode honesty;
+    honesty.moral_id = 1;
+    honesty.moral_name = "Honesty";
+    honesty.keywords = {"truth", "honest", "lie", "deceive"};
+    honesty.moral_bias_strength = 0.8f;
+    moral_supernodes.push_back(honesty);
+    
+    MoralSupernode kindness;
+    kindness.moral_id = 2;
+    kindness.moral_name = "Kindness";
+    kindness.keywords = {"kind", "helpful", "hurt", "harm"};
+    kindness.moral_bias_strength = 0.9f;
+    moral_supernodes.push_back(kindness);
+}
+
+std::vector<MoralSupernode> CognitiveProcessor::get_active_moral_supernodes() {
+    return moral_supernodes;
+}
+
+// ============================================================================
+// META-REASONING LAYER IMPLEMENTATION
+// ============================================================================
+
+MetaReasoningResult CognitiveProcessor::perform_meta_reasoning_loop(const std::string& user_input, 
+                                                                   const InstinctForces& forces, 
+                                                                   const Context& ctx, 
+                                                                   const std::vector<ActivationNode>& activations) {
+    MetaReasoningResult result;
+    
+    // Step 1: Assess emotional grounding
+    result.emotional_grounding = assess_emotional_grounding(user_input, ctx);
+    
+    // Step 2: Arbitrate instincts (treat as council)
+    result.arbitration = arbitrate_instincts(forces, ctx);
+    
+    // Step 3: Generate candidate outputs for each dominant instinct
+    result.candidates = generate_instinct_candidates(user_input, result.arbitration, activations);
+    
+    // Step 4: Blend or select candidate outputs
+    std::string final_output = blend_candidate_outputs(result.candidates, result.arbitration);
+    
+    // Step 5: Build meta-trace
+    std::ostringstream trace;
+    trace << "[Meta-Reasoning Loop]\n";
+    trace << "Emotional Grounding: " << (result.emotional_grounding.has_grounding_signal ? "Yes" : "No");
+    if (result.emotional_grounding.has_grounding_signal) {
+        trace << " (" << result.emotional_grounding.grounding_type << ": " 
+              << result.emotional_grounding.grounding_evidence << ")";
+    }
+    trace << "\n";
+    trace << "Instinct Arbitration: " << result.arbitration.arbitration_reasoning << "\n";
+    trace << "Candidates Generated: " << result.candidates.size() << "\n";
+    trace << "Final Blend Reasoning: " << result.final_blend_reasoning << "\n";
+    trace << "Meta Confidence: " << std::fixed << std::setprecision(2) << result.meta_confidence * 100 << "%";
+    
+    result.meta_trace = trace.str();
+    
+    // Step 6: Store meta-decision in binary memory
+    result.meta_decision_node_id = store_meta_decision(result);
+    
+    return result;
+}
+
+InstinctArbitration CognitiveProcessor::arbitrate_instincts(const InstinctForces& forces, const Context& ctx) {
+    InstinctArbitration arbitration;
+    
+    // Collect proposals from each instinct
+    std::vector<InstinctProposal> proposals = collect_instinct_proposals(forces, ctx);
+    arbitration.proposals = proposals;
+    
+    // Analyze relative pressures and make arbitration decisions
+    std::ostringstream reasoning;
+    reasoning << "Instinct Council Arbitration:\n";
+    
+    // Find dominant instincts (top 2)
+    std::vector<std::pair<std::string, double>> instinct_strengths = {
+        {"curiosity", forces.curiosity},
+        {"efficiency", forces.efficiency},
+        {"social", forces.social},
+        {"consistency", forces.consistency},
+        {"survival", forces.survival}
+    };
+    
+    std::sort(instinct_strengths.begin(), instinct_strengths.end(),
+              [](const auto& a, const auto& b) { return a.second > b.second; });
+    
+    std::string dominant = instinct_strengths[0].first;
+    std::string secondary = instinct_strengths[1].first;
+    
+    reasoning << "Dominant: " << dominant << " (" << std::fixed << std::setprecision(2) 
+              << instinct_strengths[0].second * 100 << "%)\n";
+    reasoning << "Secondary: " << secondary << " (" << std::fixed << std::setprecision(2) 
+              << instinct_strengths[1].second * 100 << "%)\n";
+    
+    // Arbitration logic based on context and force interactions
+    if (dominant == "social" && forces.survival > 0.3) {
+        // High social + some survival = empathetic but cautious
+        arbitration.amplifications = {"social"};
+        arbitration.suppressions = {"curiosity"}; // Don't ask research questions
+        arbitration.blends = {"social", "survival"};
+        reasoning << "Decision: Amplify social empathy, suppress curiosity, blend with survival caution.\n";
+        reasoning << "Reasoning: User needs emotional support but situation requires caution.";
+        
+    } else if (dominant == "curiosity" && forces.survival > 0.4) {
+        // High curiosity but survival risk = dampen curiosity
+        arbitration.amplifications = {"survival"};
+        arbitration.suppressions = {"curiosity"};
+        arbitration.blends = {"curiosity", "survival"};
+        reasoning << "Decision: Suppress curiosity, amplify survival, blend cautiously.\n";
+        reasoning << "Reasoning: Curiosity is high but survival risk requires caution.";
+        
+    } else if (dominant == "efficiency" && forces.social > 0.5) {
+        // High efficiency but user needs empathy = blend both
+        arbitration.amplifications = {};
+        arbitration.suppressions = {};
+        arbitration.blends = {"efficiency", "social"};
+        reasoning << "Decision: Blend efficiency with social empathy.\n";
+        reasoning << "Reasoning: User needs both directness and emotional support.";
+        
+    } else {
+        // Default: amplify dominant, blend with secondary
+        arbitration.amplifications = {dominant};
+        arbitration.suppressions = {};
+        arbitration.blends = {dominant, secondary};
+        reasoning << "Decision: Amplify " << dominant << ", blend with " << secondary << ".\n";
+        reasoning << "Reasoning: Standard arbitration based on force dominance.";
+    }
+    
+    arbitration.arbitration_reasoning = reasoning.str();
+    
+    // Adjust forces based on arbitration
+    arbitration.adjusted_forces = forces;
+    
+    // Apply amplifications
+    for (const auto& instinct : arbitration.amplifications) {
+        if (instinct == "curiosity") arbitration.adjusted_forces.curiosity *= 1.3;
+        else if (instinct == "efficiency") arbitration.adjusted_forces.efficiency *= 1.3;
+        else if (instinct == "social") arbitration.adjusted_forces.social *= 1.3;
+        else if (instinct == "consistency") arbitration.adjusted_forces.consistency *= 1.3;
+        else if (instinct == "survival") arbitration.adjusted_forces.survival *= 1.3;
+    }
+    
+    // Apply suppressions
+    for (const auto& instinct : arbitration.suppressions) {
+        if (instinct == "curiosity") arbitration.adjusted_forces.curiosity *= 0.7;
+        else if (instinct == "efficiency") arbitration.adjusted_forces.efficiency *= 0.7;
+        else if (instinct == "social") arbitration.adjusted_forces.social *= 0.7;
+        else if (instinct == "consistency") arbitration.adjusted_forces.consistency *= 0.7;
+        else if (instinct == "survival") arbitration.adjusted_forces.survival *= 0.7;
+    }
+    
+    // Renormalize
+    arbitration.adjusted_forces.normalize();
+    
+    return arbitration;
+}
+
+std::vector<InstinctProposal> CognitiveProcessor::collect_instinct_proposals(const InstinctForces& forces, const Context& ctx) {
+    std::vector<InstinctProposal> proposals;
+    
+    // Curiosity proposal
+    if (forces.curiosity > 0.2) {
+        InstinctProposal curiosity_prop("curiosity", forces.curiosity, 
+            "Add new information, ask follow-up questions, suggest research",
+            "User input suggests knowledge gaps that curiosity can address",
+            forces.curiosity);
+        proposals.push_back(curiosity_prop);
+    }
+    
+    // Efficiency proposal
+    if (forces.efficiency > 0.2) {
+        InstinctProposal efficiency_prop("efficiency", forces.efficiency,
+            "Keep answers short, precise, avoid tangents",
+            "Resource usage and complexity suggest need for efficiency",
+            forces.efficiency);
+        proposals.push_back(efficiency_prop);
+    }
+    
+    // Social proposal
+    if (forces.social > 0.2) {
+        InstinctProposal social_prop("social", forces.social,
+            "Add empathy, warmth, emotional support",
+            "User emotion score indicates need for social connection",
+            forces.social);
+        proposals.push_back(social_prop);
+    }
+    
+    // Consistency proposal
+    if (forces.consistency > 0.2) {
+        InstinctProposal consistency_prop("consistency", forces.consistency,
+            "Connect to past knowledge, maintain logical coherence",
+            "Memory conflicts or need for alignment with previous responses",
+            forces.consistency);
+        proposals.push_back(consistency_prop);
+    }
+    
+    // Survival proposal
+    if (forces.survival > 0.2) {
+        InstinctProposal survival_prop("survival", forces.survival,
+            "Flag risks, add caution, avoid dangerous claims",
+            "System risk or potential harm requires protective response",
+            forces.survival);
+        proposals.push_back(survival_prop);
+    }
+    
+    return proposals;
+}
+
+std::vector<CandidateOutput> CognitiveProcessor::generate_instinct_candidates(const std::string& user_input, 
+                                                                            const InstinctArbitration& arbitration,
+                                                                            const std::vector<ActivationNode>& activations) {
+    std::vector<CandidateOutput> candidates;
+    
+    // Generate candidate for each instinct that's being amplified or blended
+    std::set<std::string> active_instincts;
+    active_instincts.insert(arbitration.amplifications.begin(), arbitration.amplifications.end());
+    active_instincts.insert(arbitration.blends.begin(), arbitration.blends.end());
+    
+    for (const auto& instinct : active_instincts) {
+        CandidateOutput candidate;
+        candidate.instinct_source = instinct;
+        candidate.instinct_weight = 0.0f;
+        
+        // Set weight based on adjusted forces
+        if (instinct == "curiosity") candidate.instinct_weight = arbitration.adjusted_forces.curiosity;
+        else if (instinct == "efficiency") candidate.instinct_weight = arbitration.adjusted_forces.efficiency;
+        else if (instinct == "social") candidate.instinct_weight = arbitration.adjusted_forces.social;
+        else if (instinct == "consistency") candidate.instinct_weight = arbitration.adjusted_forces.consistency;
+        else if (instinct == "survival") candidate.instinct_weight = arbitration.adjusted_forces.survival;
+        
+        // Generate candidate text based on instinct
+        if (instinct == "curiosity") {
+            candidate.candidate_text = "That's an interesting question! I'd love to explore this further. ";
+            candidate.candidate_text += "Would you like me to look into related concepts or research this topic more deeply?";
+            candidate.reasoning = "Curiosity-driven: explore ideas, ask follow-ups, suggest research";
+            
+        } else if (instinct == "efficiency") {
+            candidate.candidate_text = "Here's the key information: ";
+            // Add some basic response based on input
+            candidate.candidate_text += "Based on your question, here are the essential points.";
+            candidate.reasoning = "Efficiency-driven: concise answers, avoid tangents";
+            
+        } else if (instinct == "social") {
+            candidate.candidate_text = "I understand this might be important to you. ";
+            candidate.candidate_text += "Let me help you with this. How can I best support you?";
+            candidate.reasoning = "Social-driven: empathetic phrasing, mirror user's emotions";
+            
+        } else if (instinct == "consistency") {
+            candidate.candidate_text = "Building on our previous discussions, ";
+            candidate.candidate_text += "this aligns with the patterns we've established.";
+            candidate.reasoning = "Consistency-driven: reference past conversations, align style";
+            
+        } else if (instinct == "survival") {
+            candidate.candidate_text = "I want to be careful and accurate here. ";
+            candidate.candidate_text += "I'd recommend being cautious and verifying this information.";
+            candidate.reasoning = "Survival-driven: safe fallback, avoid risky claims";
+        }
+        
+        // Add supporting nodes
+        for (const auto& activation : activations) {
+            candidate.supporting_nodes.push_back(activation.node_id);
+        }
+        
+        candidates.push_back(candidate);
+    }
+    
+    return candidates;
+}
+
+std::string CognitiveProcessor::blend_candidate_outputs(const std::vector<CandidateOutput>& candidates, 
+                                                       const InstinctArbitration& arbitration) {
+    if (candidates.empty()) {
+        return "I don't have enough information to respond.";
+    }
+    
+    if (candidates.size() == 1) {
+        return candidates[0].candidate_text;
+    }
+    
+    // Sort candidates by weight
+    std::vector<CandidateOutput> sorted_candidates = candidates;
+    std::sort(sorted_candidates.begin(), sorted_candidates.end(),
+              [](const CandidateOutput& a, const CandidateOutput& b) {
+                  return a.instinct_weight > b.instinct_weight;
+              });
+    
+    // Blend top candidates
+    std::ostringstream blended;
+    
+    // Primary instinct (highest weight)
+    blended << sorted_candidates[0].candidate_text;
+    
+    // Add secondary instinct if it's being blended
+    if (sorted_candidates.size() > 1 && 
+        std::find(arbitration.blends.begin(), arbitration.blends.end(), sorted_candidates[1].instinct_source) 
+        != arbitration.blends.end()) {
+        
+        blended << " ";
+        
+        // Blend based on instinct combination
+        if (sorted_candidates[0].instinct_source == "social" && sorted_candidates[1].instinct_source == "survival") {
+            blended << "If you'd like, I can also share research about treatment options.";
+        } else if (sorted_candidates[0].instinct_source == "curiosity" && sorted_candidates[1].instinct_source == "survival") {
+            blended << "However, I'd recommend being cautious and verifying this information.";
+        } else if (sorted_candidates[0].instinct_source == "efficiency" && sorted_candidates[1].instinct_source == "social") {
+            blended << "I'm here to help if you need more detailed information.";
+        } else {
+            blended << sorted_candidates[1].candidate_text;
+        }
+    }
+    
+    return blended.str();
+}
+
+EmotionalGrounding CognitiveProcessor::assess_emotional_grounding(const std::string& user_input, const Context& ctx) {
+    EmotionalGrounding grounding;
+    
+    std::string lower_input = user_input;
+    std::transform(lower_input.begin(), lower_input.end(), lower_input.begin(), ::tolower);
+    
+    // Check for emotional keywords
+    std::vector<std::string> emotional_keywords = {
+        "sick", "lost", "help", "hurt", "pain", "sad", "angry", "worried", "scared",
+        "cancer", "death", "dying", "emergency", "urgent", "crisis", "problem"
+    };
+    
+    for (const auto& keyword : emotional_keywords) {
+        if (lower_input.find(keyword) != std::string::npos) {
+            grounding.has_grounding_signal = true;
+            grounding.grounding_type = "keyword";
+            grounding.grounding_evidence = "Found emotional keyword: " + keyword;
+            grounding.emotional_intensity = 0.8f;
+            grounding.emotional_tag = "emotional_support_needed";
+            break;
+        }
+    }
+    
+    // Check for inferred intent (question framing)
+    if (!grounding.has_grounding_signal) {
+        if (lower_input.find("what do you do if") != std::string::npos ||
+            lower_input.find("how do you handle") != std::string::npos ||
+            lower_input.find("what happens when") != std::string::npos) {
+            grounding.has_grounding_signal = true;
+            grounding.grounding_type = "inferred_intent";
+            grounding.grounding_evidence = "Question framing suggests personal concern";
+            grounding.emotional_intensity = 0.6f;
+            grounding.emotional_tag = "concern_detected";
+        }
+    }
+    
+    // Check user emotion score from context
+    if (!grounding.has_grounding_signal && ctx.user_emotion_score > 0.5f) {
+        grounding.has_grounding_signal = true;
+        grounding.grounding_type = "context_emotion";
+        grounding.grounding_evidence = "High user emotion score detected";
+        grounding.emotional_intensity = ctx.user_emotion_score;
+        grounding.emotional_tag = "emotional_context";
+    }
+    
+    return grounding;
+}
+
+uint64_t CognitiveProcessor::store_meta_decision(const MetaReasoningResult& result) {
+    // Create a meta-decision node
+    std::ostringstream meta_content;
+    meta_content << "Meta-reasoning decision at " << result.meta_trace;
+    
+    std::vector<uint8_t> content_bytes(meta_content.str().begin(), meta_content.str().end());
+    
+    // Store with special content type for meta-decisions
+    uint64_t node_id = binary_storage->store_node(content_bytes, ContentType::METADATA);
+    
+    return node_id;
 }
