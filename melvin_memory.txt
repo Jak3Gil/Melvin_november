@@ -1,0 +1,20 @@
+Nodes: 17
+Connections: 13
+Session: Status Demo
+Node 1: hello (type: TEXT, accesses: 0)
+Node 2: melvin (type: TEXT, accesses: 0)
+Node 3: hello melvin (type: INPUT, accesses: 0)
+Node 4: tell (type: TEXT, accesses: 0)
+Node 5: about (type: TEXT, accesses: 0)
+Node 6: cancer (type: TEXT, accesses: 0)
+Node 7: tell me about cancer (type: INPUT, accesses: 0)
+Node 8: what (type: TEXT, accesses: 0)
+Node 9: artificial (type: TEXT, accesses: 0)
+Node 10: intelligence (type: TEXT, accesses: 0)
+Node 11: what is artificial intelligence? (type: INPUT, accesses: 0)
+Node 12: how (type: TEXT, accesses: 0)
+Node 13: does (type: TEXT, accesses: 0)
+Node 14: space (type: TEXT, accesses: 0)
+Node 15: exploration (type: TEXT, accesses: 0)
+Node 16: work (type: TEXT, accesses: 0)
+Node 17: how does space exploration work? (type: INPUT, accesses: 0)

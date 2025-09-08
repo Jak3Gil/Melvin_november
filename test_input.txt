@@ -1,0 +1,4 @@
+hello
+search for cats
+diag
+quit

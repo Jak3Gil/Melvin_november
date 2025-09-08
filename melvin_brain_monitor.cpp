@@ -47,9 +47,18 @@ struct BrainStats {
     uint64_t uptime_seconds;
     uint64_t start_time;
     
+    // Cognitive processing stats
+    uint64_t cognitive_processing_events;
+    uint64_t activation_clusters_formed;
+    uint64_t interpretation_clusters_created;
+    uint64_t candidate_responses_generated;
+    uint64_t context_bias_applications;
+    
     BrainStats() : total_nodes(0), total_connections(0), hebbian_events(0),
                    pruning_events(0), storage_bytes(0), storage_mb(0.0),
-                   uptime_seconds(0), start_time(0) {}
+                   uptime_seconds(0), start_time(0), cognitive_processing_events(0),
+                   activation_clusters_formed(0), interpretation_clusters_created(0),
+                   candidate_responses_generated(0), context_bias_applications(0) {}
 };
 
 class MelvinBrainMonitor {
@@ -162,6 +171,39 @@ public:
         log_activity(node_id, "NODE_PRUNED", "Node pruned due to low importance");
     }
     
+    // Cognitive processing event logging
+    void log_cognitive_processing_event(const std::string& input_text, uint64_t activated_nodes_count) {
+        uint64_t current_time = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::seconds>(
+            std::chrono::system_clock::now().time_since_epoch()).count());
+        
+        std::string details = "Processed input: " + input_text.substr(0, 30) + 
+                             "... (" + std::to_string(activated_nodes_count) + " nodes activated)";
+        log_activity(0, "COGNITIVE_PROCESSING", details, activated_nodes_count);
+    }
+    
+    void log_activation_cluster_formation(uint64_t cluster_size) {
+        log_activity(0, "ACTIVATION_CLUSTER", "Formed activation cluster with " + 
+                     std::to_string(cluster_size) + " nodes", cluster_size);
+    }
+    
+    void log_interpretation_cluster_creation(uint64_t cluster_id, float confidence) {
+        log_activity(cluster_id, "INTERPRETATION_CLUSTER", 
+                     "Created interpretation cluster with confidence " + std::to_string(confidence), 
+                     confidence);
+    }
+    
+    void log_candidate_response_generation(uint64_t response_id, float confidence) {
+        log_activity(response_id, "CANDIDATE_RESPONSE", 
+                     "Generated candidate response with confidence " + std::to_string(confidence), 
+                     confidence);
+    }
+    
+    void log_context_bias_application(uint64_t node_id, float bias_strength) {
+        log_activity(node_id, "CONTEXT_BIAS", 
+                     "Applied context bias with strength " + std::to_string(bias_strength), 
+                     bias_strength);
+    }
+    
     BrainStats get_current_stats() {
         BrainStats stats;
         
@@ -176,6 +218,27 @@ public:
         stats.pruning_events = pruning_events.size();
         stats.uptime_seconds = state.system.uptime_seconds;
         stats.start_time = monitor_start_time;
+        
+        // Count cognitive processing events from activity log
+        stats.cognitive_processing_events = 0;
+        stats.activation_clusters_formed = 0;
+        stats.interpretation_clusters_created = 0;
+        stats.candidate_responses_generated = 0;
+        stats.context_bias_applications = 0;
+        
+        for (const auto& activity : activity_log) {
+            if (activity.activity_type == "COGNITIVE_PROCESSING") {
+                stats.cognitive_processing_events++;
+            } else if (activity.activity_type == "ACTIVATION_CLUSTER") {
+                stats.activation_clusters_formed++;
+            } else if (activity.activity_type == "INTERPRETATION_CLUSTER") {
+                stats.interpretation_clusters_created++;
+            } else if (activity.activity_type == "CANDIDATE_RESPONSE") {
+                stats.candidate_responses_generated++;
+            } else if (activity.activity_type == "CONTEXT_BIAS") {
+                stats.context_bias_applications++;
+            }
+        }
         
         return stats;
     }
@@ -201,7 +264,12 @@ public:
         file << "    \"hebbian_events\": " << stats.hebbian_events << ",\n";
         file << "    \"pruning_events\": " << stats.pruning_events << ",\n";
         file << "    \"storage_bytes\": " << stats.storage_bytes << ",\n";
-        file << "    \"storage_mb\": " << std::fixed << std::setprecision(2) << stats.storage_mb << "\n";
+        file << "    \"storage_mb\": " << std::fixed << std::setprecision(2) << stats.storage_mb << ",\n";
+        file << "    \"cognitive_processing_events\": " << stats.cognitive_processing_events << ",\n";
+        file << "    \"activation_clusters_formed\": " << stats.activation_clusters_formed << ",\n";
+        file << "    \"interpretation_clusters_created\": " << stats.interpretation_clusters_created << ",\n";
+        file << "    \"candidate_responses_generated\": " << stats.candidate_responses_generated << ",\n";
+        file << "    \"context_bias_applications\": " << stats.context_bias_applications << "\n";
         file << "  },\n";
         file << "  \"recent_activity\": [\n";
         
@@ -238,6 +306,12 @@ public:
         std::cout << "💾 Storage: " << std::fixed << std::setprecision(2) << stats.storage_mb << " MB" << std::endl;
         std::cout << "⏱️ Uptime: " << format_duration(stats.uptime_seconds) << std::endl;
         std::cout << "📈 Activity Log Entries: " << activity_log.size() << std::endl;
+        std::cout << "\n🧠 Cognitive Processing Stats:" << std::endl;
+        std::cout << "🔍 Cognitive Events: " << stats.cognitive_processing_events << std::endl;
+        std::cout << "🎯 Activation Clusters: " << stats.activation_clusters_formed << std::endl;
+        std::cout << "💭 Interpretation Clusters: " << stats.interpretation_clusters_created << std::endl;
+        std::cout << "💬 Candidate Responses: " << stats.candidate_responses_generated << std::endl;
+        std::cout << "🎛️ Context Bias Applications: " << stats.context_bias_applications << std::endl;
         std::cout << "=====================" << std::endl;
     }
     
@@ -325,6 +399,20 @@ int main() {
         // Simulate some connections
         monitor.log_connection_formation(text_id, code_id);
         monitor.log_hebbian_event(text_id, code_id);
+        
+        // Simulate cognitive processing
+        std::cout << "🧠 Simulating cognitive processing..." << std::endl;
+        std::string cognitive_input = "How does machine learning work?";
+        auto cognitive_result = melvin->process_cognitive_input(cognitive_input);
+        
+        monitor.log_cognitive_processing_event(cognitive_input, cognitive_result.activated_nodes.size());
+        monitor.log_activation_cluster_formation(cognitive_result.activated_nodes.size());
+        
+        for (size_t i = 0; i < cognitive_result.clusters.size(); ++i) {
+            monitor.log_interpretation_cluster_creation(i, cognitive_result.clusters[i].confidence);
+        }
+        
+        monitor.log_candidate_response_generation(0, cognitive_result.confidence);
         
         // Let monitoring run for a bit
         std::this_thread::sleep_for(std::chrono::seconds(5));

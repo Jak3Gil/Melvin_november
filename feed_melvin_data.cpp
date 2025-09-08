@@ -158,6 +158,11 @@ public:
         monitor->log_node_creation(node_id);
         total_fed++;
         
+        // Process through cognitive pipeline
+        auto cognitive_result = melvin->process_cognitive_input(text);
+        std::cout << "🧠 Cognitive processing: " << cognitive_result.confidence 
+                  << " confidence, " << cognitive_result.clusters.size() << " clusters" << std::endl;
+        
         std::cout << "📝 Fed text: " << text.substr(0, 50) << "... -> " << std::hex << node_id << std::endl;
     }
     
@@ -268,11 +273,17 @@ public:
         
         std::vector<uint64_t> node_ids;
         
-        // Feed all samples
+        // Feed all samples with cognitive processing
         for (const auto& sample : related_samples) {
             uint64_t node_id = melvin->process_text_input(sample, "hebbian_demo");
             node_ids.push_back(node_id);
             monitor->log_node_creation(node_id);
+            
+            // Process through cognitive pipeline
+            auto cognitive_result = melvin->process_cognitive_input(sample);
+            std::cout << "🧠 Cognitive analysis: " << cognitive_result.clusters.size() 
+                      << " clusters, confidence: " << cognitive_result.confidence << std::endl;
+            
             std::this_thread::sleep_for(std::chrono::milliseconds(200));
         }
         
@@ -301,10 +312,11 @@ public:
             std::cout << "5. Feed related concepts" << std::endl;
             std::cout << "6. Feed random samples" << std::endl;
             std::cout << "7. Demonstrate Hebbian learning" << std::endl;
-            std::cout << "8. Show brain stats" << std::endl;
-            std::cout << "9. Save brain report" << std::endl;
+            std::cout << "8. Test cognitive processing" << std::endl;
+            std::cout << "9. Show brain stats" << std::endl;
+            std::cout << "10. Save brain report" << std::endl;
             std::cout << "0. Exit" << std::endl;
-            std::cout << "\nEnter your choice (0-9): ";
+            std::cout << "\nEnter your choice (0-10): ";
             
             std::getline(std::cin, input);
             
@@ -363,11 +375,19 @@ public:
             } else if (input == "7") {
                 demonstrate_hebbian_learning();
             } else if (input == "8") {
-                monitor->print_real_time_stats();
+                std::cout << "Enter text for cognitive processing: ";
+                std::string cognitive_input;
+                std::getline(std::cin, cognitive_input);
+                if (!cognitive_input.empty()) {
+                    std::string cognitive_response = melvin->generate_intelligent_response(cognitive_input);
+                    std::cout << "\n🤖 Cognitive Response:\n" << cognitive_response << std::endl;
+                }
             } else if (input == "9") {
+                monitor->print_real_time_stats();
+            } else if (input == "10") {
                 monitor->save_activity_report();
             } else {
-                std::cout << "❌ Invalid choice. Please enter 0-9." << std::endl;
+                std::cout << "❌ Invalid choice. Please enter 0-10." << std::endl;
             }
         }
         
