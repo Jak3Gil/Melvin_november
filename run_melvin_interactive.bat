@@ -6,7 +6,7 @@ echo I have integrated systems for:
 echo - Curiosity Gap Detection
 echo - Dynamic Tools System  
 echo - Meta-Tool Engineer
-echo - Temporal Planning & Sequencing
+echo - Temporal Planning and Sequencing
 echo - Web Search Capabilities
 echo.
 echo Type 'quit' to exit, 'status' for system info, 'help' for commands.

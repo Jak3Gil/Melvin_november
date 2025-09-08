@@ -1,86 +1,72 @@
 cmake_minimum_required(VERSION 3.16)
-project(MelvinOptimizedV2)
+project(MelvinUnifiedBrain)
 
-# Set C++ standard
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Enable optimizations
-set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=native -ffast-math -DNDEBUG")
-set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g -Wall -Wextra")
-
 # Find required packages
-find_package(PkgConfig REQUIRED)
-
-# Find compression libraries
-pkg_check_modules(ZLIB REQUIRED zlib)
-pkg_check_modules(LZMA REQUIRED liblzma)
-pkg_check_modules(ZSTD REQUIRED libzstd)
+find_package(CURL REQUIRED)
+find_package(nlohmann_json REQUIRED)
 
 # Include directories
-include_directories(${ZLIB_INCLUDE_DIRS})
-include_directories(${LZMA_INCLUDE_DIRS})
-include_directories(${ZSTD_INCLUDE_DIRS})
+include_directories(${CMAKE_CURRENT_SOURCE_DIR})
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src)
 
-# Create executables
-add_executable(melvin_optimized_v2_cpp melvin_optimized_v2.cpp)
-add_executable(melvin_brain_monitor_cpp melvin_brain_monitor.cpp)
-add_executable(feed_melvin_data_cpp feed_melvin_data.cpp)
+# Source files for main executable
+set(MAIN_SOURCES
+    src/main.cpp
+    src/logging.cpp
+    src/websearch_fallback.cpp
+)
+
+# Create main executable
+add_executable(melvin_unified ${MAIN_SOURCES})
 
 # Link libraries
-target_link_libraries(melvin_optimized_v2_cpp 
-    ${ZLIB_LIBRARIES}
-    ${LZMA_LIBRARIES}
-    ${ZSTD_LIBRARIES}
-    pthread
+target_link_libraries(melvin_unified 
+    CURL::libcurl
+    nlohmann_json::nlohmann_json
 )
 
-target_link_libraries(melvin_brain_monitor_cpp 
-    ${ZLIB_LIBRARIES}
-    ${LZMA_LIBRARIES}
-    ${ZSTD_LIBRARIES}
-    pthread
+# Test executable
+add_executable(test_startup tests/test_startup.cpp src/logging.cpp src/websearch_fallback.cpp)
+target_link_libraries(test_startup 
+    CURL::libcurl
+    nlohmann_json::nlohmann_json
 )
 
-target_link_libraries(feed_melvin_data_cpp 
-    ${ZLIB_LIBRARIES}
-    ${LZMA_LIBRARIES}
-    ${ZSTD_LIBRARIES}
-    pthread
+# Compiler flags
+target_compile_options(melvin_unified PRIVATE
+    -Wall
+    -Wextra
+    -O3
 )
 
-# Set compiler flags
-target_compile_options(melvin_optimized_v2_cpp PRIVATE
-    ${ZLIB_CFLAGS_OTHER}
-    ${LZMA_CFLAGS_OTHER}
-    ${ZSTD_CFLAGS_OTHER}
+target_compile_options(test_startup PRIVATE
+    -Wall
+    -Wextra
+    -O3
 )
 
-target_compile_options(melvin_brain_monitor_cpp PRIVATE
-    ${ZLIB_CFLAGS_OTHER}
-    ${LZMA_CFLAGS_OTHER}
-    ${ZSTD_CFLAGS_OTHER}
-)
+# Set output name
+set_target_properties(melvin_unified PROPERTIES OUTPUT_NAME "melvin_unified")
 
-target_compile_options(feed_melvin_data_cpp PRIVATE
-    ${ZLIB_CFLAGS_OTHER}
-    ${LZMA_CFLAGS_OTHER}
-    ${ZSTD_CFLAGS_OTHER}
-)
-
-# Add custom target for installation
-install(TARGETS melvin_optimized_v2_cpp melvin_brain_monitor_cpp feed_melvin_data_cpp
-    RUNTIME DESTINATION bin
-)
-
-# Build script is already provided
-message(STATUS "Build script: build_melvin_cpp.sh")
+# Installation
+install(TARGETS melvin_unified DESTINATION bin)
 
 # Print configuration info
-message(STATUS "Melvin Optimized V2 C++ Configuration:")
+message(STATUS "Melvin Unified Brain Configuration:")
 message(STATUS "  C++ Standard: ${CMAKE_CXX_STANDARD}")
 message(STATUS "  Build Type: ${CMAKE_BUILD_TYPE}")
-message(STATUS "  ZLIB: ${ZLIB_VERSION}")
-message(STATUS "  LZMA: ${LZMA_VERSION}")
-message(STATUS "  ZSTD: ${ZSTD_VERSION}")
-message(STATUS "  Optimizations: -O3 -march=native -ffast-math")
+message(STATUS "  CURL Found: ${CURL_FOUND}")
+message(STATUS "  nlohmann/json Found: ${nlohmann_json_FOUND}")
+message(STATUS "  Install Prefix: ${CMAKE_INSTALL_PREFIX}")
+
+# Runtime dependency check
+if(NOT CURL_FOUND)
+    message(FATAL_ERROR "CURL library not found - required for web search functionality")
+endif()
+
+if(NOT nlohmann_json_FOUND)
+    message(FATAL_ERROR "nlohmann_json library not found - required for JSON parsing")
+endif()
