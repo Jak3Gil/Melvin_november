@@ -16,9 +16,16 @@
 #include <set>
 #include <optional>
 #include <filesystem>
+// Compression libraries - optional for testing
+#ifdef HAVE_ZLIB
 #include <zlib.h>
+#endif
+#ifdef HAVE_LZMA
 #include <lzma.h>
+#endif
+#ifdef HAVE_ZSTD
 #include <zstd.h>
+#endif
 
 // ============================================================================
 // CORE TYPES AND STRUCTURES
@@ -198,6 +205,78 @@ public:
 };
 
 // ============================================================================
+// INTELLIGENT CONNECTION TRAVERSAL SYSTEM
+// ============================================================================
+
+// Forward declaration
+class MelvinOptimizedV2;
+
+struct ConnectionPath {
+    std::vector<uint64_t> node_ids;
+    float relevance_score;
+    std::string path_description;
+};
+
+struct NodeSimilarity {
+    uint64_t node_id;
+    float similarity_score;
+    std::string content;
+    std::vector<std::string> keywords;
+};
+
+struct SynthesizedAnswer {
+    std::string answer;
+    float confidence;
+    std::vector<uint64_t> source_nodes;
+    std::string reasoning;
+};
+
+class IntelligentConnectionTraversal {
+private:
+    MelvinOptimizedV2* brain_ref;
+    
+public:
+    IntelligentConnectionTraversal(MelvinOptimizedV2* brain);
+    
+    // Core intelligent processing functions
+    std::vector<std::string> extract_keywords(const std::string& text);
+    std::vector<NodeSimilarity> find_relevant_nodes(const std::vector<std::string>& keywords);
+    std::vector<ConnectionPath> analyze_connection_paths(const std::vector<NodeSimilarity>& relevant_nodes);
+    SynthesizedAnswer synthesize_answer(const std::string& question, 
+                                       const std::vector<NodeSimilarity>& relevant_nodes,
+                                       const std::vector<ConnectionPath>& connection_paths);
+    void create_dynamic_nodes(const std::string& question, const SynthesizedAnswer& answer);
+    
+    // Enhanced synthesis functions
+    std::string analyze_question_type(const std::string& question);
+    std::vector<std::string> extract_knowledge_from_nodes(const std::vector<NodeSimilarity>& nodes);
+    SynthesizedAnswer synthesize_opinion_response(const std::string& question, 
+                                                  const std::vector<std::string>& knowledge,
+                                                  const std::vector<NodeSimilarity>& nodes);
+    SynthesizedAnswer synthesize_explanation_response(const std::string& question, 
+                                                       const std::vector<std::string>& knowledge,
+                                                       const std::vector<NodeSimilarity>& nodes);
+    SynthesizedAnswer synthesize_connection_response(const std::string& question, 
+                                                      const std::vector<std::string>& knowledge,
+                                                      const std::vector<NodeSimilarity>& nodes);
+    SynthesizedAnswer synthesize_comparison_response(const std::string& question, 
+                                                      const std::vector<std::string>& knowledge,
+                                                      const std::vector<NodeSimilarity>& nodes);
+    SynthesizedAnswer synthesize_solution_response(const std::string& question, 
+                                                   const std::vector<std::string>& knowledge,
+                                                   const std::vector<NodeSimilarity>& nodes);
+    SynthesizedAnswer synthesize_analysis_response(const std::string& question, 
+                                                   const std::vector<std::string>& knowledge,
+                                                   const std::vector<NodeSimilarity>& nodes);
+    SynthesizedAnswer synthesize_general_response(const std::string& question, 
+                                                   const std::vector<std::string>& knowledge,
+                                                   const std::vector<NodeSimilarity>& nodes);
+    
+    // Intelligent answering
+    SynthesizedAnswer answer_question_intelligently(const std::string& question);
+};
+
+// ============================================================================
 // OPTIMIZED MELVIN GLOBAL BRAIN
 // ============================================================================
 
@@ -218,7 +297,10 @@ private:
     static constexpr size_t MAX_ACTIVATIONS = 1000;
     static constexpr double COACTIVATION_WINDOW = 2.0; // seconds
     
-    // Statistics
+    // Intelligent connection traversal system
+    std::unique_ptr<IntelligentConnectionTraversal> intelligent_traversal;
+    
+    // Statistics structure
     struct BrainStats {
         uint64_t total_nodes;
         uint64_t total_connections;
@@ -227,16 +309,34 @@ private:
         uint64_t temporal_connections;
         uint64_t cross_modal_connections;
         uint64_t start_time;
-    } stats;
+        uint64_t intelligent_answers_generated;
+        uint64_t dynamic_nodes_created;
+    };
+    
+    // Statistics instance
+    BrainStats stats;
     
 public:
     MelvinOptimizedV2(const std::string& storage_path = "melvin_binary_memory");
     
+    // Core brain processing with intelligent capabilities
     uint64_t process_text_input(const std::string& text, const std::string& source = "user");
     uint64_t process_code_input(const std::string& code, const std::string& source = "python");
     void update_hebbian_learning(uint64_t node_id);
     std::string get_node_content(uint64_t node_id);
     
+    // Intelligent connection traversal and answering
+    SynthesizedAnswer answer_question_intelligently(const std::string& question);
+    std::vector<std::string> extract_keywords(const std::string& text);
+    std::vector<NodeSimilarity> find_relevant_nodes(const std::vector<std::string>& keywords);
+    std::vector<ConnectionPath> analyze_connection_paths(const std::vector<NodeSimilarity>& relevant_nodes);
+    void create_dynamic_nodes(const std::string& question, const SynthesizedAnswer& answer);
+    
+    // Statistics update methods
+    void increment_intelligent_answers() { stats.intelligent_answers_generated++; }
+    void increment_dynamic_nodes(uint64_t count = 1) { stats.dynamic_nodes_created += count; }
+    
+    // Enhanced brain state with intelligent capabilities
     struct BrainState {
         struct GlobalMemory {
             uint64_t total_nodes;
@@ -249,6 +349,13 @@ public:
             bool running;
             uint64_t uptime_seconds;
         } system;
+        
+        struct IntelligentCapabilities {
+            uint64_t intelligent_answers_generated;
+            uint64_t dynamic_nodes_created;
+            bool connection_traversal_enabled;
+            bool dynamic_node_creation_enabled;
+        } intelligent_capabilities;
     };
     
     BrainState get_unified_state();
