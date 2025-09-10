@@ -4,69 +4,58 @@ project(MelvinUnifiedBrain)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Find required packages
-find_package(CURL REQUIRED)
-find_package(nlohmann_json REQUIRED)
+# Compiler optimizations
+set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=native -ffast-math -DNDEBUG")
+set(CMAKE_BUILD_TYPE Release)
+
+# Find required libraries
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(ZLIB REQUIRED zlib)
+pkg_check_modules(LZMA REQUIRED liblzma)
+pkg_check_modules(ZSTD REQUIRED libzstd)
 
 # Include directories
-include_directories(${CMAKE_CURRENT_SOURCE_DIR})
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src)
+include_directories(${ZLIB_INCLUDE_DIRS})
+include_directories(${LZMA_INCLUDE_DIRS})
+include_directories(${ZSTD_INCLUDE_DIRS})
 
-# Source files for main executable
-set(MAIN_SOURCES
-    src/main.cpp
-    src/logging.cpp
-    src/websearch_fallback.cpp
+# Core executables
+add_executable(melvin_autonomous_learning
+    melvin_autonomous_learning.cpp
+    melvin_driver_enhanced.cpp
 )
+target_link_libraries(melvin_autonomous_learning ${ZLIB_LIBRARIES} ${LZMA_LIBRARIES} ${ZSTD_LIBRARIES})
 
-# Create main executable
-add_executable(melvin_unified ${MAIN_SOURCES})
-
-# Link libraries
-target_link_libraries(melvin_unified 
-    CURL::libcurl
-    nlohmann_json::nlohmann_json
+add_executable(melvin_unified_brain
+    melvin_unified_brain.cpp
+    melvin_unified_system.cpp
 )
+target_link_libraries(melvin_unified_brain ${ZLIB_LIBRARIES} ${LZMA_LIBRARIES} ${ZSTD_LIBRARIES})
 
-# Test executable
-add_executable(test_startup tests/test_startup.cpp src/logging.cpp src/websearch_fallback.cpp)
-target_link_libraries(test_startup 
-    CURL::libcurl
-    nlohmann_json::nlohmann_json
+add_executable(melvin_optimized_v2
+    melvin_optimized_v2.cpp
 )
+target_link_libraries(melvin_optimized_v2 ${ZLIB_LIBRARIES} ${LZMA_LIBRARIES} ${ZSTD_LIBRARIES})
 
-# Compiler flags
-target_compile_options(melvin_unified PRIVATE
-    -Wall
-    -Wextra
-    -O3
+add_executable(melvin_cli
+    melvin_cli.cpp
+    melvin_optimized_v2.cpp
 )
+target_link_libraries(melvin_cli ${ZLIB_LIBRARIES} ${LZMA_LIBRARIES} ${ZSTD_LIBRARIES})
 
-target_compile_options(test_startup PRIVATE
-    -Wall
-    -Wextra
-    -O3
+add_executable(melvin_brain_monitor
+    melvin_brain_monitor.cpp
+    melvin_optimized_v2.cpp
 )
+target_link_libraries(melvin_brain_monitor ${ZLIB_LIBRARIES} ${LZMA_LIBRARIES} ${ZSTD_LIBRARIES})
 
-# Set output name
-set_target_properties(melvin_unified PROPERTIES OUTPUT_NAME "melvin_unified")
+add_executable(feed_melvin_data
+    feed_melvin_data.cpp
+    melvin_optimized_v2.cpp
+)
+target_link_libraries(feed_melvin_data ${ZLIB_LIBRARIES} ${LZMA_LIBRARIES} ${ZSTD_LIBRARIES})
 
-# Installation
-install(TARGETS melvin_unified DESTINATION bin)
-
-# Print configuration info
-message(STATUS "Melvin Unified Brain Configuration:")
-message(STATUS "  C++ Standard: ${CMAKE_CXX_STANDARD}")
-message(STATUS "  Build Type: ${CMAKE_BUILD_TYPE}")
-message(STATUS "  CURL Found: ${CURL_FOUND}")
-message(STATUS "  nlohmann/json Found: ${nlohmann_json_FOUND}")
-message(STATUS "  Install Prefix: ${CMAKE_INSTALL_PREFIX}")
-
-# Runtime dependency check
-if(NOT CURL_FOUND)
-    message(FATAL_ERROR "CURL library not found - required for web search functionality")
-endif()
-
-if(NOT nlohmann_json_FOUND)
-    message(FATAL_ERROR "nlohmann_json library not found - required for JSON parsing")
-endif()
+# Utility executables
+add_executable(check_melvin_status check_melvin_status.cpp)
+add_executable(melvin_cpp_interactive melvin_cpp_interactive.cpp)
+add_executable(melvin_work_analyzer melvin_work_analyzer.cpp)

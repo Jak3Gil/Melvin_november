@@ -17,9 +17,13 @@
 #include <optional>
 #include <filesystem>
 #include <queue>
-<<<<<<< HEAD
 #include <functional>
 #include <atomic>
+#include <sstream>
+#include <iomanip>
+#include <random>
+#include <ctime>
+#include <cstdlib>
 
 // ============================================================================
 // UNIFIED MELVIN BRAIN - CONTINUOUS THOUGHT CYCLE ARCHITECTURE
@@ -30,23 +34,14 @@
 // 3. Dynamic learning and node creation
 // 4. Meta-cognitive self-evaluation
 // 5. External interrupt handling
-=======
-#include <sstream>
-#include <iomanip>
-#include <random>
-#include <atomic>
-#include <ctime>
-#include <cstdlib>
-#include <zlib.h>
-#include <curl/curl.h>
-// Simple JSON-like structure for Ollama responses
+
+// Simple JSON-like structure for responses
 struct SimpleJson {
     std::string response;
     bool has_response;
     
     SimpleJson() : has_response(false) {}
 };
->>>>>>> d2fd9fccaf2aa76803b4cda65ac5530f1b186d02
 
 // ============================================================================
 // UNIFIED BRAIN CORE TYPES
