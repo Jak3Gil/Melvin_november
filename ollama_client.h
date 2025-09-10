@@ -64,7 +64,7 @@ class RateLimiter {
 private:
     std::chrono::steady_clock::time_point last_request_time;
     std::chrono::milliseconds min_interval;
-    std::mutex mutex_;
+    mutable std::mutex mutex_;
     
 public:
     RateLimiter(int requests_per_minute);
@@ -79,11 +79,11 @@ private:
     std::string base_url;
     std::string api_key;
     int timeout_seconds;
-    std::mutex curl_mutex_;
+    mutable std::mutex curl_mutex_;
     
     // Connection pooling
     std::queue<CURL*> connection_pool;
-    std::mutex pool_mutex_;
+    mutable std::mutex pool_mutex_;
     std::atomic<int> active_connections{0};
     int max_connections;
     
@@ -107,7 +107,7 @@ class AsyncRequestManager {
 private:
     std::queue<std::function<void()>> request_queue;
     std::vector<std::thread> worker_threads;
-    std::mutex queue_mutex_;
+    mutable std::mutex queue_mutex_;
     std::condition_variable queue_cv_;
     std::atomic<bool> shutdown_{false};
     std::atomic<int> active_requests{0};
