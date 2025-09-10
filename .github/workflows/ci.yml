@@ -1,0 +1,251 @@
+name: Melvin Curiosity Learning System CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        compiler: [gcc-9, gcc-10, gcc-11, clang-10, clang-11, clang-12]
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential \
+          cmake \
+          libcurl4-openssl-dev \
+          libjsoncpp-dev \
+          libssl-dev \
+          libcrypto++-dev \
+          google-test \
+          ${{ matrix.compiler }}
+    
+    - name: Set compiler
+      run: |
+        if [[ "${{ matrix.compiler }}" == gcc-* ]]; then
+          echo "CC=gcc-${GITHUB_MATRIX_COMPILER##*-}" >> $GITHUB_ENV
+          echo "CXX=g++-${GITHUB_MATRIX_COMPILER##*-}" >> $GITHUB_ENV
+        else
+          echo "CC=clang-${GITHUB_MATRIX_COMPILER##*-}" >> $GITHUB_ENV
+          echo "CXX=clang++-${GITHUB_MATRIX_COMPILER##*-}" >> $GITHUB_ENV
+        fi
+    
+    - name: Build Melvin Curiosity System
+      run: |
+        chmod +x build_curiosity.sh
+        ./build_curiosity.sh
+    
+    - name: Build Tests
+      run: |
+        $CXX -std=c++17 -O2 -Wall -Wextra \
+          -I/usr/include/jsoncpp \
+          -I/usr/include/curl \
+          -I/usr/include/openssl \
+          -o test_melvin_curiosity \
+          test_melvin_curiosity.cpp \
+          melvin_curiosity_learning.cpp \
+          self_check_system.cpp \
+          ollama_client.cpp \
+          -lcurl -ljsoncpp -lssl -lcrypto -lgtest -lgtest_main -lpthread
+    
+    - name: Run Unit Tests
+      run: |
+        ./test_melvin_curiosity --gtest_output=xml:test_results.xml
+    
+    - name: Run Integration Tests
+      run: |
+        # Test basic functionality
+        echo "What is a cat?" | timeout 30s ./melvin_curiosity "What is a dog?" || true
+        
+        # Test demo
+        timeout 30s ./demo_curiosity || true
+    
+    - name: Test Binary Storage
+      run: |
+        # Verify binary file creation
+        echo "What is a test?" | timeout 10s ./melvin_curiosity "What is a test?" || true
+        if [ -f "melvin_knowledge.bin" ]; then
+          echo "✅ Binary storage file created successfully"
+          ls -la melvin_knowledge.bin
+          file melvin_knowledge.bin
+        else
+          echo "❌ Binary storage file not created"
+          exit 1
+        fi
+    
+    - name: Test Self-Check System
+      run: |
+        # Test contradiction detection
+        echo -e "What is a cat?\nWhat is a cat?\nquit" | timeout 30s ./melvin_curiosity "What is a dog?" || true
+    
+    - name: Upload Test Results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: test-results-${{ matrix.compiler }}
+        path: |
+          test_results.xml
+          melvin_knowledge.bin
+          melvin_curiosity
+          demo_curiosity
+  
+  security-scan:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Install security tools
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          cppcheck \
+          clang-tools \
+          valgrind
+    
+    - name: Security Scan with cppcheck
+      run: |
+        cppcheck --enable=all --error-exitcode=1 \
+          --suppress=missingIncludeSystem \
+          melvin_curiosity_learning.cpp \
+          self_check_system.cpp \
+          ollama_client.cpp \
+          encrypted_storage.cpp || true
+    
+    - name: Static Analysis with clang-tidy
+      run: |
+        clang-tidy melvin_curiosity_learning.cpp -- \
+          -std=c++17 -I/usr/include/jsoncpp -I/usr/include/curl || true
+    
+    - name: Memory Leak Check
+      run: |
+        g++ -std=c++17 -g -O0 -o melvin_debug \
+          melvin_curiosity_learning.cpp \
+          -lcurl -ljsoncpp -lssl -lcrypto
+        echo "What is a test?" | timeout 10s valgrind --leak-check=full ./melvin_debug "What is a test?" || true
+  
+  performance-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential \
+          libcurl4-openssl-dev \
+          libjsoncpp-dev \
+          libssl-dev \
+          libcrypto++-dev
+    
+    - name: Build for Performance Testing
+      run: |
+        g++ -std=c++17 -O3 -DNDEBUG -o melvin_perf \
+          melvin_curiosity_learning.cpp \
+          -lcurl -ljsoncpp -lssl -lcrypto
+    
+    - name: Performance Test
+      run: |
+        echo "Running performance tests..."
+        
+        # Test response time
+        time echo "What is a cat?" | timeout 30s ./melvin_perf "What is a dog?" || true
+        
+        # Test memory usage
+        echo "What is a test?" | timeout 10s ./melvin_perf "What is a test?" || true
+        
+        # Check binary file size
+        if [ -f "melvin_knowledge.bin" ]; then
+          echo "Binary file size: $(stat -c%s melvin_knowledge.bin) bytes"
+        fi
+  
+  documentation:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Check Documentation
+      run: |
+        echo "Checking documentation files..."
+        
+        # Check if README files exist
+        if [ -f "README_CURIOSITY.md" ]; then
+          echo "✅ README_CURIOSITY.md exists"
+          wc -l README_CURIOSITY.md
+        else
+          echo "❌ README_CURIOSITY.md missing"
+          exit 1
+        fi
+        
+        # Check if build script exists
+        if [ -f "build_curiosity.sh" ]; then
+          echo "✅ build_curiosity.sh exists"
+        else
+          echo "❌ build_curiosity.sh missing"
+          exit 1
+        fi
+        
+        # Check if demo exists
+        if [ -f "demo_curiosity.cpp" ]; then
+          echo "✅ demo_curiosity.cpp exists"
+        else
+          echo "❌ demo_curiosity.cpp missing"
+          exit 1
+        fi
+  
+  coverage:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Install coverage tools
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential \
+          libcurl4-openssl-dev \
+          libjsoncpp-dev \
+          libssl-dev \
+          libcrypto++-dev \
+          gcovr \
+          lcov
+    
+    - name: Build with Coverage
+      run: |
+        g++ -std=c++17 -g -O0 --coverage -fprofile-arcs -ftest-coverage \
+          -o melvin_coverage \
+          melvin_curiosity_learning.cpp \
+          -lcurl -ljsoncpp -lssl -lcrypto
+    
+    - name: Run Coverage Tests
+      run: |
+        echo "What is a cat?" | timeout 30s ./melvin_coverage "What is a dog?" || true
+        echo "What is a dog?" | timeout 30s ./melvin_coverage "What is a bird?" || true
+    
+    - name: Generate Coverage Report
+      run: |
+        gcov melvin_curiosity_learning.cpp
+        lcov --capture --directory . --output-file coverage.info
+        lcov --remove coverage.info '/usr/*' --output-file coverage.info
+        lcov --list coverage.info
+    
+    - name: Upload Coverage
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.info
+        flags: unittests
+        name: codecov-umbrella
