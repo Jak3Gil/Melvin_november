@@ -228,6 +228,7 @@ public:
             id = BinaryNodeID(hash);
         }
         
+        // Store in both maps to ensure consistency
         text_to_id[text] = id;
         id_to_text[id] = text;
         return id;
@@ -250,7 +251,16 @@ public:
         std::istringstream iss(text);
         std::string word;
         while (iss >> word) {
-            ids.push_back(getOrCreateID(word));
+            // Clean the word - remove punctuation and normalize
+            std::string clean_word;
+            for (char c : word) {
+                if (std::isalnum(c) || c == '_') {
+                    clean_word += std::tolower(c);
+                }
+            }
+            if (!clean_word.empty()) {
+                ids.push_back(getOrCreateID(clean_word));
+            }
         }
         return ids;
     }
