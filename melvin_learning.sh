@@ -1,7 +1,7 @@
 #!/bin/bash
 
-echo "🔄 ADVANCED BIDIRECTIONAL LEARNING SESSION"
-echo "==========================================="
+echo "🧠 MELVIN LEARNING SESSION"
+echo "=========================="
 echo "Ollama will dynamically generate questions for Melvin every 10 cycles"
 echo "Melvin will respond and learn from the interaction"
 echo ""
@@ -30,7 +30,7 @@ generate_question() {
 }
 
 # Create advanced bidirectional learning input
-cat > advanced_bidirectional_input.txt << 'EOF'
+cat > melvin_learning_input.txt << 'EOF'
 teacher
 comprehensive on
 analytics
@@ -138,20 +138,20 @@ save
 quit
 EOF
 
-echo "🧪 Running advanced bidirectional learning session..."
+echo "🧪 Running Melvin learning session..."
 echo "Ollama will ask Melvin thoughtful questions every 10 cycles!"
 echo ""
 
-# Run the advanced bidirectional session
-./melvin < advanced_bidirectional_input.txt
+# Run the Melvin learning session
+./melvin < melvin_learning_input.txt
 
 echo ""
-echo "🎯 ADVANCED BIDIRECTIONAL LEARNING SESSION COMPLETE!"
+echo "🎯 MELVIN LEARNING SESSION COMPLETE!"
 echo ""
 
 echo "🧹 Cleaning up..."
-rm -f advanced_bidirectional_input.txt
+rm -f melvin_learning_input.txt
 
 echo ""
-echo "🚀 ADVANCED BIDIRECTIONAL LEARNING SUCCESSFUL!"
+echo "🚀 MELVIN LEARNING SUCCESSFUL!"
 echo "Melvin has engaged in dynamic question-answer learning!"

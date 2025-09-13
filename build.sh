@@ -1,31 +1,26 @@
 #!/bin/bash
 
-# Melvin Unified Build Script
-echo "🧠 Building Melvin Unified AI Brain System"
-echo "=========================================="
+echo "🧠 Building Melvin - Ultimate Unified AI Brain with Binary Memory"
+echo "================================================================"
 
-# Compiler flags for optimal performance
-CXX_FLAGS="-std=c++17 -O3 -Wall -Wextra -pthread"
-
-# Build Unified Melvin (All Features in One File)
-echo "📦 Compiling Melvin Unified..."
-g++ $CXX_FLAGS -o melvin_unified melvin_unified.cpp
+# Compile Melvin with binary memory storage
+g++ -std=c++17 -O2 -pthread -o melvin melvin.cpp
 
 if [ $? -eq 0 ]; then
-    echo "✅ Melvin Unified built successfully!"
+    echo "✅ Build successful!"
+    echo "🚀 Running Melvin..."
     echo ""
-    echo "🚀 Available system:"
-    echo "   ./melvin_unified            # Complete AI brain with all PDF features"
+    echo "🎯 FEATURES:"
+    echo "  🧠 Node-Travel Output System"
+    echo "  💾 Binary Memory Storage (scalable to millions of nodes)"
+    echo "  🔗 Unified Memory Bank (all knowledge in one place)"
+    echo "  📊 Source Code Knowledge Integration"
+    echo "  🔄 Cross-Session Persistence"
     echo ""
-    echo "📚 Usage:"
-    echo "   ./melvin_unified            # Start interactive session"
-    echo "   Type 'checklist' to see PDF feature compliance"
-    echo "   Type 'demo' to see feature demonstration"
-    echo "   Type 'status' to see system metrics"
-    echo "   Type 'quit' to exit"
-    echo ""
-    echo "🎯 Features: 18/18 PDF specifications implemented (100%)"
+    
+    # Run Melvin
+    ./melvin
 else
-    echo "❌ Melvin Unified build failed!"
+    echo "❌ Build failed!"
     exit 1
 fi
