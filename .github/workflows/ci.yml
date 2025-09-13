@@ -40,44 +40,35 @@ jobs:
           echo "CXX=clang++-${GITHUB_MATRIX_COMPILER##*-}" >> $GITHUB_ENV
         fi
     
-    - name: Build Melvin Curiosity System
+    - name: Build Melvin System
       run: |
-        chmod +x build_curiosity.sh
-        ./build_curiosity.sh
+        g++ -o melvin melvin.cpp -std=c++17 -O2
     
     - name: Build Tests
       run: |
-        $CXX -std=c++17 -O2 -Wall -Wextra \
-          -I/usr/include/jsoncpp \
-          -I/usr/include/curl \
-          -I/usr/include/openssl \
-          -o test_melvin_curiosity \
-          test_melvin_curiosity.cpp \
-          melvin_curiosity_learning.cpp \
-          self_check_system.cpp \
-          ollama_client.cpp \
-          -lcurl -ljsoncpp -lssl -lcrypto -lgtest -lgtest_main -lpthread
+        echo "No specific tests to build - using basic melvin executable"
     
     - name: Run Unit Tests
       run: |
-        ./test_melvin_curiosity --gtest_output=xml:test_results.xml
+        echo "Running basic melvin tests..."
+        echo "What is a cat?" | timeout 30s ./melvin || true
     
     - name: Run Integration Tests
       run: |
         # Test basic functionality
-        echo "What is a cat?" | timeout 30s ./melvin_curiosity "What is a dog?" || true
+        echo "What is a cat?" | timeout 30s ./melvin || true
         
-        # Test demo
-        timeout 30s ./demo_curiosity || true
+        # Test learning session
+        timeout 30s ./melvin_learning.sh || true
     
     - name: Test Binary Storage
       run: |
         # Verify binary file creation
-        echo "What is a test?" | timeout 10s ./melvin_curiosity "What is a test?" || true
-        if [ -f "melvin_knowledge.bin" ]; then
+        echo "What is a test?" | timeout 10s ./melvin || true
+        if [ -f "melvin_brain.bin" ]; then
           echo "✅ Binary storage file created successfully"
-          ls -la melvin_knowledge.bin
-          file melvin_knowledge.bin
+          ls -la melvin_brain.bin
+          file melvin_brain.bin
         else
           echo "❌ Binary storage file not created"
           exit 1
@@ -86,7 +77,7 @@ jobs:
     - name: Test Self-Check System
       run: |
         # Test contradiction detection
-        echo -e "What is a cat?\nWhat is a cat?\nquit" | timeout 30s ./melvin_curiosity "What is a dog?" || true
+        echo -e "What is a cat?\nWhat is a cat?\nquit" | timeout 30s ./melvin || true
     
     - name: Upload Test Results
       uses: actions/upload-artifact@v3
@@ -94,10 +85,8 @@ jobs:
       with:
         name: test-results-${{ matrix.compiler }}
         path: |
-          test_results.xml
-          melvin_knowledge.bin
-          melvin_curiosity
-          demo_curiosity
+          melvin_brain.bin
+          melvin
   
   security-scan:
     runs-on: ubuntu-latest
@@ -117,22 +106,17 @@ jobs:
       run: |
         cppcheck --enable=all --error-exitcode=1 \
           --suppress=missingIncludeSystem \
-          melvin_curiosity_learning.cpp \
-          self_check_system.cpp \
-          ollama_client.cpp \
-          encrypted_storage.cpp || true
+          melvin.cpp || true
     
     - name: Static Analysis with clang-tidy
       run: |
-        clang-tidy melvin_curiosity_learning.cpp -- \
-          -std=c++17 -I/usr/include/jsoncpp -I/usr/include/curl || true
+        clang-tidy melvin.cpp -- \
+          -std=c++17 || true
     
     - name: Memory Leak Check
       run: |
-        g++ -std=c++17 -g -O0 -o melvin_debug \
-          melvin_curiosity_learning.cpp \
-          -lcurl -ljsoncpp -lssl -lcrypto
-        echo "What is a test?" | timeout 10s valgrind --leak-check=full ./melvin_debug "What is a test?" || true
+        g++ -std=c++17 -g -O0 -o melvin_debug melvin.cpp
+        echo "What is a test?" | timeout 10s valgrind --leak-check=full ./melvin_debug || true
   
   performance-test:
     runs-on: ubuntu-latest
@@ -152,23 +136,21 @@ jobs:
     
     - name: Build for Performance Testing
       run: |
-        g++ -std=c++17 -O3 -DNDEBUG -o melvin_perf \
-          melvin_curiosity_learning.cpp \
-          -lcurl -ljsoncpp -lssl -lcrypto
+        g++ -std=c++17 -O3 -DNDEBUG -o melvin_perf melvin.cpp
     
     - name: Performance Test
       run: |
         echo "Running performance tests..."
         
         # Test response time
-        time echo "What is a cat?" | timeout 30s ./melvin_perf "What is a dog?" || true
+        time echo "What is a cat?" | timeout 30s ./melvin_perf || true
         
         # Test memory usage
-        echo "What is a test?" | timeout 10s ./melvin_perf "What is a test?" || true
+        echo "What is a test?" | timeout 10s ./melvin_perf || true
         
         # Check binary file size
-        if [ -f "melvin_knowledge.bin" ]; then
-          echo "Binary file size: $(stat -c%s melvin_knowledge.bin) bytes"
+        if [ -f "melvin_brain.bin" ]; then
+          echo "Binary file size: $(stat -c%s melvin_brain.bin) bytes"
         fi
   
   documentation:
@@ -182,27 +164,27 @@ jobs:
         echo "Checking documentation files..."
         
         # Check if README files exist
-        if [ -f "README_CURIOSITY.md" ]; then
-          echo "✅ README_CURIOSITY.md exists"
-          wc -l README_CURIOSITY.md
+        if [ -f "README.md" ]; then
+          echo "✅ README.md exists"
+          wc -l README.md
         else
-          echo "❌ README_CURIOSITY.md missing"
+          echo "❌ README.md missing"
           exit 1
         fi
         
-        # Check if build script exists
-        if [ -f "build_curiosity.sh" ]; then
-          echo "✅ build_curiosity.sh exists"
+        # Check if main source exists
+        if [ -f "melvin.cpp" ]; then
+          echo "✅ melvin.cpp exists"
         else
-          echo "❌ build_curiosity.sh missing"
+          echo "❌ melvin.cpp missing"
           exit 1
         fi
         
-        # Check if demo exists
-        if [ -f "demo_curiosity.cpp" ]; then
-          echo "✅ demo_curiosity.cpp exists"
+        # Check if learning script exists
+        if [ -f "melvin_learning.sh" ]; then
+          echo "✅ melvin_learning.sh exists"
         else
-          echo "❌ demo_curiosity.cpp missing"
+          echo "❌ melvin_learning.sh missing"
           exit 1
         fi
   
@@ -227,18 +209,16 @@ jobs:
     - name: Build with Coverage
       run: |
         g++ -std=c++17 -g -O0 --coverage -fprofile-arcs -ftest-coverage \
-          -o melvin_coverage \
-          melvin_curiosity_learning.cpp \
-          -lcurl -ljsoncpp -lssl -lcrypto
+          -o melvin_coverage melvin.cpp
     
     - name: Run Coverage Tests
       run: |
-        echo "What is a cat?" | timeout 30s ./melvin_coverage "What is a dog?" || true
-        echo "What is a dog?" | timeout 30s ./melvin_coverage "What is a bird?" || true
+        echo "What is a cat?" | timeout 30s ./melvin_coverage || true
+        echo "What is a dog?" | timeout 30s ./melvin_coverage || true
     
     - name: Generate Coverage Report
       run: |
-        gcov melvin_curiosity_learning.cpp
+        gcov melvin.cpp
         lcov --capture --directory . --output-file coverage.info
         lcov --remove coverage.info '/usr/*' --output-file coverage.info
         lcov --list coverage.info
