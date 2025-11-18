@@ -147,6 +147,23 @@ void    graph_log_core_stats(Graph *g);  // Lightweight stats for debugging
 void    graph_emit_output(Graph *g, size_t max_bytes, int fd);  // Emit active OUTPUT nodes
 void    local_update_pattern_to_output(Graph *g, Node *pattern_node, Node *output_node);  // Local learning rule
 
+// Legacy global learning (training-only, guarded by training_enabled)
+// WARNING: Performs O(patterns × anchors) scans - only use in training mode
+void    legacy_collect_candidates_multi_pattern(const Graph *g,
+                                                Node *const *patterns,
+                                                size_t num_patterns,
+                                                uint64_t start_id,
+                                                uint64_t end_id,
+                                                float match_threshold,
+                                                Explanation *out_candidates);
+float   legacy_self_consistency_episode_multi_pattern(Graph *g,
+                                                      Node *const *patterns,
+                                                      size_t num_patterns,
+                                                      uint64_t start_id,
+                                                      uint64_t end_id,
+                                                      float match_threshold,
+                                                      float lr_q);
+
 
 // Self-consistency API (Phase 2)
 size_t  graph_collect_data_span(const Graph *g,

@@ -8,6 +8,7 @@
 #include <sys/stat.h>
 #include <dirent.h>
 #include <unistd.h>  // for STDOUT_FILENO
+// Note: legacy_learning functions are now in melvin.c
 
 // Timing helper: get current time in milliseconds (monotonic clock)
 static double now_ms(void) {
