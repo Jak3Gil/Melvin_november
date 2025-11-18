@@ -1,0 +1,1070 @@
+=== Melvin Kindergarten Teacher ===
+
+Running 60 rounds with 2 tasks per round
+Using persistent global graph
+
+
+=== ROUND 1/60 ===
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Ollama returned empty response, using fallback tasks
+
+--- Task 1: counting numbers ---
+Input: 1 2 3 4 5
+Expected: sequential numbers
+📤 Melvin Output:
+   Patterns created: 15
+   Explanation apps: 281
+   Compression ratio: 0.575
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854776568, q=0.946, bindings=87
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+--- Task 2: alphabet pattern ---
+Input: a b c d
+Expected: sequential letters
+📤 Melvin Output:
+   Patterns created: 11
+   Explanation apps: 165
+   Compression ratio: 0.333
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854776576, q=0.946, bindings=45
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+--- Task 3: repeated pattern ---
+Input: ababab
+Expected: alternating ab
+📤 Melvin Output:
+   Patterns created: 9
+   Explanation apps: 315
+   Compression ratio: 0.627
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854776581, q=0.946, bindings=90
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+--- Task 4: even numbers ---
+Input: 2 4 6 8
+Expected: even number sequence
+📤 Melvin Output:
+   Patterns created: 11
+   Explanation apps: 225
+   Compression ratio: 0.442
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854776597, q=0.946, bindings=90
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+--- Task 5: simple math ---
+Input: 1+1=2
+Expected: addition pattern
+📤 Melvin Output:
+   Patterns created: 7
+   Explanation apps: 105
+   Compression ratio: 0.204
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854776605, q=0.946, bindings=45
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+=== ROUND 2/60 ===
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Ollama returned empty response, using fallback tasks
+
+--- Task 1: counting numbers ---
+Input: 1 2 3 4 5
+Expected: sequential numbers
+📤 Melvin Output:
+   Patterns created: 15
+   Explanation apps: 300
+   Compression ratio: 0.574
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854776621, q=0.946, bindings=93
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+--- Task 2: alphabet pattern ---
+Input: a b c d
+Expected: sequential letters
+📤 Melvin Output:
+   Patterns created: 11
+   Explanation apps: 176
+   Compression ratio: 0.332
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854776629, q=0.946, bindings=48
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+--- Task 3: repeated pattern ---
+Input: ababab
+Expected: alternating ab
+📤 Melvin Output:
+   Patterns created: 9
+   Explanation apps: 336
+   Compression ratio: 0.627
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854776634, q=0.946, bindings=96
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+--- Task 4: even numbers ---
+Input: 2 4 6 8
+Expected: even number sequence
+📤 Melvin Output:
+   Patterns created: 11
+   Explanation apps: 240
+   Compression ratio: 0.442
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854776650, q=0.946, bindings=96
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+--- Task 5: simple math ---
+Input: 1+1=2
+Expected: addition pattern
+📤 Melvin Output:
+   Patterns created: 7
+   Explanation apps: 112
+   Compression ratio: 0.204
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854776658, q=0.946, bindings=48
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+=== ROUND 3/60 ===
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Ollama returned empty response, using fallback tasks
+
+--- Task 1: counting numbers ---
+Input: 1 2 3 4 5
+Expected: sequential numbers
+📤 Melvin Output:
+   Patterns created: 15
+   Explanation apps: 319
+   Compression ratio: 0.573
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854776674, q=0.946, bindings=99
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+--- Task 2: alphabet pattern ---
+Input: a b c d
+Expected: sequential letters
+📤 Melvin Output:
+   Patterns created: 11
+   Explanation apps: 187
+   Compression ratio: 0.332
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854776682, q=0.946, bindings=51
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+--- Task 3: repeated pattern ---
+Input: ababab
+Expected: alternating ab
+📤 Melvin Output:
+   Patterns created: 9
+   Explanation apps: 357
+   Compression ratio: 0.626
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854776687, q=0.946, bindings=102
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+--- Task 4: even numbers ---
+Input: 2 4 6 8
+Expected: even number sequence
+📤 Melvin Output:
+   Patterns created: 11
+   Explanation apps: 255
+   Compression ratio: 0.442
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854776703, q=0.946, bindings=102
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+--- Task 5: simple math ---
+Input: 1+1=2
+Expected: addition pattern
+📤 Melvin Output:
+   Patterns created: 7
+   Explanation apps: 119
+   Compression ratio: 0.204
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854776711, q=0.946, bindings=51
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+=== ROUND 4/60 ===
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Ollama returned empty response, using fallback tasks
+
+--- Task 1: counting numbers ---
+Input: 1 2 3 4 5
+Expected: sequential numbers
+📤 Melvin Output:
+   Patterns created: 15
+   Explanation apps: 338
+   Compression ratio: 0.572
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854776727, q=0.946, bindings=105
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+--- Task 2: alphabet pattern ---
+Input: a b c d
+Expected: sequential letters
+📤 Melvin Output:
+   Patterns created: 11
+   Explanation apps: 198
+   Compression ratio: 0.331
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854776735, q=0.946, bindings=54
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+--- Task 3: repeated pattern ---
+Input: ababab
+Expected: alternating ab
+📤 Melvin Output:
+   Patterns created: 9
+   Explanation apps: 378
+   Compression ratio: 0.626
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854776740, q=0.946, bindings=108
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+--- Task 4: even numbers ---
+Input: 2 4 6 8
+Expected: even number sequence
+📤 Melvin Output:
+   Patterns created: 11
+   Explanation apps: 270
+   Compression ratio: 0.442
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854776756, q=0.946, bindings=108
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+--- Task 5: simple math ---
+Input: 1+1=2
+Expected: addition pattern
+📤 Melvin Output:
+   Patterns created: 7
+   Explanation apps: 126
+   Compression ratio: 0.204
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854776764, q=0.946, bindings=54
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+=== ROUND 5/60 ===
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Ollama returned empty response, using fallback tasks
+
+--- Task 1: counting numbers ---
+Input: 1 2 3 4 5
+Expected: sequential numbers
+📤 Melvin Output:
+   Patterns created: 15
+   Explanation apps: 357
+   Compression ratio: 0.571
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854776780, q=0.946, bindings=111
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+--- Task 2: alphabet pattern ---
+Input: a b c d
+Expected: sequential letters
+📤 Melvin Output:
+   Patterns created: 11
+   Explanation apps: 209
+   Compression ratio: 0.331
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854776788, q=0.946, bindings=57
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+--- Task 3: repeated pattern ---
+Input: ababab
+Expected: alternating ab
+📤 Melvin Output:
+   Patterns created: 9
+   Explanation apps: 399
+   Compression ratio: 0.625
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854776793, q=0.946, bindings=114
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+--- Task 4: even numbers ---
+Input: 2 4 6 8
+Expected: even number sequence
+📤 Melvin Output:
+   Patterns created: 11
+   Explanation apps: 285
+   Compression ratio: 0.442
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854776809, q=0.946, bindings=114
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+--- Task 5: simple math ---
+Input: 1+1=2
+Expected: addition pattern
+📤 Melvin Output:
+   Patterns created: 7
+   Explanation apps: 133
+   Compression ratio: 0.205
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854776817, q=0.946, bindings=57
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+=== ROUND 6/60 ===
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Ollama returned empty response, using fallback tasks
+
+--- Task 1: counting numbers ---
+Input: 1 2 3 4 5
+Expected: sequential numbers
+📤 Melvin Output:
+   Patterns created: 15
+   Explanation apps: 376
+   Compression ratio: 0.571
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854776833, q=0.946, bindings=117
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+--- Task 2: alphabet pattern ---
+Input: a b c d
+Expected: sequential letters
+📤 Melvin Output:
+   Patterns created: 11
+   Explanation apps: 220
+   Compression ratio: 0.330
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854776841, q=0.946, bindings=60
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+--- Task 3: repeated pattern ---
+Input: ababab
+Expected: alternating ab
+📤 Melvin Output:
+   Patterns created: 9
+   Explanation apps: 420
+   Compression ratio: 0.625
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854776846, q=0.946, bindings=120
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+--- Task 4: even numbers ---
+Input: 2 4 6 8
+Expected: even number sequence
+📤 Melvin Output:
+   Patterns created: 11
+   Explanation apps: 300
+   Compression ratio: 0.442
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854776862, q=0.946, bindings=120
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+--- Task 5: simple math ---
+Input: 1+1=2
+Expected: addition pattern
+📤 Melvin Output:
+   Patterns created: 7
+   Explanation apps: 140
+   Compression ratio: 0.205
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854776870, q=0.946, bindings=60
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+=== ROUND 7/60 ===
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Ollama returned empty response, using fallback tasks
+
+--- Task 1: counting numbers ---
+Input: 1 2 3 4 5
+Expected: sequential numbers
+📤 Melvin Output:
+   Patterns created: 15
+   Explanation apps: 395
+   Compression ratio: 0.570
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854776886, q=0.946, bindings=123
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+--- Task 2: alphabet pattern ---
+Input: a b c d
+Expected: sequential letters
+📤 Melvin Output:
+   Patterns created: 11
+   Explanation apps: 231
+   Compression ratio: 0.330
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854776894, q=0.946, bindings=63
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+--- Task 3: repeated pattern ---
+Input: ababab
+Expected: alternating ab
+📤 Melvin Output:
+   Patterns created: 9
+   Explanation apps: 441
+   Compression ratio: 0.625
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854776899, q=0.946, bindings=126
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+--- Task 4: even numbers ---
+Input: 2 4 6 8
+Expected: even number sequence
+📤 Melvin Output:
+   Patterns created: 11
+   Explanation apps: 315
+   Compression ratio: 0.442
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854776915, q=0.946, bindings=126
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+--- Task 5: simple math ---
+Input: 1+1=2
+Expected: addition pattern
+📤 Melvin Output:
+   Patterns created: 7
+   Explanation apps: 147
+   Compression ratio: 0.205
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854776923, q=0.946, bindings=63
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+=== ROUND 8/60 ===
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Ollama returned empty response, using fallback tasks
+
+--- Task 1: counting numbers ---
+Input: 1 2 3 4 5
+Expected: sequential numbers
+📤 Melvin Output:
+   Patterns created: 15
+   Explanation apps: 414
+   Compression ratio: 0.570
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854776939, q=0.946, bindings=129
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+--- Task 2: alphabet pattern ---
+Input: a b c d
+Expected: sequential letters
+📤 Melvin Output:
+   Patterns created: 11
+   Explanation apps: 242
+   Compression ratio: 0.330
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854776947, q=0.946, bindings=66
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+--- Task 3: repeated pattern ---
+Input: ababab
+Expected: alternating ab
+📤 Melvin Output:
+   Patterns created: 9
+   Explanation apps: 462
+   Compression ratio: 0.624
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854776952, q=0.946, bindings=132
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+--- Task 4: even numbers ---
+Input: 2 4 6 8
+Expected: even number sequence
+📤 Melvin Output:
+   Patterns created: 11
+   Explanation apps: 330
+   Compression ratio: 0.442
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854776968, q=0.946, bindings=132
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+--- Task 5: simple math ---
+Input: 1+1=2
+Expected: addition pattern
+📤 Melvin Output:
+   Patterns created: 7
+   Explanation apps: 154
+   Compression ratio: 0.205
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854776976, q=0.946, bindings=66
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+=== ROUND 9/60 ===
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Ollama returned empty response, using fallback tasks
+
+--- Task 1: counting numbers ---
+Input: 1 2 3 4 5
+Expected: sequential numbers
+📤 Melvin Output:
+   Patterns created: 15
+   Explanation apps: 433
+   Compression ratio: 0.569
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854776992, q=0.946, bindings=135
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+--- Task 2: alphabet pattern ---
+Input: a b c d
+Expected: sequential letters
+📤 Melvin Output:
+   Patterns created: 11
+   Explanation apps: 253
+   Compression ratio: 0.329
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854777000, q=0.946, bindings=69
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+--- Task 3: repeated pattern ---
+Input: ababab
+Expected: alternating ab
+📤 Melvin Output:
+   Patterns created: 9
+   Explanation apps: 483
+   Compression ratio: 0.624
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854777005, q=0.946, bindings=138
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+--- Task 4: even numbers ---
+Input: 2 4 6 8
+Expected: even number sequence
+📤 Melvin Output:
+   Patterns created: 11
+   Explanation apps: 345
+   Compression ratio: 0.442
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854777021, q=0.946, bindings=138
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+--- Task 5: simple math ---
+Input: 1+1=2
+Expected: addition pattern
+📤 Melvin Output:
+   Patterns created: 7
+   Explanation apps: 161
+   Compression ratio: 0.205
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854777029, q=0.946, bindings=69
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+=== ROUND 10/60 ===
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Ollama returned empty response, using fallback tasks
+
+--- Task 1: counting numbers ---
+Input: 1 2 3 4 5
+Expected: sequential numbers
+📤 Melvin Output:
+   Patterns created: 15
+   Explanation apps: 452
+   Compression ratio: 0.569
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854777045, q=0.946, bindings=141
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+--- Task 2: alphabet pattern ---
+Input: a b c d
+Expected: sequential letters
+📤 Melvin Output:
+   Patterns created: 11
+   Explanation apps: 264
+   Compression ratio: 0.329
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854777053, q=0.946, bindings=72
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+--- Task 3: repeated pattern ---
+Input: ababab
+Expected: alternating ab
+📤 Melvin Output:
+   Patterns created: 9
+   Explanation apps: 504
+   Compression ratio: 0.624
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854777058, q=0.946, bindings=144
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+--- Task 4: even numbers ---
+Input: 2 4 6 8
+Expected: even number sequence
+📤 Melvin Output:
+   Patterns created: 11
+   Explanation apps: 360
+   Compression ratio: 0.442
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854777074, q=0.946, bindings=144
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+--- Task 5: simple math ---
+Input: 1+1=2
+Expected: addition pattern
+📤 Melvin Output:
+   Patterns created: 7
+   Explanation apps: 168
+   Compression ratio: 0.205
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854777082, q=0.946, bindings=72
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+=== ROUND 11/60 ===
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Ollama returned empty response, using fallback tasks
+
+--- Task 1: counting numbers ---
+Input: 1 2 3 4 5
+Expected: sequential numbers
+📤 Melvin Output:
+   Patterns created: 15
+   Explanation apps: 471
+   Compression ratio: 0.568
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854777098, q=0.946, bindings=147
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+--- Task 2: alphabet pattern ---
+Input: a b c d
+Expected: sequential letters
+📤 Melvin Output:
+   Patterns created: 11
+   Explanation apps: 275
+   Compression ratio: 0.329
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854777106, q=0.946, bindings=75
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+--- Task 3: repeated pattern ---
+Input: ababab
+Expected: alternating ab
+📤 Melvin Output:
+   Patterns created: 9
+   Explanation apps: 525
+   Compression ratio: 0.624
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854777111, q=0.946, bindings=150
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+--- Task 4: even numbers ---
+Input: 2 4 6 8
+Expected: even number sequence
+📤 Melvin Output:
+   Patterns created: 11
+   Explanation apps: 375
+   Compression ratio: 0.442
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854777127, q=0.946, bindings=150
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+--- Task 5: simple math ---
+Input: 1+1=2
+Expected: addition pattern
+📤 Melvin Output:
+   Patterns created: 7
+   Explanation apps: 175
+   Compression ratio: 0.205
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854777135, q=0.946, bindings=75
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+=== ROUND 12/60 ===
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Ollama returned empty response, using fallback tasks
+
+--- Task 1: counting numbers ---
+Input: 1 2 3 4 5
+Expected: sequential numbers
+📤 Melvin Output:
+   Patterns created: 15
+   Explanation apps: 490
+   Compression ratio: 0.568
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854777151, q=0.946, bindings=153
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+--- Task 2: alphabet pattern ---
+Input: a b c d
+Expected: sequential letters
+📤 Melvin Output:
+   Patterns created: 11
+   Explanation apps: 286
+   Compression ratio: 0.329
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854777159, q=0.946, bindings=78
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+--- Task 3: repeated pattern ---
+Input: ababab
+Expected: alternating ab
+📤 Melvin Output:
+   Patterns created: 9
+   Explanation apps: 546
+   Compression ratio: 0.623
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854777164, q=0.946, bindings=156
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+--- Task 4: even numbers ---
+Input: 2 4 6 8
+Expected: even number sequence
+📤 Melvin Output:
+   Patterns created: 11
+   Explanation apps: 390
+   Compression ratio: 0.442
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854777180, q=0.946, bindings=156
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+--- Task 5: simple math ---
+Input: 1+1=2
+Expected: addition pattern
+📤 Melvin Output:
+   Patterns created: 7
+   Explanation apps: 182
+   Compression ratio: 0.205
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854777188, q=0.946, bindings=78
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+=== ROUND 13/60 ===
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Ollama returned empty response, using fallback tasks
+
+--- Task 1: counting numbers ---
+Input: 1 2 3 4 5
+Expected: sequential numbers
+📤 Melvin Output:
+   Patterns created: 15
+   Explanation apps: 509
+   Compression ratio: 0.567
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854777204, q=0.946, bindings=159
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+--- Task 2: alphabet pattern ---
+Input: a b c d
+Expected: sequential letters
+📤 Melvin Output:
+   Patterns created: 11
+   Explanation apps: 297
+   Compression ratio: 0.329
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854777212, q=0.946, bindings=81
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+--- Task 3: repeated pattern ---
+Input: ababab
+Expected: alternating ab
+📤 Melvin Output:
+   Patterns created: 9
+   Explanation apps: 567
+   Compression ratio: 0.623
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854777217, q=0.946, bindings=162
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+--- Task 4: even numbers ---
+Input: 2 4 6 8
+Expected: even number sequence
+📤 Melvin Output:
+   Patterns created: 11
+   Explanation apps: 405
+   Compression ratio: 0.442
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854777233, q=0.946, bindings=162
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+--- Task 5: simple math ---
+Input: 1+1=2
+Expected: addition pattern
+📤 Melvin Output:
+   Patterns created: 7
+   Explanation apps: 189
+   Compression ratio: 0.205
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854777241, q=0.946, bindings=81
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+=== ROUND 14/60 ===
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Ollama returned empty response, using fallback tasks
+
+--- Task 1: counting numbers ---
+Input: 1 2 3 4 5
+Expected: sequential numbers
+📤 Melvin Output:
+   Patterns created: 15
+   Explanation apps: 528
+   Compression ratio: 0.567
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854777257, q=0.946, bindings=165
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+--- Task 2: alphabet pattern ---
+Input: a b c d
+Expected: sequential letters
+📤 Melvin Output:
+   Patterns created: 11
+   Explanation apps: 308
+   Compression ratio: 0.328
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854777265, q=0.946, bindings=84
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+--- Task 3: repeated pattern ---
+Input: ababab
+Expected: alternating ab
+Melvin error: Melvin timeout
+Judge score: 0.00
+Judge feedback: Melvin execution failed
+
+--- Task 4: even numbers ---
+Input: 2 4 6 8
+Expected: even number sequence
+📤 Melvin Output:
+   Patterns created: 11
+   Explanation apps: 420
+   Compression ratio: 0.442
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854777286, q=0.946, bindings=168
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+--- Task 5: simple math ---
+Input: 1+1=2
+Expected: addition pattern
+📤 Melvin Output:
+   Patterns created: 7
+   Explanation apps: 196
+   Compression ratio: 0.205
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854777294, q=0.946, bindings=84
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+=== ROUND 15/60 ===
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Ollama returned empty response, using fallback tasks
+
+--- Task 1: counting numbers ---
+Input: 1 2 3 4 5
+Expected: sequential numbers
+📤 Melvin Output:
+   Patterns created: 15
+   Explanation apps: 547
+   Compression ratio: 0.567
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854777310, q=0.946, bindings=171
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+--- Task 2: alphabet pattern ---
+Input: a b c d
+Expected: sequential letters
+📤 Melvin Output:
+   Patterns created: 11
+   Explanation apps: 319
+   Compression ratio: 0.328
+   Reconstruction error: 0.000
+   Top pattern: ID=9223372036854777318, q=0.946, bindings=87
+
+Ollama API error: 404 Client Error: Not Found for url: http://localhost:11434/api/chat
+Judge score: 0.00
+Judge feedback: Ollama evaluation failed
+
+--- Task 3: repeated pattern ---
+Input: ababab
+Expected: alternating ab
