@@ -147,18 +147,16 @@ void    graph_log_core_stats(Graph *g);  // Lightweight stats for debugging
 void    graph_emit_output(Graph *g, size_t max_bytes, int fd);  // Emit active OUTPUT nodes
 void    local_update_pattern_to_output(Graph *g, Node *pattern_node, Node *output_node);  // Local learning rule
 
-// Forward declaration - Explanation is defined below
-struct Explanation;
-
 // Legacy global learning (training-only, guarded by training_enabled)
 // WARNING: Performs O(patterns × anchors) scans - only use in training mode
+// Note: Explanation typedef is defined later in this file (line ~197)
 void    legacy_collect_candidates_multi_pattern(const Graph *g,
                                                 Node *const *patterns,
                                                 size_t num_patterns,
                                                 uint64_t start_id,
                                                 uint64_t end_id,
                                                 float match_threshold,
-                                                struct Explanation *out_candidates);
+                                                Explanation *out_candidates);
 float   legacy_self_consistency_episode_multi_pattern(Graph *g,
                                                       Node *const *patterns,
                                                       size_t num_patterns,
