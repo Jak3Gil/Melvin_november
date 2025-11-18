@@ -1284,7 +1284,7 @@ void graph_run_local_rules(Graph *g) {
         // Walk outgoing edges from MAINTENANCE
         uint32_t eid = maintenance->first_out_edge;
         uint32_t visited = 0;
-        uint32_t patterns_checked = 0;
+        // uint32_t patterns_checked = 0;  // Unused - kept for future use
         
         while (eid != UINT32_MAX && eid < g->num_edges && visited < 1000 && work_done < max_work) {
             visited++;
