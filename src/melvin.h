@@ -178,6 +178,23 @@ typedef struct {
     size_t capacity;
 } Explanation;
 
+// Legacy global learning (training-only, guarded by training_enabled)
+// WARNING: Performs O(patterns × anchors) scans - only use in training mode
+void    legacy_collect_candidates_multi_pattern(const Graph *g,
+                                                Node *const *patterns,
+                                                size_t num_patterns,
+                                                uint64_t start_id,
+                                                uint64_t end_id,
+                                                float match_threshold,
+                                                Explanation *out_candidates);
+float   legacy_self_consistency_episode_multi_pattern(Graph *g,
+                                                      Node *const *patterns,
+                                                      size_t num_patterns,
+                                                      uint64_t start_id,
+                                                      uint64_t end_id,
+                                                      float match_threshold,
+                                                      float lr_q);
+
 // Initialize / free explanation
 void explanation_init(Explanation *exp);
 void explanation_free(Explanation *exp);
