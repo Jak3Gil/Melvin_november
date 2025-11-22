@@ -1,0 +1,411 @@
+
+
+**MELVIN: UNIFIED GRAPH BRAIN + SELF-COMPILING LANGUAGE**
+
+You are working on a system called **Melvin**.
+
+Melvin is **not** “a C program with a graph inside it”.
+Melvin is a **unified graph brain** that *is itself* a **coding language** and a **self-compiling system**.
+
+There are only two real artifacts:
+
+* `melvin.c` — the minimal host / VM / OS shim
+* `melvin.m` — the graph brain + language + compiler + program + memory
+
+Everything else is implementation detail.
+
+---
+
+### 1. Philosophical ground rules
+
+1. **Unification**
+
+   * No separate “code region” vs “data region” conceptually.
+   * `melvin.m` is a single unified graph:
+
+     * Nodes carry bytes/state/flags
+     * Edges carry weights/relations
+     * Patterns describe higher-order structure
+   * “Code”, “data”, “compiler state”, “policies”, “memories” are all **patterns in this same graph**.
+
+2. **C is not the brain**
+
+   * `melvin.c` exists only to:
+
+     * load/save `melvin.m`
+     * run a tick loop
+     * provide a small intrinsic API (syscalls, time, randomness)
+     * jump into machine code that lives *on behalf of nodes*
+   * C must **not** contain task-specific logic or rules.
+
+3. **Melvin learns connectivity**
+
+   * When to add edges, when to delete them, how to route information:
+     this is a **skill learned in the graph**, not hard-coded in C.
+   * C can provide *primitive operations* (e.g., “add edge”),
+     but *policies* for when to use them are in `melvin.m`.
+
+4. **Failure is expected**
+
+   * Melvin is allowed to generate bad code, bad patterns, and bad edge structures.
+   * RL + pruning + pattern induction are responsible for pushing it toward better configurations over time.
+
+5. **No new node types as cheats**
+
+   * We don’t introduce special “VisionNode”, “CodeNode”, etc.
+   * Complexity comes from patterns and connectivity, not from sophisticated primitive types.
+
+---
+
+### 2. Roles: what’s in melvin.c vs melvin.m
+
+#### 2.1 `melvin.c`: thin VM + OS shim
+
+`melvin.c` should be kept **as small and generic as possible**. It must:
+
+1. **File / memory management**
+
+   * Open `melvin.m`.
+   * mmap it into memory as a `Brain *`:
+
+     * `Header`
+     * `Node[]`
+     * `Edge[]`
+     * `Pattern[]`
+     * `Slot[]`
+     * `Bind[]`
+   * Validate header / capacities / basic consistency.
+
+2. **Execution environment**
+
+   * Allocate a small executable memory buffer (or region) for machine code.
+     This is a *hardware necessity*, not a conceptual “code region”.
+   * Provide `brain_run_node_code(Brain *b, uint64_t node_id)`:
+
+     * Check node’s `code_offset` / `code_len` / flags
+     * Call function pointer: `fn(b, node_id)`
+     * Trap signals, mark node’s code invalid on crash.
+
+3. **Intrinsics (callable from machine code inside melvin.m)**
+
+   * `mi_syscall(number, arg0..arg5)` — raw OS syscall bridge.
+   * `mi_increment_tick()` or equivalent tick counter.
+   * Optionally:
+
+     * `mi_random()` — random bits
+     * `mi_now()` — wall-clock time.
+
+4. **Tick loop**
+
+   * Read one byte from stdin (or other input channel).
+   * Activate the corresponding DATA node in the graph.
+   * Call a small set of *graph-coded* entrypoints (in the long run):
+
+     * e.g. `graph_main_tick()` implemented inside `melvin.m` as machine code.
+   * After the tick:
+
+     * choose an output byte from node activations
+     * write it to stdout.
+
+5. **Safety / validation**
+
+   * Validate basic invariants on startup.
+   * Provide a signal handler for machine-code crashes that:
+
+     * marks the offending node’s code as invalid
+     * optionally emits a negative reward signal into the graph.
+
+**`melvin.c` does not:**
+
+* implement propagation logic,
+* implement learning/plasticity logic,
+* implement pattern induction,
+* implement reward calculation,
+* implement connectivity policies (when to add/remove edges).
+
+Those must migrate into `melvin.m` as the system matures.
+
+---
+
+#### 2.2 `melvin.m`: the graph brain + language
+
+`melvin.m` is:
+
+1. **Data model**
+
+   * `Node`:
+
+     * stores: activation `a`, bias, decay, meta, byte value, flags
+     * may own machine code via `code_offset`/`code_len` + `HAS_CODE` flag
+   * `Edge`:
+
+     * connects nodes with weight `w` and flags (e.g. sequence, control)
+   * `Pattern` / `Slot` / `Bind`:
+
+     * represent higher-order patterns over nodes/bytes:
+
+       * chunked sequences
+       * generalized with blanks
+       * binding distributions for blanks
+
+2. **Execution logic (in the long run)**
+
+   * Propagation:
+
+     * rules for how activation flows along edges
+     * dynamic selection of active frontier
+   * Plasticity:
+
+     * how weights update given activity and reward
+   * Pattern induction & generalization:
+
+     * how new patterns are created
+     * how blanks and binds are inferred
+   * Reward integration:
+
+     * how reward signals modulate learning
+     * how success/failure of machine code affects future structure
+   * Connectivity policies:
+
+     * when to add an edge,
+     * when to cut/prune an edge,
+     * when to rewire.
+
+3. **Compiler + language**
+
+   * A **graph-level instruction set** (Melvin-ISA) encoded as patterns:
+
+     * `GOP_ADD_EDGE(src, dst, w)`
+     * `GOP_DEL_EDGE(edge)`
+     * `GOP_SET_WEIGHT(edge, w)`
+     * `GOP_SET_META(node, value)`
+     * `GOP_ACTIVATE(node, value)`
+     * `GOP_JUMP(label)`, `GOP_IF_GT(...)`, etc.
+   * A **Graph VM interpreter**:
+
+     * a machine-code node that:
+
+       * reads instruction patterns from `melvin.m`,
+       * applies graph operations using the above primitives.
+   * A **higher-level source language** (“Melvin-lang”):
+
+     * represented as nodes/patterns (text or structured) in the graph,
+     * compiled into Melvin-ISA instruction patterns,
+     * optionally JIT’d to raw machine code for hot paths.
+
+4. **OS interaction**
+
+   * Machine-code nodes call `mi_syscall` to:
+
+     * read/write files (source and binaries),
+     * spawn processes (compile tools, vision/motor servers),
+     * talk to devices (through external processes or direct syscalls).
+   * The outputs of these external tools are fed back as **byte streams** that:
+
+     * become activations on DATA nodes,
+     * participate in patterns and RL.
+
+5. **Self-compilation**
+
+   * Given text/source nodes (e.g. a `vision.c` file), graph-coded compilers:
+
+     * parse/tokenize the code (as patterns),
+     * produce an internal representation (IR) in the graph,
+     * generate machine code bytes into executable memory,
+     * attach that code to a host node with `HAS_CODE`,
+     * create edges from relevant source patterns to the host node (semantic anchoring),
+     * connect host node’s behavior to sensory patterns and reward nodes.
+
+---
+
+### 3. Connectivity: when to add / cut edges (no new node types)
+
+**Connectivity control is a learned skill.**
+
+C-level primitives:
+
+* `graph_add_edge(src, dst, w, flags)`
+* `graph_remove_edge(edge_id)` or set `w = 0` and mark dead
+* optional low-level API to iterate neighbors
+
+But **policies** for how to use these are inside `melvin.m`:
+
+1. **Edge creation**
+
+   * Sequence edges:
+
+     * created when node A is active, followed by B, with some threshold.
+   * Struct edges:
+
+     * created by graph programs (using Melvin-ISA) when certain patterns are detected:
+
+       * “these nodes often co-activate in successful episodes” → connect them.
+
+2. **Edge evaluation metrics**
+
+   * Learned value of an edge can depend on:
+
+     * frequency of co-activation,
+     * contribution to reward prediction,
+     * contribution to compression of input/output patterns,
+     * stability across episodes.
+   * These metrics are stored in node/edge `meta` fields and biases.
+
+3. **Edge pruning**
+
+   * Graph programs periodically:
+
+     * scan local neighborhoods (not full graph) for:
+
+       * low-usage, low-contribution edges,
+       * unstable or noisy connections.
+     * remove or weaken them.
+   * RL:
+
+     * edges on paths associated with negative reward are downweighted/pruned,
+     * edges on paths with consistent positive reward are kept/strengthened.
+
+4. **Pattern-driven wiring**
+
+   * Patterns themselves encode *connectivity templates*:
+
+     * “whenever pattern P is recognized in input, propagate activation to cluster Q”
+     * “when code pattern X appears in a file labeled ‘vision’, connect it to the vision-related subgraph”
+   * GraphVM programs update edges according to pattern activations and meta.
+
+**Goal:**
+Over time, Melvin acquires a **connectivity policy**:
+it “knows” when to rewire itself for better performance on tasks, without us adding any new types.
+
+---
+
+### 4. How Melvin interacts with source code and compiled binaries
+
+1. **Source ingestion**
+
+   * External world (or a graph-coded process) feeds bytes of `vision.c` into Melvin.
+   * These bytes pass through the normal `step_byte` loop:
+
+     * 1-byte DATA nodes activated,
+     * sequence edges created,
+     * patterns formed over tokens/identifiers/structures,
+     * reward based on prediction correctness.
+
+2. **Compilation (graph-driven)**
+
+   * A graph-coded compiler program:
+
+     * identifies source-code patterns (`"vision"`, `vision_frame`, etc.),
+     * uses `mi_syscall` to run `gcc vision.c -o vision_cam`,
+     * reads the resulting binary file bytes into the graph as patterns,
+     * generates machine code for wrapper nodes that call `vision_cam` or directly embed its logic.
+
+3. **Connection of code → function → data stream**
+
+   * The node that hosts the machine code for `vision_cam` is linked via edges to:
+
+     * code patterns (identifiers, file name, comments)
+     * sensory patterns (vision stream from the camera)
+     * task/reward nodes (“successful tracking”, “good detection”).
+   * Through RL and repeated episodes, the graph learns:
+
+     * “these source patterns + this machine-code node → useful vision data → reward”.
+
+4. **Machine-code level understanding**
+
+   * Compiled binaries are treated as just another byte stream:
+
+     * patterns form over opcode sequences,
+     * the system learns that some opcode patterns are associated with specific behaviors.
+   * The *semantics* of those opcodes are grounded in:
+
+     * their effect on the sensory streams and reward,
+     * how they change graph structures over time.
+
+---
+
+### 5. Custom coding language: “Melvin-lang”
+
+Melvin-lang is:
+
+1. **Represented in the graph**
+
+   * It is *not* a separate text file.
+   * Program = a set of nodes, edges, and patterns encoding:
+
+     * control flow,
+     * operations on nodes/edges/patterns,
+     * calls to intrinsics (syscalls, etc.).
+
+2. **Compiled by graph-coded compilers**
+
+   * High-level constructs:
+
+     * loops, conditionals, pattern-matching on graph structure
+   * Compiled into:
+
+     * Melvin-ISA instruction patterns (graph operations),
+     * then optionally JIT’d to machine code attached to nodes.
+
+3. **Semantics**
+
+   * Primitives:
+
+     * read / write node fields (activation, bias, meta, flags)
+     * add / remove / update edges
+     * read / write pattern tables
+     * call intrinsics (`mi_syscall`, `mi_random`, `mi_now`)
+     * schedule node execution
+   * Control flow:
+
+     * jump, conditional jump on comparisons,
+     * iteration over neighborhoods (local edges),
+     * pattern matching instructions (“if subgraph looks like X, do Y”).
+
+4. **Execution**
+
+   * Interpreted by a GraphVM node at first (slow, generic).
+   * Over time, hot paths are:
+
+     * identified by patterns/reward,
+     * compiled down to machine code and attached to nodes,
+     * executed via `brain_run_node_code`.
+
+Melvin-lang is therefore both:
+
+* the **description** of its own cognitive rules, and
+* the **tool** it uses to rewrite and improve itself.
+
+---
+
+### 6. Implementation priorities
+
+When modifying the codebase:
+
+1. Keep `melvin.c` small and generic.
+
+   * Don’t add task-specific behavior.
+   * Don’t add new node types to “solve” complexity.
+
+2. Push logic into `melvin.m`:
+
+   * If you want a new behavior, think:
+
+     * “How can this be expressed as a graph program? As patterns? As Melvin-lang?”
+
+3. Always favor:
+
+   * **Patterns + RL + pruning + reward-driven connectivity**,
+     over:
+   * hard-coded, one-off C logic.
+
+4. Design with **episodes** in mind:
+
+   * Source episodes (reading code)
+   * Compile episodes (creating / running binaries)
+   * Interaction episodes (vision/motor/audio loops)
+   * Evaluation episodes (reward signals flowing back into the graph)
+
+Each episode should leave **traces** in the graph that patterns and RL can exploit.
+
+---

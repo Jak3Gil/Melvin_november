@@ -1,0 +1,436 @@
+
+# **MELVIN PATTERN SYSTEM – MASTER SPEC**
+
+In Melvin, **patterns** are the core mechanism for perception, memory, computation, and “code”.
+There are **no blobs, no offsets, no separate code region**.
+Everything is **nodes, edges, activations, and patterns with blank placeholders.**
+
+Use this spec as the ground truth for how patterns behave and how all higher-level logic emerges.
+
+---
+
+## 0. Core Objects
+
+* **Node**
+
+  * Stores: byte (optional), kind (DATA / BLANK / CONTROL / TAG / PATTERN-ROOT), activation `a`, meta fields.
+  * A BLANK node is a node with `kind=BLANK` and a logical ID (e.g., A, B, OBJ).
+
+* **Edge**
+
+  * Directed, weighted connection between nodes: `src → dst`, with flags (SEQ, ROLE, BIND, CONTROL, META, etc.).
+
+* **Pattern**
+
+  * Not a separate object type; it is a **subgraph** whose **root** is a special node (`kind=PATTERN-ROOT`).
+  * The pattern is defined by:
+
+    * the root node,
+    * all nodes/edges reachable via specific “pattern membership” edges (e.g., `ROLE`, `INSIDE_PATTERN`).
+
+* **Binding**
+
+  * A temporary mapping: BLANK node → concrete node(s) in the main graph, created during pattern matching.
+
+---
+
+## 1. (A) Pattern Matching with Blanks
+
+### 1.1 Pattern Structure
+
+A pattern is a subgraph that contains:
+
+* **Concrete nodes**: DATA / CONTROL / TAG nodes that must match specific properties (e.g., a byte, a role, a channel).
+* **Blank nodes**: variable slots (A, B, OBJ, TOOL, TARGET, etc.) that can bind to different concrete nodes in the main graph.
+* **Constraint edges**:
+
+  * SEQ edges: order / temporal constraints.
+  * ROLE edges: role labels (e.g., LHS, RHS, OPERATOR, OBJECT).
+  * REL edges: relational constraints (e.g., parent/child, above/below, part-of).
+
+### 1.2 Matching Process (Local, Incremental)
+
+Given a live context subgraph (recently active nodes + their neighbors):
+
+1. **Select candidate anchors**
+
+   * Start from the pattern root and its concrete children (e.g., “+” or “=” nodes, or a particular TAG).
+   * Find graph nodes with high similarity:
+
+     * same byte for literal DATA patterns,
+     * similar activation / embedding / meta for TAG/CONTROL nodes.
+
+2. **Grow match through constraints**
+
+   * For each pattern edge `u → v`:
+
+     * If `v` is concrete: require a corresponding graph node that matches its properties and relationship (e.g., SEQ, ROLE).
+     * If `v` is BLANK:
+
+       * allow any graph node that satisfies edge constraints (e.g., same position, same channel, object in same region).
+
+3. **Create bindings**
+
+   * Each BLANK node in the pattern gets a set of candidate graph nodes:
+
+     * maintain a probability or score for each candidate (how consistent the full match is).
+   * Binding is a **soft map** BLANK → {nodes, scores}, not a single hard pointer.
+
+4. **Compute pattern match score**
+
+   * Score factors:
+
+     * fraction of concrete slots matched,
+     * consistency of BLANK bindings,
+     * edge/role/sequence consistency,
+     * similarity of meta/embeddings if used.
+   * The pattern’s root node activation is updated ∝ match score.
+
+5. **Multiple matches**
+
+   * Patterns can match multiple places at once with different bindings.
+   * Use attention/softmax over matches if needed to focus on a few.
+
+**Rule:**
+Pattern matching is **local**: only consider context around currently active nodes, not the entire graph.
+
+---
+
+## 2. (B) Patterns-of-Patterns (Hierarchical Skills)
+
+Patterns can match over **other patterns**, not just raw DATA.
+
+### 2.1 Pattern Levels
+
+* **Level 0**: raw byte / sensor nodes (DATA).
+* **Level 1**: simple patterns over DATA (e.g., “1 + 1 = 2”, “cup grip profile”).
+* **Level 2**: patterns over Level 1 patterns (e.g., “A + A = B” as a generalized arithmetic template).
+* **Level 3+**: patterns over clusters of patterns (e.g., “arithmetic”, “cup manipulation”, “tool use”).
+
+### 2.2 How patterns reference other patterns
+
+* A pattern may contain nodes that are:
+
+  * PATTERN-ROOT nodes of other patterns,
+  * TAG nodes that refer to “any pattern with TAG=Arithmetic” or “TAG=CupGrasp”.
+
+### 2.3 Matching patterns-of-patterns
+
+* When matching a higher-level pattern P2:
+
+  * treat lower-level patterns P1 as if they were “conceptual nodes”:
+
+    * P2’s blanks may bind to P1’s roots or to clusters of P1 instances.
+  * constraints can include:
+
+    * “a pattern of type Arithmetic here”
+    * “a CupGrasp followed by a Lift pattern within Δt”
+
+### 2.4 Skill formation
+
+Skills emerge as:
+
+* stable chains/graphs of patterns-of-patterns that:
+
+  * reliably match useful situations,
+  * produce good predictions or actions,
+  * are reinforced by reward.
+
+You do **not** introduce new node types; you introduce **new pattern structures** and connectivity.
+
+---
+
+## 3. (C) Pattern Induction & Generalization Across Episodes
+
+Pattern induction is how Melvin **discovers** new patterns from experience.
+
+### 3.1 Input: Episodes
+
+An episode is:
+
+* a time-bounded subgraph of activity,
+* containing sequences of nodes across channels (text, vision, motor, reward),
+* with an outcome (reward or error).
+
+### 3.2 Two-example (or few-example) pattern induction
+
+Given two (or more) similar episodes E1, E2:
+
+1. **Align episodes**
+
+   * For sequences: align by time steps or by detected anchors (e.g., operator symbols, event markers).
+   * For graphs: find approximate subgraph correspondences (same roles/tags/topology).
+
+2. **Detect invariants and variants**
+
+   * Invariant elements:
+
+     * nodes and edges that appear in both episodes in similar roles.
+     * these become **concrete** slots in the pattern.
+   * Variant elements:
+
+     * nodes that differ but occupy the same structural/temporal role.
+     * these become **BLANK** nodes.
+
+3. **Create BLANKs and constraints**
+
+   * For each position where values differ:
+
+     * introduce a BLANK node (A, B, OBJ, TOOL, TARGET…).
+   * For repeated relational structures:
+
+     * share BLANKs (e.g., both sides of `A + A` use the same BLANK A).
+
+4. **Store statistics**
+
+   * For each BLANK:
+
+     * track distribution of fillers (which DATA/pattern nodes appear).
+   * For the pattern:
+
+     * track success rate (reward),
+     * coverage (how many episodes it helps compress),
+     * compression gain (reduction in description length).
+
+5. **Generalization criterion**
+
+   * Create / strengthen a pattern if:
+
+     * it explains multiple episodes more compactly than separate memory traces,
+     * and is correlated with reward or reduced prediction error.
+
+### 3.3 Lifetime management
+
+* **Promote** patterns that:
+
+  * match often,
+  * predict well,
+  * or are useful for control.
+* **Demote/prune** patterns that:
+
+  * rarely match,
+  * mispredict,
+  * or are redundant with stronger patterns.
+
+---
+
+## 4. (D) Control Flow: IF, Loops, Functions, Execution via Patterns
+
+All “programming constructs” (if/else, loops, functions) are implemented as patterns and activations, not as CPU instructions.
+
+### 4.1 IF patterns
+
+An IF structure is a pattern that encodes:
+
+* **Condition sub-pattern** C
+* **Then sub-pattern** T
+* Optional **Else sub-pattern** E
+
+Graph representation:
+
+* A PATTERN-ROOT node for IF.
+* Edges:
+
+  * `IF_ROOT --ROLE_COND--> C_ROOT`
+  * `IF_ROOT --ROLE_THEN--> T_ROOT`
+  * `IF_ROOT --ROLE_ELSE--> E_ROOT` (optional)
+
+Execution semantics (emergent rule):
+
+* When IF_ROOT is active:
+
+  * Match the condition pattern C in the current context.
+  * If match score > threshold:
+
+    * increase activation of T_ROOT (execute “then” branch).
+  * Else:
+
+    * increase activation of E_ROOT (if present).
+
+### 4.2 Loops
+
+A loop is a pattern that re-activates a sub-pattern while a condition holds.
+
+Represent:
+
+* LOOP_ROOT node
+* Edges:
+
+  * `LOOP_ROOT --ROLE_COND--> C_ROOT`
+  * `LOOP_ROOT --ROLE_BODY--> B_ROOT`
+
+Execution semantics:
+
+* While LOOP_ROOT active:
+
+  * Check condition C (pattern match).
+  * If match score > threshold:
+
+    * activate B_ROOT again (body re-executes).
+  * If not:
+
+    * LOOP_ROOT decays (loop ends).
+
+Loop termination emerges from:
+
+* condition failing,
+* resource limits (tick/instruction budgets),
+* reward dynamics.
+
+### 4.3 Functions / procedures
+
+A “function” is a pattern that maps **input bindings** to **output bindings**.
+
+Representation:
+
+* FUNC_ROOT node
+* BLANKs for input roles (e.g., ARG1, ARG2, CONTEXT)
+* BLANKs or concrete nodes for output roles (e.g., RESULT, ACTION)
+
+Edges:
+
+* `FUNC_ROOT --ROLE_INPUT--> BLANK_ARG1`
+* `FUNC_ROOT --ROLE_INPUT--> BLANK_ARG2`
+* `FUNC_ROOT --ROLE_OUTPUT--> BLANK_RES`
+
+Execution semantics:
+
+* When FUNC_ROOT fires:
+
+  * match inputs in the graph (bind BLANK_ARG*),
+  * activate sub-patterns that derive outputs (predict or propose BLANK_RES binding),
+  * output gating decides whether to emit actions / answer.
+
+### 4.4 “Execution” model
+
+Execution is **propagation of activation through control-flow patterns**, not stepping a program counter.
+
+Rough rule:
+
+1. Global tick:
+
+   * propagate activations via edges.
+2. Active control patterns (IF, LOOP, FUNC) evaluate their conditions and push activation into their branches or sub-patterns.
+3. Outputs (text, motor) are gated by specialized output patterns that look at:
+
+   * context,
+   * confidence,
+   * conflict with other outputs.
+
+No explicit CPU-like PC register is required; “where we are in the program” is encoded in which control nodes/edges are currently active.
+
+---
+
+## 5. (E) Compiler-Like Behavior Using Only Patterns
+
+Melvin’s “compiler” is just a set of patterns that transform **code-as-data** into **code-as-patterns** (and optionally into syscalls or external helpers). No new file type, no blob.
+
+### 5.1 Representing source code
+
+Source (C, Melvin-lang, etc.) is encoded as:
+
+* sequences of DATA nodes (bytes/tokens),
+* TAG/TOKEN nodes marking:
+
+  * identifiers,
+  * numbers,
+  * operators,
+  * delimiters.
+
+### 5.2 Parsing via patterns
+
+Parsing is done by patterns that recognize grammar-like structures:
+
+* Expression patterns (e.g., “TERM + TERM”)
+* Statement patterns (e.g., “if (COND) BLOCK”)
+* Block patterns (sequence of statements)
+* Function definition patterns
+
+Each grammar construct is a pattern over tokens and/or lower-level patterns (expressions, terms, etc.).
+
+Binding:
+
+* BLANK nodes in these patterns capture things like:
+
+  * variable names,
+  * literals,
+  * nested constructs.
+
+### 5.3 IR as patterns
+
+Instead of an external IR, compiler patterns rewrite source patterns into **graph IR patterns**, e.g.:
+
+* “add two integers” → a FUNC-like pattern with:
+
+  * input BLANKs ARG1, ARG2
+  * output BLANK RES
+  * control-flow patterns linking them
+
+These IR patterns are just more patterns with BLANK nodes and control structure edges.
+
+### 5.4 Optimization via pattern-of-patterns
+
+Higher-level compiler/optimizer patterns:
+
+* match over IR patterns,
+* recognize redundancies (e.g., constant folding),
+* rewrite IR subgraphs into simpler forms.
+
+Example: pattern that matches:
+
+* ADD(ARG, 0) → replace with ARG
+
+This is done by graph rewrites:
+
+* remove certain nodes/edges,
+* reconnect others,
+* all driven by patterns, not by external code.
+
+### 5.5 Optional external execution
+
+If needed, a pattern may decide:
+
+* “This IR subgraph corresponds to an operation we will outsource.”
+
+Then:
+
+* It triggers a syscall pattern (e.g., calling a math library or external compiler).
+* The result comes back as bytes and becomes part of the graph.
+* The system learns:
+
+  * which compiler patterns to use,
+  * when outsourcing is beneficial,
+  * how results relate to inputs.
+
+But **internally**, everything is still patterns + blanks.
+
+---
+
+## 6. Invariants to Enforce in Code
+
+Any time you touch Melvin’s implementation:
+
+1. **No blobs / offsets / dual memory.**
+
+   * Do not introduce byte arrays that hold “code” or “patterns” separate from nodes/edges.
+
+2. **Patterns = subgraphs.**
+
+   * Rooted at a PATTERN-ROOT node,
+   * membership defined by edges.
+
+3. **Blanks = variable slots.**
+
+   * Implemented as BLANK nodes,
+   * bindings are dynamic maps to existing nodes during matching.
+
+4. **Computation = pattern activation.**
+
+   * Do not create a special “VM stack” or separate instruction buffer.
+   * Control flow is pattern-guided activation, not a C-like interpreter loop with its own hidden memory.
+
+5. **Compiler = patterns over code.**
+
+   * Parsing, IR, optimization, and “codegen” are graph rewrites driven by patterns, not an external compiler with its own AST structures.
+
+---

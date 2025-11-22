@@ -1,0 +1,368 @@
+
+* **One Node type** (with different `kind` values: DATA, BLANK, PATTERN_ROOT, CONTROL, TAG, etc.)
+* **One Edge type** (no separate SEQ/BIND/CONTROL structs)
+* **No blobs / offsets / code regions**
+* **Directed edges only**
+* **All semantics from patterns + tags + learning**
+
+---
+
+# **MELVIN EDGE SYSTEM – ONE EDGE TYPE, FULL SPEC**
+
+In Melvin there is **exactly one edge type**.
+
+No SEQ edge vs BIND edge vs CONTROL edge types in C.
+One struct, one array, one substrate.
+
+All differences in meaning come from:
+
+* **direction**
+* **weight**
+* **tags / roles**
+* **how patterns use them**
+
+This keeps the graph **unified and emergent**.
+
+---
+
+## 1. Edge Philosophy
+
+1. There is **one physical thing** called `Edge`.
+2. Every relation in the brain is an `Edge`:
+
+   * time/sequence
+   * semantic similarity
+   * bindings between blanks and fillers
+   * pattern membership
+   * control flow (program next-step)
+   * relational structure (above/below, part-of, cause/effect)
+   * channel tagging (text/motor/vision/reward)
+3. All edges are:
+
+   * **directed**
+   * **weighted**
+   * **updatable by learning**
+   * **subject to structural evolution (birth/decay/prune)**
+
+You **never** introduce a second edge struct in C.
+
+---
+
+## 2. Edge Data Model (Single Type)
+
+In C (conceptually):
+
+```c
+typedef struct {
+    uint64_t src;        // node id
+    uint64_t dst;        // node id
+
+    float    w;          // primary weight (influence strength)
+
+    // Tagging / semantics (still same Edge type)
+    uint32_t tags;       // bitmask: SEQ, BIND, CONTROL, ROLE, REL, CHAN, PATTERN, META, etc.
+    uint16_t role;       // optional small int for finer role ids (e.g., LEFT_OPERAND, RESULT, CONDITION)
+    uint16_t channel;    // optional: channel id or grouping id (e.g., TEXT, VISION)
+
+    // Dynamics / learning
+    float    eligibility;    // for RL / credit assignment
+    float    usage;          // smoothed usage frequency / recency
+    float    reliability;    // how often this edge helped prediction/reward
+
+    // Structural lifecycle
+    uint32_t age_ticks;      // how long it has existed
+    uint32_t last_used_tick; // for decay / pruning decisions
+
+    // Optional adjacency helpers (still same type)
+    uint64_t next_out;       // next edge in src’s outgoing list (or INVALID)
+    uint64_t next_in;        // next edge in dst’s incoming list (or INVALID)
+} Edge;
+```
+
+**Important:**
+
+* `Edge` is the **only** edge type in the system.
+* `tags` and `role` are how you mark “this behaves like a SEQ edge” or “this is a binding edge”, but *physically* it is still just an `Edge`.
+
+---
+
+## 3. Directions & Meaning
+
+Edges are always **one-way**:
+
+* `src → dst`
+
+Direction encodes:
+
+* temporal order (previous → next)
+* causal influence (cause → effect)
+* program flow (current_instruction → next_instruction)
+* semantic direction (parent → child, concept → instance)
+
+There is **no such thing** as an undirected edge in Melvin.
+If something feels bidirectional, you use **two directed edges**:
+
+* `A → B` and `B → A` with possibly different tags/weights.
+
+---
+
+## 4. Tags: How One Edge Type Plays Many Roles
+
+`tags` is a bitmask. Example bits:
+
+* `EDGE_TAG_SEQ` – participates in **sequence/time**
+* `EDGE_TAG_BIND` – used for **blank→filler bindings**
+* `EDGE_TAG_CONTROL` – used for **program flow**, IF/LOOP/FUNC, etc.
+* `EDGE_TAG_ROLE` – encodes structured positions (LEFT, RIGHT, RESULT, CONDITION, BODY, etc.)
+* `EDGE_TAG_REL` – general relational semantics (part-of, above, contact, etc.)
+* `EDGE_TAG_CHAN` – associates with channel semantics (TEXT, VISION, MOTOR, REWARD…)
+* `EDGE_TAG_PATTERN` – pattern membership / pattern structure
+* `EDGE_TAG_META` – misc internal use
+
+Still **one Edge struct**. Tags only change how patterns interpret them.
+
+Example:
+
+* A sequence edge between bytes:
+
+  * `tags = EDGE_TAG_SEQ | EDGE_TAG_CHAN`
+* A blank binding:
+
+  * `tags = EDGE_TAG_BIND`
+* A control-flow edge (program step):
+
+  * `tags = EDGE_TAG_CONTROL`
+* “Inside pattern X” membership edge:
+
+  * `tags = EDGE_TAG_PATTERN`
+
+---
+
+## 5. How Edges Carry Messages
+
+On each tick, edges carry **messages** from `src` to `dst`:
+
+Given activations `a[src]` and `a[dst]`:
+
+1. **Base message:**
+
+   ```c
+   float m = edge.w * a[src];
+   ```
+
+2. **Tag-dependent modulation (conceptual, but still one formula):**
+
+   * If `EDGE_TAG_SEQ`:
+
+     * emphasize temporal propagation.
+   * If `EDGE_TAG_BIND`:
+
+     * emphasize identity transfer (e.g., BLANK→filler influence).
+   * If `EDGE_TAG_CONTROL`:
+
+     * used to update which instruction/control node is active.
+
+3. **Combine into dst:**
+
+   ```c
+   dst_input_sum += m;              // scalar part
+   // optionally, vector message for embeddings
+   ```
+
+All edges use the **same fundamental mechanism**:
+
+> message = weight × activation(src)
+> plus small tag-based modulations
+
+No separate update rules per edge type in C; tags only bias behavior in simple ways.
+
+---
+
+## 6. Learning on Edges (Weight Updates)
+
+Each edge has:
+
+* `eligibility`
+* `usage`
+* `reliability`
+
+### 6.1 Eligibility
+
+Eligibility tracks **recent involvement** in activity:
+
+```c
+// update per tick
+edge.eligibility = decay_e * edge.eligibility + f(a[src], a[dst]);
+```
+
+A simple version:
+
+```c
+f(a_src, a_dst) = a_src * a_dst;
+```
+
+### 6.2 Reward-based update
+
+When reward `R` arrives:
+
+```c
+float delta_w = eta * edge.eligibility * (R - baseline);
+edge.w += delta_w;
+```
+
+* **Positive R** → strengthen edges that were active.
+* **Negative R** → weaken them.
+
+Optionally:
+
+* SEQ edges might weight prediction error more.
+* BIND edges might weight correct filling more.
+
+But these are just **different terms in the same local rule**, not different C types.
+
+---
+
+## 7. Structural Evolution: Birth / Decay / Prune
+
+All structural change uses the same Edge struct.
+
+### 7.1 Birth (creating edges)
+
+Edges are created when certain conditions hold, for example:
+
+* src and dst are co-active in a specific pattern,
+* `R > 0`,
+* some tag combination is appropriate.
+
+Rule sketch:
+
+```c
+if (a[src] > θ_src &&
+    a[dst] > θ_dst &&
+    recent_reward > 0) {
+    add_edge(src, dst, initial_w, tags);
+}
+```
+
+Where `tags` might include:
+
+* `EDGE_TAG_SEQ` when the co-activation is temporal.
+* `EDGE_TAG_BIND` when the co-activation is blank-filler.
+* `EDGE_TAG_CONTROL` when building program flow.
+
+### 7.2 Decay
+
+Edges lose strength and/or usage over time:
+
+```c
+edge.usage       = decay_u * edge.usage + g(a[src], a[dst]);
+edge.reliability = decay_r * edge.reliability + h(prediction_success);
+
+if (edge.w > 0) edge.w *= decay_w;
+edge.age_ticks++;
+```
+
+### 7.3 Pruning
+
+If an edge is:
+
+* weak (`w` below threshold),
+* rarely used (`usage` low),
+* unreliable (`reliability` low),
+* old, and
+* harmful (associated with negative reward),
+
+then it is removed:
+
+```c
+if (edge.w < W_MIN &&
+    edge.usage < U_MIN &&
+    edge.reliability < R_MIN) {
+    delete_edge(e_id);
+}
+```
+
+Still **one edge type**. No special deletion logic per semantic role.
+
+---
+
+## 8. Patterns and the Single Edge Type
+
+Patterns are **subgraphs**: sets of nodes + edges.
+
+Edge tags help patterns understand **how** edges are used, but structurally they are all the same.
+
+### 8.1 Using tags inside pattern matching
+
+Pattern matcher reads edge tags to interpret structure:
+
+* `EDGE_TAG_SEQ` → interpret as temporal neighbor.
+* `EDGE_TAG_BIND` → interpret as a binding constraint (blank → filler).
+* `EDGE_TAG_CONTROL` → interpret as control-flow link (instruction order, branches).
+* `EDGE_TAG_REL` → interpret as spatial/contact/structural relation.
+* `EDGE_TAG_ROLE` → interpret semantics of positions (left, right, condition, etc.)
+
+But matching is still:
+
+* graph nodes,
+* graph edges,
+* tag checks,
+* structural comparisons.
+
+No special tables per edge type.
+
+---
+
+## 9. Programs / Control Flow Using One Edge Type
+
+Programs (graph code) are just:
+
+* instruction nodes,
+* connected by edges with `EDGE_TAG_CONTROL`.
+
+Example:
+
+* `INSN1 → INSN2` with `EDGE_TAG_CONTROL`
+* `INSN_IF → INSN_TRUE` and `INSN_IF → INSN_FALSE` both with `EDGE_TAG_CONTROL`, but different `role` values (e.g., ROLE_TRUE, ROLE_FALSE)
+
+The interpreter in C:
+
+1. Finds active instruction nodes.
+2. Reads outgoing edges with `EDGE_TAG_CONTROL`.
+3. Uses `role` and condition results to choose the next instruction.
+4. Activates that dst node.
+
+Again: all edges share the same struct; control vs non-control only depends on tags.
+
+---
+
+## 10. Implementation Invariants
+
+When modifying the code:
+
+1. **Only one Edge struct in C.**
+
+   * No `SeqEdge`, `BindEdge`, `ControlEdge` types.
+   * No separate arrays for different edge kinds.
+
+2. **Semantics expressed via tags and patterns, not via types.**
+
+   * If you need a new relation, add a new **tag constant** and patterns that use it — do *not* create a new struct.
+
+3. **All edges directed.**
+
+   * Never create an “undirected” representation.
+
+4. **All learning and structural rules local to edges.**
+
+   * Updates depend only on:
+
+     * `src`, `dst`, `w`, `tags`, `usage`, `eligibility`,
+     * local node states and reward.
+
+5. **Patterns treat edges as uniform.**
+
+   * Pattern matcher never assumes multiple edge tables.
+   * It filters by tags/roles/meta within the single edge pool.
+
+---

@@ -1,0 +1,193 @@
+
+---
+
+# 🔥 **MELVIN: MACHINE-CODE BACKED NODES (MC-NODES) — SYSTEM OUTLINE PROMPT**
+
+## **0. Overview**
+
+We extend the unified graph architecture so that:
+
+* Every node is still a **general node** (same struct, same semantics).
+* Some nodes have an additional field `mc_id`, pointing to **native CPU functions**.
+* The graph decides *when* MC nodes fire via activation and patterns.
+* `melvin.c` actually invokes the machine code functions.
+* Machine code semantics are treated as **opaque tools**, but patterns, edges, and reward determine how they’re used.
+
+No raw byte mutation.
+No special node class.
+MC integrates seamlessly into the existing graph.
+
+---
+
+# **1. Node Structure Update**
+
+Extend `Node` with MC metadata:
+
+```c
+uint32_t mc_id;      // 0 = no machine code; >0 = index in MC table
+uint16_t mc_flags;   // optional: safety, roles, permissions
+uint16_t mc_role;    // optional: input/output grouping for MC
+```
+
+**Cost:** +8 bytes per node
+**No new node types.**
+Any node can be MC-backed.
+
+---
+
+# **2. MC Table in C (Registry of Native Functions)**
+
+Add in `melvin.c`:
+
+```c
+typedef void (*MCFn)(Brain *g, uint64_t node_id);
+
+typedef struct {
+    const char *name;
+    MCFn        fn;
+    uint32_t    flags;   // safety, IO, heavy, etc.
+} MCEntry;
+
+static MCEntry g_mc_table[MAX_MC_FUNCS];
+static uint32_t g_mc_count;
+```
+
+This is where **all compiled C functions** live:
+
+* math kernels
+* IO kernels
+* vision/audio steps
+* compile/load helpers
+* user-created `.so` functions
+* graph-generated new functions later
+
+Graph only holds **indices** (`mc_id`).
+C holds actual machine code.
+
+---
+
+# **3. How MC Executes (Tick Loop Integration)**
+
+Add a new phase to the tick loop:
+
+```c
+void run_mc_nodes(Brain *g) {
+    for (uint64_t i = 0; i < g->num_nodes; i++) {
+        Node *n = &g->nodes[i];
+
+        if (n->mc_id == 0) continue;            // no machine code
+        if (n->a < MC_ACTIVATION_THRESHOLD) continue;  // not “called”
+
+        MCEntry *entry = &g_mc_table[n->mc_id];
+        if (!entry->fn) continue;
+
+        entry->fn(g, i);  // CPU executes native function
+    }
+}
+```
+
+**Graph decides WHEN.**
+**C executes WHAT.**
+
+This is the “graph talks to CPU” moment.
+
+---
+
+# **4. How Patterns Integrate MC Nodes**
+
+MC nodes behave like normal nodes:
+
+* Edges with roles define **inputs** and **outputs**:
+
+  * `ROLE_IN_A`, `ROLE_IN_B`, `ROLE_OUTPUT`, etc.
+* Patterns decide when an MC node belongs to a local program.
+* Pattern induction learns:
+
+  * where MC calls help,
+  * where they reduce error,
+  * where they increase reward,
+  * in what contexts they should fire.
+
+MC nodes gain reliability just like any other node/sequence.
+
+Graph intelligence =
+**how MC nodes are arranged, sequenced, and contextualized**.
+
+---
+
+# **5. How the Graph Learns New MC Functions**
+
+Phase 0 — you seed minimal functions (vec_add, matmul, vision_step, etc.)
+Phase 1 — graph loads existing `.so` modules using MC loader:
+
+```c
+mc_loader(g, node_id)  // loads .so and imports new MC functions
+```
+
+Phase 2 — graph writes C source into DATA nodes and calls:
+
+```c
+mc_compile()  // uses clang/gcc to build .so from graph-written C
+mc_loader()   // loads compiled functions into MC table
+```
+
+The graph:
+
+* Generates source patterns
+* Compiles them
+* Loads them
+* Integrates newly created MC nodes
+* Uses RL + patterns to keep the useful ones
+
+MC evolution happens through **C text + compilation**, not raw opcodes.
+
+---
+
+# **6. Safety Principles**
+
+* Graph does **not** mutate raw machine code bytes.
+* MC functions are safe, human-written or graph-compiled from C text.
+* MC calls only trigger through `melvin.c` via controlled `MCFn` function pointers.
+* Crash → MC node gets penalized / disabled, not catastrophic meltdown.
+* Graph cannot execute arbitrary memory; only functions registered in MC table.
+
+This maintains system stability while allowing machine-code interaction.
+
+---
+
+# **7. Philosophy Maintained**
+
+* **One unified substrate:** nodes + edges + patterns
+* MC is *not* a new substrate; it’s a **capability** of some nodes
+* Patterns control everything: scheduling, arguments, interpretation, reward
+* MC is just a “muscle” or “tool” the graph chooses to use
+* Graph structure and learning rules remain unchanged
+* Execution remains emergent and fully pattern-driven
+* CPU does heavy lifting, graph remains intelligence
+
+---
+
+# **8. Implementation Steps (Cursor-friendly)**
+
+1. **Add mc_id, mc_flags, mc_role to Node struct.**
+2. **Add MCEntry table (`g_mc_table[]`).**
+3. **Add `run_mc_nodes()` to tick loop.**
+4. **Write 1–3 example MC functions (`mc_vec_add`, `mc_matmul`, …).**
+5. **Add edges roles (`ROLE_IN_A`, etc.)** for wiring MC nodes.
+6. **Add minimal loader kernel** (“mc_loader”).
+7. **Hook patterns into scheduling MC nodes** by activating them.
+8. **Train graph on small tasks to prove emergent usage of MC nodes.**
+
+---
+
+# ⭐ **COPY THIS INTO CURSOR AS A WORKING OUTLINE**
+
+This outlines **exactly** where the system evolves:
+
+* Graph = mind
+* C = physics
+* MC = tools the mind chooses to use
+
+And how everything stays unified, clean, emergent, and stable without falling into the chaos of raw opcode mutation.
+
+---
