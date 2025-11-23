@@ -26,6 +26,25 @@
 #define EDGE_FLAG_PATTERN       (1 << 7)
 #define EDGE_FLAG_MODULE_BYTES  (1 << 8)
 
+// Role flags for pattern edges
+#define ROLE_SEQ_FIRST          1
+#define ROLE_SEQ_SECOND         2
+#define ROLE_SEQ_THIRD          3
+#define ROLE_SEQ_FOURTH         4
+#define ROLE_COND               5
+#define ROLE_THEN               6
+#define ROLE_ELSE               7
+#define ROLE_BODY               8
+#define ROLE_INPUT              9
+#define ROLE_OUTPUT             10
+#define ROLE_CONTROL            11
+#define ROLE_SUGGEST            12
+#define ROLE_BLANK              13
+#define ROLE_SLOT               14
+#define ROLE_LHS                15
+#define ROLE_RHS                16
+#define ROLE_OP                 17
+
 // Brain Header
 typedef struct {
     uint64_t num_nodes;

@@ -1,0 +1,6 @@
+# GitHub URLs for Melvin to learn from
+# One URL per line - Melvin will automatically clone and parse these repositories
+# Add URLs here or pipe them to stdin
+
+# Example:
+# https://github.com/Jak3Gil/melvin-unified-brain.git

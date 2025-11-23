@@ -1,0 +1,62 @@
+# Makefile for Jetson Orin AGX (ARM64, 64GB RAM)
+# Optimized for NVIDIA Jetson platform
+
+CC = gcc
+CXX = g++
+CFLAGS = -O3 -Wall -Wextra -std=c11 -fPIC -march=native -mtune=cortex-a78
+CXXFLAGS = -O3 -Wall -Wextra -std=c++11 -fPIC -march=native -mtune=cortex-a78
+LDFLAGS = -shared -fPIC -lm -ldl -lpthread
+
+# Jetson-specific optimizations
+JETSON_CFLAGS = -march=armv8.2-a+fp16+simd -mtune=cortex-a78 -O3 -ffast-math
+JETSON_LDFLAGS = -Wl,-rpath,/usr/local/lib
+
+# Plugin directory
+PLUGIN_DIR = plugins
+PLUGIN_SRC = $(wildcard $(PLUGIN_DIR)/*.c)
+PLUGIN_OBJ = $(PLUGIN_SRC:.c=.o)
+PLUGIN_SO = $(PLUGIN_SRC:.c=.so)
+
+# Main executable
+MAIN = melvin
+MAIN_SRC = melvin.c
+MAIN_OBJ = melvin.o
+
+# Default target
+all: $(MAIN) plugins
+
+# Main executable
+$(MAIN): $(MAIN_OBJ)
+	$(CC) $(CFLAGS) $(JETSON_CFLAGS) -o $(MAIN) $(MAIN_OBJ) $(JETSON_LDFLAGS) -lm -ldl -lpthread
+	@echo "Built $(MAIN) for Jetson Orin AGX"
+
+$(MAIN_OBJ): $(MAIN_SRC) melvin.h
+	$(CC) $(CFLAGS) $(JETSON_CFLAGS) -c $(MAIN_SRC) -o $(MAIN_OBJ)
+
+# Plugins
+plugins: $(PLUGIN_SO)
+	@echo "Built all plugins for Jetson"
+
+$(PLUGIN_DIR)/%.so: $(PLUGIN_DIR)/%.c melvin.h
+	@echo "Building plugin: $<"
+	$(CC) $(CFLAGS) $(JETSON_CFLAGS) $(LDFLAGS) -I. -undefined dynamic_lookup -o $@ $<
+
+# Clean
+clean:
+	rm -f $(MAIN) $(MAIN_OBJ) $(PLUGIN_SO) $(PLUGIN_OBJ)
+	@echo "Cleaned build artifacts"
+
+# Install (optional)
+install: all
+	@echo "Installation not configured - copy files manually to Jetson"
+
+# Help
+help:
+	@echo "Jetson Orin AGX Build System"
+	@echo "  make          - Build main executable and all plugins"
+	@echo "  make plugins  - Build only plugins"
+	@echo "  make clean    - Remove build artifacts"
+	@echo "  make help     - Show this help"
+
+.PHONY: all plugins clean install help
+

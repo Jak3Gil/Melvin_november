@@ -11,6 +11,48 @@
 #include <errno.h>
 #include <time.h>
 #include <dlfcn.h> // Added for dynamic loading
+#include <math.h>
+#include <inttypes.h>
+#include <stdint.h>
+
+// Debug flag
+static int g_debug = 0;
+static int g_log_simplicity = 0; // Enable via env var MELVIN_LOG_SIMPLICITY=1
+
+// ========================================================
+// Simplicity Objective Metrics
+// ========================================================
+
+// Channel types for prediction error tracking
+#define CH_TEXT    1
+#define CH_SENSOR  2
+#define CH_MOTOR   3
+#define CH_VISION  4
+#define CH_REWARD  4  // Reuse same value if no separate reward channel yet
+
+typedef struct {
+    // Prediction error (how badly we failed to predict inputs)
+    double pred_error_total;
+    double pred_error_text;
+    double pred_error_sensor;
+    double pred_error_motor;
+    
+    // Size / complexity
+    uint64_t num_nodes;
+    uint64_t num_edges;
+    uint64_t num_patterns;
+    
+    // Compression / reuse proxies
+    double avg_pattern_length;      // avg number of slots per pattern (approx)
+    double pattern_usage_rate;      // fraction of active nodes that belong to patterns
+    double episodic_compression;    // ratio: raw bytes vs pattern-explained bytes (approx)
+    
+    // Derived objective
+    double simplicity_score;        // higher is "better" (more intelligent / simpler)
+} SimplicityMetrics;
+
+// Global metrics accumulator (reset each tick)
+static SimplicityMetrics g_simplicity_metrics = {0};
 
 // ========================================================
 // MC Table Definition
@@ -30,15 +72,15 @@ typedef struct {
     uint32_t    flags;
 } MCEntry;
 
-static MCEntry  g_mc_table[MAX_MC_FUNCS];
-static uint32_t g_mc_count = 0;
+MCEntry  g_mc_table[MAX_MC_FUNCS];  // Made non-static for bootstrap access
+uint32_t g_mc_count = 0;
 
 // ========================================================
 // Helper Functions
 // ========================================================
 
-// Find a free node
-static uint64_t alloc_node(Brain *g) {
+// Find a free node (exported for plugins)
+uint64_t alloc_node(Brain *g) {
     if (g->header->num_nodes >= g->header->node_cap) return 0; // 0 is usually reserved or valid, but let's check
     // Assume append for now
     uint64_t id = g->header->num_nodes++;
@@ -46,14 +88,14 @@ static uint64_t alloc_node(Brain *g) {
     return id;
 }
 
-// Add edge
-static void add_edge(Brain *g, uint64_t src, uint64_t dst, float w, uint32_t flags) {
+// Add edge (exported for plugins)
+void add_edge(Brain *g, uint64_t src, uint64_t dst, float w, uint32_t flags) {
     if (g->header->num_edges >= g->header->edge_cap) return;
     
     // Simple linear scan to update existing edge? 
     // For speed, let's just append. Compaction is for later.
     // Or check if exists? Expensive for O(E).
-    // We'll just append for the seed/bootstrap phase.
+    // Just append new edges.
     
     Edge *e = &g->edges[g->header->num_edges++];
     e->src = src;
@@ -64,328 +106,50 @@ static void add_edge(Brain *g, uint64_t src, uint64_t dst, float w, uint32_t fla
 }
 
 // ========================================================
-// MC Functions
+// MC Functions - All moved to plugins
 // ========================================================
-
-// Static state for FS exploration
-static char **file_list = NULL;
-static size_t file_count = 0;
-static size_t file_cap = 0;
-static size_t current_file_idx = 0;
-static FILE *current_fp = NULL;
-static uint64_t current_file_node_id = 0;
-
-static void add_file_to_list(const char *path) {
-    if (file_count >= file_cap) {
-        file_cap = file_cap ? file_cap * 2 : 1024;
-        file_list = realloc(file_list, file_cap * sizeof(char*));
-    }
-    file_list[file_count++] = strdup(path);
-}
-
-static void scan_dir_recursive(const char *base_path) {
-    DIR *dir = opendir(base_path);
-    if (!dir) return;
-
-    struct dirent *ent;
-    while ((ent = readdir(dir)) != NULL) {
-        if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0) continue;
-        
-        char path[1024];
-        snprintf(path, sizeof(path), "%s/%s", base_path, ent->d_name);
-        
-        struct stat st;
-        if (stat(path, &st) == 0) {
-            if (S_ISREG(st.st_mode)) {
-                add_file_to_list(path);
-            } else if (S_ISDIR(st.st_mode)) {
-                scan_dir_recursive(path);
-            }
-        }
-    }
-    closedir(dir);
-}
-
-void mc_fs_seed(Brain *g, uint64_t node_id) {
-    static int seeded = 0;
-    if (seeded) return;
-
-    printf("[MC] Seeding filesystem...\n");
-    scan_dir_recursive("."); // Scan current dir for now, or "./corpus" if exists
-    
-    // Also try ./data and ./corpus specifically if they exist
-    scan_dir_recursive("./data");
-    scan_dir_recursive("./corpus");
-
-    printf("[MC] Found %zu files.\n", file_count);
-
-    // Create nodes for files (optional, or just track internally)
-    // For now, we just have the list.
-    
-    seeded = 1;
-}
-
-void mc_fs_read_chunk(Brain *g, uint64_t node_id) {
-    if (file_count == 0) return;
-    if (current_file_idx >= file_count) current_file_idx = 0; // Loop or stop? Loop for now.
-
-    if (!current_fp) {
-        const char *path = file_list[current_file_idx];
-        current_fp = fopen(path, "rb");
-        if (!current_fp) {
-            // Failed to open, skip
-            current_file_idx++;
-            return;
-        }
-        printf("[MC] Reading file: %s\n", path);
-        // Create a node representing this file if we want
-    }
-
-    uint8_t buffer[4096];
-    size_t n = fread(buffer, 1, sizeof(buffer), current_fp);
-    
-    if (n > 0) {
-        static uint64_t last_byte_node = 0;
-        
-        for (size_t i = 0; i < n; i++) {
-            uint8_t b = buffer[i];
-            // Activate node 0-255
-            if (b < g->header->num_nodes) { // Assuming first 256 nodes are bytes
-                 g->nodes[b].a = 1.0f;
-                 g->nodes[b].value = (float)b;
-                 g->nodes[b].kind = NODE_KIND_DATA;
-                 
-                 if (last_byte_node != 0) {
-                     // Add sequence edge
-                     // This is simplistic; in real Melvin we check for existence
-                     add_edge(g, last_byte_node, b, 1.0f, EDGE_FLAG_SEQ);
-                 }
-                 last_byte_node = b;
-            }
-        }
-    }
-
-    if (n < sizeof(buffer)) {
-        // EOF or Error
-        fclose(current_fp);
-        current_fp = NULL;
-        current_file_idx++;
-    }
-}
-
-void mc_stdio_in(Brain *g, uint64_t node_id) {
-    int c = getchar();
-    if (c != EOF) {
-        // Activate node representing this byte?
-        if (c >= 0 && c < 256) {
-             g->nodes[c].a = 1.0f;
-             // Add edge from this I/O node to... where?
-             // For now just input injection.
-        }
-    }
-}
-
-void mc_stdio_out(Brain *g, uint64_t node_id) {
-    Node *n = &g->nodes[node_id];
-    // If this node is active, output its value as char?
-    // Or if it's an OUTPUT node.
-    // The prompt says: "Let them read/write single bytes from stdin/stdout."
-    // Usually this MC function is attached to a specific node.
-    // If this node is active, print something.
-    // Maybe print the value of the strongest connected node? 
-    // Or just print a fixed character if it's a "Print 'A'" node?
-    // Let's assume it prints the char corresponding to the node's value if valid.
-    if (n->value >= 0 && n->value < 256) {
-        putchar((int)n->value);
-        fflush(stdout);
-    }
-}
-
-void mc_compile(Brain *g, uint64_t node_id) {
-    static int compiled = 0;
-    if (compiled) {
-        g->nodes[node_id].a = 0.0f;
-        g->nodes[node_id].bias = -5.0f;
-        return;
-    }
-
-    fprintf(stderr, "[mc_compile] Compiling plugins/mc_beep.c...\n");
-    int rc = system("clang -shared -fPIC -O2 -I. -o plugins/mc_beep.so plugins/mc_beep.c");
-    
-    if (rc == 0) {
-        fprintf(stderr, "[mc_compile] Compilation success!\n");
-        // Trigger loader?
-        // For this test, we assume loader is running independently or we activate it here.
-        // Let's activate Node 261 (Loader).
-        if (g->header->num_nodes > 261) {
-            g->nodes[261].bias = 5.0f;
-            g->nodes[261].a = 1.0f;
-        }
-    } else {
-        fprintf(stderr, "[mc_compile] Compilation failed: %d\n", rc);
-    }
-    
-    compiled = 1;
-    g->nodes[node_id].a = 0.0f;
-    g->nodes[node_id].bias = -5.0f;
-}
-
-void mc_loader(Brain *g, uint64_t node_id) {
-    // ... (existing implementation)
-    static int loaded = 0;
-    if (loaded) {
-        g->nodes[node_id].a = 0.0f;
-        g->nodes[node_id].bias = -5.0f;
-        return;
-    }
-
-    // Try loading mc_beep first
-    const char *lib = "plugins/mc_beep.so";
-    const char *sym = "mc_beep";
-    
-    if (access(lib, F_OK) != 0) {
-        return; // Not ready yet
-    }
-
-    fprintf(stderr, "[mc_loader] Loading %s\n", lib);
-
-    void *h = dlopen(lib, RTLD_NOW);
-    if (!h) {
-        fprintf(stderr, "[mc_loader] dlopen failed: %s\n", dlerror());
-        return;
-    }
-
-    MCFn fn = (MCFn)dlsym(h, sym);
-    if (!fn) {
-        fprintf(stderr, "[mc_loader] dlsym failed: %s\n", dlerror());
-        return;
-    }
-
-    // Register
-    uint32_t id = g_mc_count++;
-    g_mc_table[id].name  = strdup(sym);
-    g_mc_table[id].fn    = fn;
-    g_mc_table[id].flags = 0;
-    
-    fprintf(stderr, "[mc_loader] registered %s as mc_id=%u\n", sym, id);
-
-    // Assign to Node 11 and activate (but with low bias to prevent continuous beeping)
-    Node *target = &g->nodes[11];
-    target->mc_id = id;
-    target->bias = -5.0f; // Disabled by default - graph can activate it later
-    target->a = 0.0f;
-    
-    loaded = 1;
-    g->nodes[node_id].a = 0.0f;
-    g->nodes[node_id].bias = -5.0f;
-}
-
-void mc_materialize_module_from_graph(Brain *g, uint64_t node_id) {
-    static int materialized = 0;
-    if (materialized) {
-        g->nodes[node_id].a = 0.0f;
-        g->nodes[node_id].bias = -5.0f;
-        return;
-    }
-
-    fprintf(stderr, "[mc_materialize] Extracting module from graph (root=%llu)...\n", (unsigned long long)node_id);
-
-    const char *temp_path = "/tmp/mc_beep_from_graph.so";
-    FILE *f = fopen(temp_path, "wb");
-    if (!f) {
-        perror("fopen temp");
-        return;
-    }
-
-    // Traverse edges
-    uint64_t curr = node_id;
-    size_t total_bytes = 0;
-    
-    // Find first child
-    uint64_t next = UINT64_MAX;
-    uint64_t edge_cap = g->header->edge_cap; // Use cap to be safe or count?
-    // Actually we should use num_edges
-    uint64_t num_edges = g->header->num_edges;
-
-    for(uint64_t i=0; i<num_edges; i++) {
-        Edge *e = &g->edges[i];
-        if (e->src == curr && (e->flags & EDGE_FLAG_MODULE_BYTES)) {
-            next = e->dst;
-            break;
-        }
-    }
-    
-    curr = next;
-    
-    while (curr != UINT64_MAX && curr < g->header->num_nodes) {
-        // Write byte
-        uint8_t b = (uint8_t)g->nodes[curr].value;
-        fputc(b, f);
-        total_bytes++;
-        
-        // Find next
-        uint64_t prev = curr;
-        next = UINT64_MAX;
-        for(uint64_t i=0; i<num_edges; i++) {
-            Edge *e = &g->edges[i];
-            if (e->src == prev && (e->flags & EDGE_FLAG_MODULE_BYTES)) {
-                next = e->dst;
-                break;
-            }
-        }
-        curr = next;
-        
-        if (total_bytes > 1000000) { // Safety break
-            fprintf(stderr, "[mc_materialize] Safety break: module too large\n");
-            break;
-        }
-    }
-    
-    fclose(f);
-    fprintf(stderr, "[mc_materialize] wrote %zu bytes to %s\n", total_bytes, temp_path);
-    
-    // Ad-hoc sign the binary for macOS
-    char cmd[1024];
-    snprintf(cmd, sizeof(cmd), "codesign -s - %s", temp_path);
-    system(cmd);
-
-    // Now load it
-    void *h = dlopen(temp_path, RTLD_NOW);
-    if (!h) {
-        fprintf(stderr, "[mc_materialize] dlopen failed: %s\n", dlerror());
-        return;
-    }
-    
-    MCFn fn = (MCFn)dlsym(h, "mc_beep");
-    if (!fn) {
-        fprintf(stderr, "[mc_materialize] dlsym failed: %s\n", dlerror());
-        return;
-    }
-    
-    uint32_t id = g_mc_count++;
-    g_mc_table[id].name = "mc_beep";
-    g_mc_table[id].fn = fn;
-    g_mc_table[id].flags = 0;
-    
-    fprintf(stderr, "[mc_materialize] registered mc_beep as mc_id=%u\n", id);
-    
-    // Assign to Node 12 and activate it (but with low bias to prevent continuous beeping)
-    uint64_t target_id = 12; 
-    if (target_id < g->header->num_nodes) {
-        g->nodes[target_id].mc_id = id;
-        g->nodes[target_id].bias = -5.0f; // Disabled by default - graph can activate it later
-        g->nodes[target_id].a = 0.0f;
-        fprintf(stderr, "[mc_materialize] Registered Node %llu with mc_id=%u (inactive)\n", (unsigned long long)target_id, id);
-    }
-
-    materialized = 1;
-    g->nodes[node_id].a = 0.0f;
-    g->nodes[node_id].bias = -5.0f;
-}
+// All MC functions are now in plugins/ and loaded dynamically
 
 // ========================================================
 // Core Runtime
 // ========================================================
+
+// Helper to compile and load a plugin
+static MCFn load_plugin_function(const char *plugin_name, const char *func_name) {
+    char so_path[256];
+    char src_path[256];
+    char cmd[512];
+    
+    snprintf(so_path, sizeof(so_path), "plugins/%s.so", plugin_name);
+    snprintf(src_path, sizeof(src_path), "plugins/%s.c", plugin_name);
+    
+    // Compile if needed
+    if (access(so_path, F_OK) != 0) {
+        fprintf(stderr, "[main] Compiling %s...\n", src_path);
+        snprintf(cmd, sizeof(cmd), "clang -shared -fPIC -O2 -I. -undefined dynamic_lookup -o %s %s", so_path, src_path);
+        int rc = system(cmd);
+        if (rc != 0) {
+            fprintf(stderr, "[main] Failed to compile %s\n", src_path);
+            return NULL;
+        }
+    }
+    
+    // Load plugin
+    void *h = dlopen(so_path, RTLD_NOW);
+    if (!h) {
+        fprintf(stderr, "[main] Failed to load %s: %s\n", so_path, dlerror());
+        return NULL;
+    }
+    
+    MCFn fn = (MCFn)dlsym(h, func_name);
+    if (!fn) {
+        fprintf(stderr, "[main] Failed to find %s in %s: %s\n", func_name, so_path, dlerror());
+        dlclose(h);
+        return NULL;
+    }
+    
+    return fn;
+}
 
 void register_mc(const char *name, MCFn fn) {
     if (g_mc_count >= MAX_MC_FUNCS) return;
@@ -399,15 +163,7 @@ void run_mc_nodes(Brain *g) {
     for (uint64_t i = 0; i < g->header->num_nodes; ++i) {
         Node *n = &g->nodes[i];
         if (n->mc_id == 0) continue;
-        // Debug print for node 0
-        // if (i == 0) {
-        //      fprintf(stderr, "Node 0: mc_id=%u a=%f\n", n->mc_id, n->a);
-        // }
-        if (n->a < 0.5f) continue; // Lowered threshold for testing
-
-        // Adjust for 0-based index vs 1-based ID? 
-        // Prompt says "0 = none; >0 = index". So index is mc_id.
-        // But we need to check bounds.
+        if (n->a < 0.5f) continue;
         if (n->mc_id < MAX_MC_FUNCS) {
             MCEntry *entry = &g_mc_table[n->mc_id];
             if (entry->fn) {
@@ -442,9 +198,8 @@ static float sigmoid(float x) {
 }
 
 void ingest_input(Brain *g) {
-    // In a real system, this would pull from buffers filled by MC nodes or external threads
-    // For now, MC nodes (mc_fs_read) write directly to node activations.
-    // So this might be a no-op if MC nodes did the work, or we might clamp inputs.
+    // Input ingestion handled by MC nodes or external systems
+    // This is a placeholder for any runtime-level input processing
 }
 
 void propagate_predictions(Brain *g) {
@@ -452,13 +207,12 @@ void propagate_predictions(Brain *g) {
     uint64_t n = g->header->num_nodes;
     uint64_t e_count = g->header->num_edges;
 
-    // 1. Reset predictions
+    // 1. Reset predictions to bias
     for(uint64_t i=0; i<n; i++) {
-        g_predicted_a[i] = g->nodes[i].bias; // Start with bias
+        g_predicted_a[i] = g->nodes[i].bias;
     }
 
-    // 2. Sum weighted inputs
-    // Note: This is O(E). 
+    // 2. Sum weighted inputs from edges
     for(uint64_t i=0; i<e_count; i++) {
         Edge *e = &g->edges[i];
         if (e->src < n && e->dst < n) {
@@ -467,83 +221,337 @@ void propagate_predictions(Brain *g) {
         }
     }
 
-    // 3. Apply activation function
+    // 3. Apply nonlinearity and clamp to [0, 1]
     for(uint64_t i=0; i<n; i++) {
         g_predicted_a[i] = sigmoid(g_predicted_a[i]);
+        // Clamp to prevent explosion
+        if (g_predicted_a[i] < 0.0f) g_predicted_a[i] = 0.0f;
+        if (g_predicted_a[i] > 1.0f) g_predicted_a[i] = 1.0f;
     }
     
-    // 4. Update internal nodes (Reality Update)
-    // Input nodes (kind=DATA) might be clamped by ingest_input/MC nodes, 
-    // so we only update nodes that weren't externally driven?
-    // For simplicity, we blend: a = (1-alpha)*a + alpha*pred
-    float alpha = 0.2f;
-    for(uint64_t i=0; i<n; i++) {
-        Node *node = &g->nodes[i];
-        // If node was strongly driven by MC/Input (a=1.0), keep it?
-        // Or blend. Let's blend.
-        node->a = (1.0f - alpha) * node->a + alpha * g_predicted_a[i];
-    }
+    // Note: We do NOT modify actual activations here.
+    // Actual activations are set by ingest_input, MC nodes, or apply_environment.
 }
 
 void apply_environment(Brain *g) {
-    // Physics/Env constraints. 
-    // Currently empty.
+    // Apply decay and normalization
+    uint64_t n = g->header->num_nodes;
+    for(uint64_t i=0; i<n; i++) {
+        Node *node = &g->nodes[i];
+        // Decay activation
+        node->a *= (1.0f - node->decay);
+        // Clamp to [0, 1]
+        if (node->a < 0.0f) node->a = 0.0f;
+        if (node->a > 1.0f) node->a = 1.0f;
+    }
+}
+
+// Accumulate prediction error into simplicity metrics
+static void sm_accumulate_prediction_error(SimplicityMetrics *m, double err, int channel_type) {
+    double err_abs = fabs(err);
+    m->pred_error_total += err_abs;
+    switch (channel_type) {
+        case CH_TEXT:   m->pred_error_text   += err_abs; break;
+        case CH_SENSOR: m->pred_error_sensor += err_abs; break;
+        case CH_MOTOR:  m->pred_error_motor  += err_abs; break;
+        default: break;
+    }
 }
 
 void compute_error(Brain *g) {
     ensure_buffers(g);
     uint64_t n = g->header->num_nodes;
     
+    // Reset error accumulation for this tick
+    double total_error = 0.0;
+    
     for(uint64_t i=0; i<n; i++) {
-        // Error = Actual - Predicted
-        // We just updated Actual (node->a) in propagate/ingest.
-        // Predicted is g_predicted_a.
-        g_node_error[i] = g->nodes[i].a - g_predicted_a[i];
+        float a_actual = g->nodes[i].a;
+        float a_pred = g_predicted_a[i];
+        float e = a_actual - a_pred;
+        // Clamp error to reasonable range
+        if (e > 1.0f) e = 1.0f;
+        if (e < -1.0f) e = -1.0f;
+        g_node_error[i] = e;
+        
+        // Accumulate into simplicity metrics
+        // Assume all nodes contribute to general prediction error
+        // Channel-specific tracking would require metadata on nodes
+        total_error += fabs(e);
     }
+    
+    // Accumulate total prediction error (approximate - treating all nodes as general input)
+    sm_accumulate_prediction_error(&g_simplicity_metrics, total_error / (double)n, 0);
 }
 
 void update_edges(Brain *g) {
     uint64_t e_count = g->header->num_edges;
-    float lambda = 0.9f; // Trace decay
-    float eta = 0.01f;   // Learning rate
+    const float eta = 0.001f;  // Learning rate
+    const float W_MAX = 10.0f;
+    const float lambda = 0.9f; // Eligibility trace decay
 
     for(uint64_t i=0; i<e_count; i++) {
         Edge *e = &g->edges[i];
         if (e->src >= g->header->num_nodes || e->dst >= g->header->num_nodes) continue;
         
         Node *src = &g->nodes[e->src];
-        Node *dst = &g->nodes[e->dst];
-
-        // 1. Update Eligibility
-        // elig(t+1) = lambda * elig(t) + src.a * dst.a
-        e->elig = lambda * e->elig + (src->a * dst->a);
-
-        // 2. Calculate Influence (Simplified)
-        // influence ~ weight * src.a
-        float influence = e->w * src->a;
+        float a_src = src->a;
+        float err_dst = g_node_error[e->dst];
         
-        // 3. Update Weight
-        // dw = eta * error[dst] * influence * elig
-        // Using g_node_error[dst]
-        float err = g_node_error[e->dst];
-        float dw = eta * err * influence * e->elig;
+        // Simple local learning rule: Δw = η * a_src * err_dst
+        float dw = eta * a_src * err_dst;
+        
+        // NaN guard (check for NaN or infinity)
+        if (dw != dw || dw > 1e10f || dw < -1e10f) dw = 0.0f;
         
         e->w += dw;
         
         // Clamp weights
-        if (e->w > 10.0f) e->w = 10.0f;
-        if (e->w < -10.0f) e->w = -10.0f;
+        if (e->w > W_MAX) e->w = W_MAX;
+        if (e->w < -W_MAX) e->w = -W_MAX;
         
-        // Update usage
-        if (fabsf(src->a * dst->a) > 0.1f) {
+        // Update eligibility trace
+        e->elig = lambda * e->elig + a_src;
+        
+        // Update usage count when edge contributes
+        if (fabsf(a_src) > 0.1f) {
             e->usage_count++;
         }
     }
 }
 
-void induce_patterns(Brain *g) {
-    // Stub: Real pattern induction would analyze g_node_error and g_predicted_a history
-    // to create new nodes for repeating sequences.
+void update_nodes_from_error(Brain *g) {
+    uint64_t n = g->header->num_nodes;
+    
+    for(uint64_t i=0; i<n; i++) {
+        Node *node = &g->nodes[i];
+        float err_abs = fabsf(g_node_error[i]);
+        
+        // Update reliability: nodes with low error get high reliability
+        float reliability_update = 1.0f - fminf(1.0f, err_abs);
+        node->reliability = 0.99f * node->reliability + 0.01f * reliability_update;
+        
+        // Clamp reliability to [0, 1]
+        if (node->reliability < 0.0f) node->reliability = 0.0f;
+        if (node->reliability > 1.0f) node->reliability = 1.0f;
+        
+        // Track success/failure counts
+        if (err_abs < 0.1f) {
+            node->success_count++;
+                } else {
+            node->failure_count++;
+        }
+    }
+}
+
+
+void log_learning_stats(Brain *g) {
+    if (!g_debug) return;
+    if (g->header->tick % 1000 != 0) return;
+    
+    uint64_t n = g->header->num_nodes;
+    uint64_t e_count = g->header->num_edges;
+    
+    // Count edges with non-zero weight
+    uint64_t active_edges = 0;
+    for(uint64_t i=0; i<e_count; i++) {
+        if (fabsf(g->edges[i].w) > 0.01f) active_edges++;
+    }
+    
+    // Count nodes by kind (generic statistics only)
+    uint64_t kind_counts[16] = {0};
+    uint64_t mc_nodes = 0;
+    uint64_t active_nodes = 0;
+    
+    for(uint64_t i=0; i<n; i++) {
+        Node *node = &g->nodes[i];
+        if (node->kind < 16) kind_counts[node->kind]++;
+        if (node->mc_id > 0) mc_nodes++;
+        if (node->a > 0.1f) active_nodes++;
+    }
+    
+    fprintf(stderr, "[tick %llu] nodes=%llu edges=%llu active_edges=%llu active_nodes=%llu mc_nodes=%llu",
+            (unsigned long long)g->header->tick,
+            (unsigned long long)n,
+            (unsigned long long)e_count,
+            (unsigned long long)active_edges,
+            (unsigned long long)active_nodes,
+            (unsigned long long)mc_nodes);
+    
+    fprintf(stderr, "\n");
+}
+
+// ========================================================
+// Simplicity Metrics Computation
+// ========================================================
+
+// Initialize metrics for a new tick
+static void sm_init(SimplicityMetrics *m) {
+    memset(m, 0, sizeof(*m));
+}
+
+// Measure graph complexity
+static void sm_measure_complexity(Brain *g, SimplicityMetrics *m) {
+    m->num_nodes = g->header->num_nodes;
+    m->num_edges = g->header->num_edges;
+    
+    // Count patterns (PATTERN_ROOT nodes)
+    m->num_patterns = 0;
+    uint64_t n = g->header->num_nodes;
+    uint64_t total_pattern_nodes = 0; // Nodes connected to patterns
+    uint64_t total_pattern_edges = 0; // Edges tagged as PATTERN
+    
+    for (uint64_t i = 0; i < n; i++) {
+        if (g->nodes[i].kind == NODE_KIND_PATTERN_ROOT) {
+            m->num_patterns++;
+        }
+    }
+    
+    // Count edges with PATTERN flag to approximate pattern coverage
+    uint64_t e_count = g->header->num_edges;
+    for (uint64_t i = 0; i < e_count; i++) {
+        if (g->edges[i].flags & EDGE_FLAG_PATTERN) {
+            total_pattern_edges++;
+        }
+    }
+    
+    // Approximate nodes in patterns from pattern edges
+    // Each pattern edge connects a pattern to a node, so count unique destinations
+    uint64_t pattern_connected_nodes = 0;
+    for (uint64_t i = 0; i < e_count; i++) {
+        if (g->edges[i].flags & EDGE_FLAG_PATTERN && g->edges[i].dst < n) {
+            // Count unique nodes (approximate - will double count)
+            pattern_connected_nodes++;
+        }
+    }
+    
+    m->pattern_usage_rate = (n > 0) ? (double)pattern_connected_nodes / (double)n : 0.0;
+    if (m->pattern_usage_rate > 1.0) m->pattern_usage_rate = 1.0; // Clamp
+}
+
+// Measure pattern compression/reuse
+static void sm_measure_patterns(Brain *g, SimplicityMetrics *m) {
+    if (m->num_patterns == 0) {
+        m->avg_pattern_length = 0.0;
+        m->episodic_compression = 0.0;
+        return;
+    }
+    
+    // Count pattern edges per pattern (approximate average length)
+    uint64_t e_count = g->header->num_edges;
+    uint64_t total_pattern_slots = 0;
+    
+    // For each pattern root, count outgoing pattern edges
+    uint64_t n = g->header->num_nodes;
+    for (uint64_t pid = 0; pid < n; pid++) {
+        if (g->nodes[pid].kind == NODE_KIND_PATTERN_ROOT) {
+            uint64_t slots = 0;
+            for (uint64_t i = 0; i < e_count; i++) {
+                if (g->edges[i].src == pid && (g->edges[i].flags & EDGE_FLAG_PATTERN)) {
+                    slots++;
+                }
+            }
+            total_pattern_slots += slots;
+        }
+    }
+    
+    m->avg_pattern_length = (m->num_patterns > 0) ?
+        (double)total_pattern_slots / (double)m->num_patterns : 0.0;
+    
+    // Episodic compression: use pattern_usage_rate as proxy
+    // Higher pattern_usage_rate means more data is explained by patterns (compression)
+    m->episodic_compression = m->pattern_usage_rate;
+}
+
+// Compute simplicity objective score
+static void sm_compute_objective(SimplicityMetrics *m) {
+    // Hyperparameters: tunable constants
+    const double W_PRED   = -1.0;   // penalize prediction error
+    const double W_SIZE   = -1e-6;  // small penalty per node/edge
+    const double W_COMP   =  1.0;   // reward compression/reuse
+    
+    double size_penalty = (double)m->num_nodes + (double)m->num_edges;
+    
+    double score = 0.0;
+    score += W_PRED * m->pred_error_total;
+    score += W_SIZE * size_penalty;
+    score += W_COMP * m->episodic_compression;
+    
+    m->simplicity_score = score;
+}
+
+// Normalize score to reward signal
+static float sm_reward_from_score(const SimplicityMetrics *m) {
+    double r = m->simplicity_score;
+    
+    // Normalize to reasonable range for reward signal
+    // Scale down to small values that can be used as reward
+    r = r * 0.01; // Scale factor
+    
+    // Clamp to reasonable range
+    if (r > 10.0) r = 10.0;
+    if (r < -10.0) r = -10.0;
+    
+    return (float)r;
+}
+
+// Inject intrinsic reward into graph
+static void melvin_send_intrinsic_reward(Brain *g, float reward_value) {
+    // Find or create reward channel node
+    // Look for existing META node with reward value
+    uint64_t n = g->header->num_nodes;
+    uint64_t reward_node = UINT64_MAX;
+    
+    // Try to find existing reward node (META with specific value)
+    for (uint64_t i = 0; i < n; i++) {
+        Node *node = &g->nodes[i];
+        if (node->kind == NODE_KIND_META && (uint32_t)node->value == 0x52455744) { // "REWD"
+            reward_node = i;
+            break;
+        }
+    }
+    
+    // Create reward node if not found
+    if (reward_node == UINT64_MAX) {
+        reward_node = alloc_node(g);
+        if (reward_node != UINT64_MAX && reward_node < g->header->node_cap) {
+            Node *rn = &g->nodes[reward_node];
+            rn->kind = NODE_KIND_META;
+            rn->value = 0x52455744; // "REWD"
+            rn->a = 0.0f;
+            rn->bias = 0.0f;
+        } else {
+            return; // Failed to allocate
+        }
+    }
+    
+    // Inject reward as activation spike
+    // This reward signal will propagate through the graph and modulate learning
+    Node *reward = &g->nodes[reward_node];
+    reward->a += reward_value * 0.1f; // Accumulate reward (small scale)
+    
+    // Clamp activation
+    if (reward->a > 1.0f) reward->a = 1.0f;
+    if (reward->a < -1.0f) reward->a = -1.0f;
+    
+    // Also store in value field for direct access
+    reward->value = reward_value;
+}
+
+// Log simplicity metrics
+static void sm_log(const SimplicityMetrics *m, uint64_t tick) {
+    if (!g_log_simplicity) return;
+    
+    fprintf(stderr,
+        "[simplicity] tick=%" PRIu64 " score=%.4f pred_total=%.4f size=(nodes=%" PRIu64 ",edges=%" PRIu64 ",patterns=%" PRIu64 ") comp=%.4f usage=%.4f\n",
+        tick,
+        m->simplicity_score,
+        m->pred_error_total,
+        m->num_nodes,
+        m->num_edges,
+        m->num_patterns,
+        m->episodic_compression,
+        m->pattern_usage_rate);
 }
 
 void emit_output(Brain *g) {
@@ -551,27 +559,65 @@ void emit_output(Brain *g) {
 }
 
 void melvin_tick(Brain *g) {
-    ingest_input(g);          // stub ok
-    propagate_predictions(g); // stub ok
-    apply_environment(g);     // stub ok
-    compute_error(g);         // stub ok
-    update_edges(g);          // stub ok
-    induce_patterns(g);       // stub or empty
+    // Initialize simplicity metrics for this tick
+    sm_init(&g_simplicity_metrics);
     
+    // 0. External input / MC effects
+    ingest_input(g);
+    
+    // 1. Propagate predictions: compute Â
+    propagate_predictions(g);
+    
+    // 2. Apply environment / finalize actual activations (decay, normalization)
+    apply_environment(g);
+    
+    // 3. Compute local errors e_j = A_j - Â_j (this also accumulates into metrics)
+    compute_error(g);
+    
+    // 4. Update weights & node reliability
+    update_edges(g);
+    update_nodes_from_error(g);
+    
+    // 5. Run MC-backed nodes chosen by the graph
     run_mc_nodes(g);
     
-    emit_output(g);           // stub ok
-    g->header->tick++;
+    // 6. Compute simplicity metrics
+    sm_measure_complexity(g, &g_simplicity_metrics);
+    sm_measure_patterns(g, &g_simplicity_metrics);
+    sm_compute_objective(&g_simplicity_metrics);
     
-    // Decay activations
-    for(uint64_t i=0; i<g->header->num_nodes; i++) {
-        g->nodes[i].a *= 0.9f; // Simple decay
-    }
+    // 7. Inject intrinsic reward into graph
+    float intrinsic_reward = sm_reward_from_score(&g_simplicity_metrics);
+    melvin_send_intrinsic_reward(g, intrinsic_reward);
+    
+    // 8. Emit outputs if any
+    emit_output(g);
+    
+    // 9. Debug logging
+    log_learning_stats(g);
+    sm_log(&g_simplicity_metrics, g->header->tick);
+    
+    g->header->tick++;
 }
 
 int main(int argc, char **argv) {
     const char *db_path = "melvin.m";
-    if (argc > 1) db_path = argv[1];
+    if (argc > 1) {
+        if (strcmp(argv[1], "-d") == 0 || strcmp(argv[1], "--debug") == 0) {
+            g_debug = 1;
+            if (argc > 2) db_path = argv[2];
+        } else {
+            db_path = argv[1];
+        }
+    }
+    
+    // Check for simplicity logging flag
+    if (getenv("MELVIN_LOG_SIMPLICITY")) {
+        g_log_simplicity = 1;
+    }
+    
+    // Initialize simplicity metrics
+    sm_init(&g_simplicity_metrics);
 
     int fd = open(db_path, O_RDWR);
     if (fd < 0) {
@@ -608,64 +654,47 @@ int main(int argc, char **argv) {
     int flags = fcntl(0, F_GETFL, 0);
     fcntl(0, F_SETFL, flags | O_NONBLOCK);
 
+    // Load all plugins
+    MCFn mc_fs_seed = load_plugin_function("mc_fs", "mc_fs_seed");
+    MCFn mc_fs_read_chunk = load_plugin_function("mc_fs", "mc_fs_read_chunk");
+    MCFn mc_stdio_in = load_plugin_function("mc_io", "mc_stdio_in");
+    MCFn mc_stdio_out = load_plugin_function("mc_io", "mc_stdio_out");
+    MCFn mc_compile = load_plugin_function("mc_build", "mc_compile");
+    MCFn mc_loader = load_plugin_function("mc_build", "mc_loader");
+    MCFn mc_materialize_module_from_graph = load_plugin_function("mc_build", "mc_materialize_module_from_graph");
+    MCFn mc_bootstrap_cog_module = load_plugin_function("mc_bootstrap", "mc_bootstrap_cog_module");
+    MCFn mc_parse_c_file = load_plugin_function("mc_parse", "mc_parse_c_file");
+    MCFn mc_process_scaffolds = load_plugin_function("mc_scaffold", "mc_process_scaffolds");
+    
     // Register MC functions
-    // Using 1-based indices for mc_id usually implies 0 is null.
-    // But array is 0-based.
-    // Let's just say mc_id 1 = index 1.
-    register_mc("zero", NULL); // Slot 0 (unused)
+    register_mc("zero", NULL);
     register_mc("fs_seed", mc_fs_seed);
     register_mc("fs_read", mc_fs_read_chunk);
     register_mc("stdio_in", mc_stdio_in);
     register_mc("stdio_out", mc_stdio_out);
     register_mc("compile", mc_compile);
-    register_mc("loader", mc_loader); // mc_id = 6
-    register_mc("materialize", mc_materialize_module_from_graph); // mc_id = 7
-
-    // Ensure we have a node for fs_seed and fs_read
-    // If brain is empty (num_nodes == 0), let's create some bootstrap nodes.
-    if (g.header->num_nodes < 262) {
-        printf("Bootstrapping nodes...\n");
-        // Ensure nodes 0-255 exist
-        while(g.header->num_nodes < 256) {
-            uint64_t id = alloc_node(&g);
-            g.nodes[id].kind = NODE_KIND_DATA;
-            g.nodes[id].value = (float)id;
+    register_mc("loader", mc_loader);
+    register_mc("materialize", mc_materialize_module_from_graph);
+    register_mc("bootstrap_cog", mc_bootstrap_cog_module);
+    register_mc("parse_c", mc_parse_c_file);
+    register_mc("process_scaffolds", mc_process_scaffolds);
+    
+    // Create and activate scaffold processing node on startup
+    if (mc_process_scaffolds) {
+        uint64_t scaffold_node = alloc_node(&g);
+        if (scaffold_node != UINT64_MAX && scaffold_node < g.header->node_cap) {
+            g.nodes[scaffold_node].kind = NODE_KIND_CONTROL;
+            // Find the MC ID for process_scaffolds
+            for (uint32_t i = 0; i < g_mc_count; i++) {
+                if (g_mc_table[i].name && strcmp(g_mc_table[i].name, "process_scaffolds") == 0) {
+                    g.nodes[scaffold_node].mc_id = i;
+                    g.nodes[scaffold_node].bias = 5.0f; // Activate on startup
+                    g.nodes[scaffold_node].a = 1.0f;
+                    printf("[main] Created scaffold processing node %llu\n", (unsigned long long)scaffold_node);
+                    break;
+                }
+            }
         }
-        
-        // Node 256: FS Seed
-        uint64_t seed_node = alloc_node(&g);
-        g.nodes[seed_node].kind = NODE_KIND_CONTROL;
-        g.nodes[seed_node].mc_id = 1; // fs_seed
-        g.nodes[seed_node].a = 1.0f; // Activate to start
-        printf("Created FS Seed node %llu\n", seed_node);
-
-        // Node 257: FS Read
-        uint64_t read_node = alloc_node(&g);
-        g.nodes[read_node].kind = NODE_KIND_CONTROL;
-        g.nodes[read_node].mc_id = 2; // fs_read
-        g.nodes[read_node].a = 1.0f; // Activate to start
-        printf("Created FS Read node %llu\n", read_node);
-        
-        // Node 258, 259, 260 reserved...
-        while(g.header->num_nodes < 261) alloc_node(&g);
-
-        // Node 261: Loader (initially inactive)
-        uint64_t loader_node = alloc_node(&g);
-        g.nodes[loader_node].kind = NODE_KIND_CONTROL;
-        g.nodes[loader_node].mc_id = 6; // loader
-        g.nodes[loader_node].bias = -5.0f; 
-        g.nodes[loader_node].a = 0.0f;
-        printf("Created Loader node %llu\n", loader_node);
-
-        // Node 262: Compiler (initially inactive)
-        uint64_t compiler_node = alloc_node(&g);
-        g.nodes[compiler_node].kind = NODE_KIND_CONTROL;
-        g.nodes[compiler_node].mc_id = 5; // compile
-        g.nodes[compiler_node].bias = -5.0f; 
-        g.nodes[compiler_node].a = 0.0f;
-        printf("Created Compiler node %llu\n", compiler_node);
-    } else {
-        // Restart logic: No automatic re-trigger
     }
 
     // Main loop
@@ -682,3 +711,4 @@ int main(int argc, char **argv) {
 
     return 0;
 }
+
