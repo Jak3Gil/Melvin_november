@@ -1,0 +1,317 @@
+[melvin_m_map] mprotect (RWX): Permission denied
+[melvin_m_map] ERROR: Cannot set blob to RWX - EXEC subsystem requires this
+[melvin_m_map] mprotect (RWX): Permission denied
+[melvin_m_map] ERROR: Cannot set blob to RWX - EXEC subsystem requires this
+[melvin_m_map] mprotect (RWX): Permission denied
+[melvin_m_map] ERROR: Cannot set blob to RWX - EXEC subsystem requires this
+[write_machine_code] mprotect (RWX): Permission denied
+[write_machine_code] WARNING: Failed to set RWX - EXEC may fail
+[melvin_m_map] mprotect (RWX): Permission denied
+[melvin_m_map] ERROR: Cannot set blob to RWX - EXEC subsystem requires this
+[write_machine_code] mprotect (RWX): Permission denied
+[write_machine_code] WARNING: Failed to set RWX - EXEC may fail
+[melvin_m_map] mprotect (RWX): Permission denied
+[melvin_m_map] ERROR: Cannot set blob to RWX - EXEC subsystem requires this
+[melvin_m_map] mprotect (RWX): Permission denied
+[melvin_m_map] ERROR: Cannot set blob to RWX - EXEC subsystem requires this
+[melvin_m_map] mprotect (RWX): Permission denied
+[melvin_m_map] ERROR: Cannot set blob to RWX - EXEC subsystem requires this
+[IDLE] queue empty, calling handle_idle (call #10, counter=4)
+[melvin_m_map] mprotect (RWX): Permission denied
+[melvin_m_map] ERROR: Cannot set blob to RWX - EXEC subsystem requires this
+[melvin_m_map] mprotect (RWX): Permission denied
+[melvin_m_map] ERROR: Cannot set blob to RWX - EXEC subsystem requires this
+[melvin_m_map] mprotect (RWX): Permission denied
+[melvin_m_map] ERROR: Cannot set blob to RWX - EXEC subsystem requires this
+[melvin_m_map] mprotect (RWX): Permission denied
+[melvin_m_map] ERROR: Cannot set blob to RWX - EXEC subsystem requires this
+[melvin_m_map] mprotect (RWX): Permission denied
+[melvin_m_map] ERROR: Cannot set blob to RWX - EXEC subsystem requires this
+[IDLE] queue empty, calling handle_idle (call #20, counter=0)
+[melvin_m_map] mprotect (RWX): Permission denied
+[melvin_m_map] ERROR: Cannot set blob to RWX - EXEC subsystem requires this
+[melvin_m_map] mprotect (RWX): Permission denied
+[melvin_m_map] ERROR: Cannot set blob to RWX - EXEC subsystem requires this
+[melvin_m_map] mprotect (RWX): Permission denied
+[melvin_m_map] ERROR: Cannot set blob to RWX - EXEC subsystem requires this
+[melvin_m_map] mprotect (RWX): Permission denied
+[melvin_m_map] ERROR: Cannot set blob to RWX - EXEC subsystem requires this
+[melvin_m_map] mprotect (RWX): Permission denied
+[melvin_m_map] ERROR: Cannot set blob to RWX - EXEC subsystem requires this
+[melvin_m_map] mprotect (RWX): Permission denied
+[melvin_m_map] ERROR: Cannot set blob to RWX - EXEC subsystem requires this
+[melvin_m_map] mprotect (RWX): Permission denied
+[melvin_m_map] ERROR: Cannot set blob to RWX - EXEC subsystem requires this
+[melvin_m_map] mprotect (RWX): Permission denied
+[melvin_m_map] ERROR: Cannot set blob to RWX - EXEC subsystem requires this
+[IDLE] queue empty, calling handle_idle (call #30, counter=2)
+[melvin_m_map] mprotect (RWX): Permission denied
+[melvin_m_map] ERROR: Cannot set blob to RWX - EXEC subsystem requires this
+[melvin_m_map] mprotect (RWX): Permission denied
+[melvin_m_map] ERROR: Cannot set blob to RWX - EXEC subsystem requires this
+[IDLE] queue empty, calling handle_idle (call #40, counter=4)
+[IDLE] queue empty, calling handle_idle (call #50, counter=14)
+[IDLE] queue empty, calling handle_idle (call #60, counter=24)
+[melvin_m_map] mprotect (RWX): Permission denied
+[melvin_m_map] ERROR: Cannot set blob to RWX - EXEC subsystem requires this
+[melvin_m_map] mprotect (RWX): Permission denied
+[melvin_m_map] ERROR: Cannot set blob to RWX - EXEC subsystem requires this
+[IDLE] queue empty, calling handle_idle (call #70, counter=4)
+[IDLE] queue empty, calling handle_idle (call #80, counter=14)
+[IDLE] queue empty, calling handle_idle (call #90, counter=24)
+[melvin_m_map] mprotect (RWX): Permission denied
+[melvin_m_map] ERROR: Cannot set blob to RWX - EXEC subsystem requires this
+[melvin_m_map] mprotect (RWX): Permission denied
+[melvin_m_map] ERROR: Cannot set blob to RWX - EXEC subsystem requires this
+[IDLE] queue empty, calling handle_idle (call #100, counter=4)
+[IDLE] queue empty, calling handle_idle (call #110, counter=14)
+[IDLE] queue empty, calling handle_idle (call #120, counter=24)
+[melvin_m_map] mprotect (RWX): Permission denied
+[melvin_m_map] ERROR: Cannot set blob to RWX - EXEC subsystem requires this
+[melvin_m_map] mprotect (RWX): Permission denied
+[melvin_m_map] ERROR: Cannot set blob to RWX - EXEC subsystem requires this
+[melvin_m_map] mprotect (RWX): Permission denied
+[melvin_m_map] ERROR: Cannot set blob to RWX - EXEC subsystem requires this
+[IDLE] queue empty, calling handle_idle (call #130, counter=2)
+[melvin_m_map] mprotect (RWX): Permission denied
+[melvin_m_map] ERROR: Cannot set blob to RWX - EXEC subsystem requires this
+========================================
+UNIVERSAL LAWS TEST SUITE
+========================================
+
+Testing all laws from MASTER_ARCHITECTURE.md
+This will generate dozens of test cases...
+
+Running Section 0.1 tests (Ontology)...
+[init_new_file] Created new melvin.m file: test_0_1_ontology.m (size: 1364352 bytes)
+[melvin_m_map] Mapped melvin.m file: test_0_1_ontology.m
+  Nodes: 0/1024, Edges: 0/4096, Blob: 0/1048576, Tick: 0
+Running Section 0.2 tests (Universal Execution Law)...
+[init_new_file] Created new melvin.m file: test_0_2_exec.m (size: 1364352 bytes)
+[melvin_m_map] Mapped melvin.m file: test_0_2_exec.m
+  Nodes: 0/1024, Edges: 0/4096, Blob: 0/1048576, Tick: 0
+[init_new_file] Created new melvin.m file: test_0_2_exec_cost.m (size: 1364352 bytes)
+[melvin_m_map] Mapped melvin.m file: test_0_2_exec_cost.m
+  Nodes: 0/1024, Edges: 0/4096, Blob: 0/1048576, Tick: 0
+[init_new_file] Created new melvin.m file: test_0_2_exec_return.m (size: 1364352 bytes)
+[melvin_m_map] Mapped melvin.m file: test_0_2_exec_return.m
+  Nodes: 0/1024, Edges: 0/4096, Blob: 0/1048576, Tick: 0
+Running Section 0.3 tests (Energy Laws)...
+[init_new_file] Created new melvin.m file: test_0_3_1_conservation.m (size: 1364352 bytes)
+[melvin_m_map] Mapped melvin.m file: test_0_3_1_conservation.m
+  Nodes: 0/1024, Edges: 0/4096, Blob: 0/1048576, Tick: 0
+[init_new_file] Created new melvin.m file: test_0_3_2_global_bound.m (size: 1364352 bytes)
+[melvin_m_map] Mapped melvin.m file: test_0_3_2_global_bound.m
+  Nodes: 0/1024, Edges: 0/4096, Blob: 0/1048576, Tick: 0
+[init_new_file] Created new melvin.m file: test_0_3_1_no_thresholds.m (size: 1364352 bytes)
+[melvin_m_map] Mapped melvin.m file: test_0_3_1_no_thresholds.m
+  Nodes: 0/1024, Edges: 0/4096, Blob: 0/1048576, Tick: 0
+[init_new_file] Created new melvin.m file: test_0_3_decay_only.m (size: 1364352 bytes)
+[melvin_m_map] Mapped melvin.m file: test_0_3_decay_only.m
+  Nodes: 0/1024, Edges: 0/4096, Blob: 0/1048576, Tick: 0
+Running Section 0.4 tests (Edge & Message Rules)...
+[init_new_file] Created new melvin.m file: test_0_4_edges_only.m (size: 1364352 bytes)
+[melvin_m_map] Mapped melvin.m file: test_0_4_edges_only.m
+  Nodes: 0/1024, Edges: 0/4096, Blob: 0/1048576, Tick: 0
+[init_new_file] Created new melvin.m file: test_0_4_message_passing.m (size: 1364352 bytes)
+[melvin_m_map] Mapped melvin.m file: test_0_4_message_passing.m
+  Nodes: 0/1024, Edges: 0/4096, Blob: 0/1048576, Tick: 0
+Running Section 0.5 tests (Learning Laws)...
+[init_new_file] Created new melvin.m file: test_0_5_learning.m (size: 1364352 bytes)
+[melvin_m_map] Mapped melvin.m file: test_0_5_learning.m
+  Nodes: 0/1024, Edges: 0/4096, Blob: 0/1048576, Tick: 0
+Running Section 0.6 tests (Pattern Laws)...
+[init_new_file] Created new melvin.m file: test_0_6_patterns.m (size: 1364352 bytes)
+[melvin_m_map] Mapped melvin.m file: test_0_6_patterns.m
+  Nodes: 0/1024, Edges: 0/4096, Blob: 0/1048576, Tick: 0
+Running Section 0.7 tests (Structural Evolution)...
+[init_new_file] Created new melvin.m file: test_0_7_pruning.m (size: 1364352 bytes)
+[melvin_m_map] Mapped melvin.m file: test_0_7_pruning.m
+  Nodes: 0/1024, Edges: 0/4096, Blob: 0/1048576, Tick: 0
+Running Section 0.8 tests (Meta-Parameters)...
+[init_new_file] Created new melvin.m file: test_0_8_params.m (size: 1364352 bytes)
+[melvin_m_map] Mapped melvin.m file: test_0_8_params.m
+  Nodes: 0/1024, Edges: 0/4096, Blob: 0/1048576, Tick: 0
+Running Section 0.9 tests (Event Laws)...
+[init_new_file] Created new melvin.m file: test_0_9_events.m (size: 1364352 bytes)
+[melvin_m_map] Mapped melvin.m file: test_0_9_events.m
+  Nodes: 0/1024, Edges: 0/4096, Blob: 0/1048576, Tick: 0
+Running Section 0.10 tests (Safety Laws)...
+[init_new_file] Created new melvin.m file: test_0_10_safety.m (size: 1364352 bytes)
+[melvin_m_map] Mapped melvin.m file: test_0_10_safety.m
+  Nodes: 0/1024, Edges: 0/4096, Blob: 0/1048576, Tick: 0
+Running Section 0.11 tests (Unified Flow)...
+[init_new_file] Created new melvin.m file: test_0_11_flow.m (size: 1364352 bytes)
+[melvin_m_map] Mapped melvin.m file: test_0_11_flow.m
+  Nodes: 0/1024, Edges: 0/4096, Blob: 0/1048576, Tick: 0
+Running Section 0.12 tests (Implementation Constraints)...
+[init_new_file] Created new melvin.m file: test_0_12_no_limits.m (size: 1364352 bytes)
+[melvin_m_map] Mapped melvin.m file: test_0_12_no_limits.m
+  Nodes: 0/1024, Edges: 0/4096, Blob: 0/1048576, Tick: 0
+[grow_graph] Growing: nodes 1024->1536, edges 4096->6144
+[grow_graph] Graph grown successfully
+
+========================================
+RUNNING HARD TESTS (Evolution Required)
+========================================
+These tests require the system to learn and adapt.
+Each test runs for thousands of events to allow evolution...
+
+Running HARD-1: Pattern Prediction...
+[init_new_file] Created new melvin.m file: test_hard_1_prediction.m (size: 1364352 bytes)
+[melvin_m_map] Mapped melvin.m file: test_hard_1_prediction.m
+  Nodes: 0/1024, Edges: 0/4096, Blob: 0/1048576, Tick: 0
+  Training on ABC pattern (1000 iterations)...
+Running HARD-2: Reward Shaping...
+[init_new_file] Created new melvin.m file: test_hard_2_reward.m (size: 1364352 bytes)
+[melvin_m_map] Mapped melvin.m file: test_hard_2_reward.m
+  Nodes: 0/1024, Edges: 0/4096, Blob: 0/1048576, Tick: 0
+  Training with reward shaping (500 iterations)...
+Running HARD-3: Sequence Compression...
+[init_new_file] Created new melvin.m file: test_hard_3_compression.m (size: 1364352 bytes)
+[melvin_m_map] Mapped melvin.m file: test_hard_3_compression.m
+  Nodes: 0/1024, Edges: 0/4096, Blob: 0/1048576, Tick: 0
+  Training sequence compression (2000 iterations)...
+Running HARD-4: Energy Efficiency...
+[init_new_file] Created new melvin.m file: test_hard_4_efficiency.m (size: 1364352 bytes)
+[melvin_m_map] Mapped melvin.m file: test_hard_4_efficiency.m
+  Nodes: 0/1024, Edges: 0/4096, Blob: 0/1048576, Tick: 0
+  Testing energy efficiency evolution (1500 iterations)...
+Running HARD-5: Multi-Step Reasoning...
+[init_new_file] Created new melvin.m file: test_hard_5_multistep.m (size: 1364352 bytes)
+[melvin_m_map] Mapped melvin.m file: test_hard_5_multistep.m
+  Nodes: 0/1024, Edges: 0/4096, Blob: 0/1048576, Tick: 0
+  Training multi-step reasoning (2000 iterations)...
+Running HARD-6: Adaptive Parameters...
+[init_new_file] Created new melvin.m file: test_hard_6_adaptive.m (size: 1364352 bytes)
+[melvin_m_map] Mapped melvin.m file: test_hard_6_adaptive.m
+  Nodes: 0/1024, Edges: 0/4096, Blob: 0/1048576, Tick: 0
+  Testing adaptive parameters (1000 iterations)...
+Running HARD-7: Noise Robustness...
+[init_new_file] Created new melvin.m file: test_hard_7_noise.m (size: 1364352 bytes)
+[melvin_m_map] Mapped melvin.m file: test_hard_7_noise.m
+  Nodes: 0/1024, Edges: 0/4096, Blob: 0/1048576, Tick: 0
+  Training with noise (3000 iterations)...
+Running HARD-8: Long-Term Stability...
+[init_new_file] Created new melvin.m file: test_hard_8_stability.m (size: 1364352 bytes)
+[melvin_m_map] Mapped melvin.m file: test_hard_8_stability.m
+  Nodes: 0/1024, Edges: 0/4096, Blob: 0/1048576, Tick: 0
+  Testing long-term stability (5000 iterations)...
+Running HARD-9: Pattern Generalization...
+[init_new_file] Created new melvin.m file: test_hard_9_generalization.m (size: 1364352 bytes)
+[melvin_m_map] Mapped melvin.m file: test_hard_9_generalization.m
+  Nodes: 0/1024, Edges: 0/4096, Blob: 0/1048576, Tick: 0
+  Training pattern generalization (2000 iterations)...
+Running HARD-10: Energy Conservation Stress...
+[init_new_file] Created new melvin.m file: test_hard_10_conservation.m (size: 1364352 bytes)
+[melvin_m_map] Mapped melvin.m file: test_hard_10_conservation.m
+  Nodes: 0/1024, Edges: 0/4096, Blob: 0/1048576, Tick: 0
+  Testing energy conservation under stress (4000 iterations)...
+Running HARD-11: Emergent Structure...
+[init_new_file] Created new melvin.m file: test_hard_11_emergent.m (size: 1364352 bytes)
+[melvin_m_map] Mapped melvin.m file: test_hard_11_emergent.m
+  Nodes: 0/1024, Edges: 0/4096, Blob: 0/1048576, Tick: 0
+  Testing emergent structure formation (3500 iterations)...
+Running HARD-12: Adaptive Learning Rate...
+[init_new_file] Created new melvin.m file: test_hard_12_adaptive_learning.m (size: 1364352 bytes)
+[melvin_m_map] Mapped melvin.m file: test_hard_12_adaptive_learning.m
+  Nodes: 0/1024, Edges: 0/4096, Blob: 0/1048576, Tick: 0
+  Testing adaptive learning rate (2500 iterations)...
+
+========================================
+TEST RESULTS SUMMARY
+========================================
+
+Total tests: 30
+Passed: 22
+Failed: 8
+Success rate: 73.3%
+
+FAILED TESTS:
+========================================
+
+[FAIL] 0.5.1: Learning Only Prediction Error
+  Law Section: 0.5
+  Reason: No learning occurred
+  Metric: 0.000000
+
+[FAIL] HARD-1: Pattern Prediction
+  Law Section: Evolution
+  Reason: Pattern nodes not created
+  Metric: 0.000000
+
+[FAIL] HARD-2: Reward Shaping
+  Law Section: Evolution
+  Reason: Reward did not shape behavior
+  Metric: 0.000000
+
+[FAIL] HARD-5: Multi-Step Reasoning
+  Law Section: Evolution
+  Reason: Failed to learn multi-step chain
+  Metric: 0.000000
+
+[FAIL] HARD-7: Noise Robustness
+  Law Section: Evolution
+  Reason: Failed to learn pattern despite noise
+  Metric: 0.000000
+
+[FAIL] HARD-9: Pattern Generalization
+  Law Section: Evolution
+  Reason: Failed to generalize patterns
+  Metric: 0.000000
+
+[FAIL] HARD-11: Emergent Structure
+  Law Section: Evolution
+  Reason: No emergent structure formed
+  Metric: 3.000000
+
+[FAIL] HARD-12: Adaptive Learning Rate
+  Law Section: Evolution
+  Reason: Learning did not improve over time
+  Metric: 0.000000
+
+
+ALL TEST DETAILS:
+========================================
+[PASS] 0.1.1: Ontology - Only Primitives (Section 0.1)
+[PASS] 0.2.1: Exec Only Via Flag (Section 0.2)
+[PASS] 0.2.2: Exec Subtracts Cost (Section 0.2)
+[PASS] 0.2.3: Exec Returns Energy (Section 0.2)
+[PASS] 0.3.1: Local Energy Conservation (Section 0.3)
+[PASS] 0.3.2: Global Energy Bound (Section 0.3)
+[PASS] 0.3.1: No Hard Thresholds (Section 0.3.1)
+[PASS] 0.3.3: Energy Decay Only (Section 0.3)
+[PASS] 0.4.1: All Influence Through Edges (Section 0.4)
+[PASS] 0.4.2: Edges Required for Messages (Section 0.4)
+[FAIL] 0.5.1: Learning Only Prediction Error (Section 0.5)
+  -> No learning occurred (metric: 0.000000)
+[PASS] 0.6.1: Pattern Creation FE-Based (Section 0.6)
+[PASS] 0.7.1: Stability-Based Pruning (Section 0.7)
+[PASS] 0.8.1: Params as Nodes (Section 0.8)
+[PASS] 0.9.1: Everything Through Events (Section 0.9)
+[PASS] 0.10.1: No NaN/Inf Propagation (Section 0.10)
+[PASS] 0.11.1: Unified Flow Loop (Section 0.11)
+[PASS] 0.12.1: No Hard Limits (Section 0.12)
+[FAIL] HARD-1: Pattern Prediction (Section Evolution)
+  -> Pattern nodes not created (metric: 0.000000)
+[FAIL] HARD-2: Reward Shaping (Section Evolution)
+  -> Reward did not shape behavior (metric: 0.000000)
+[PASS] HARD-3: Sequence Compression (Section Evolution)
+[PASS] HARD-4: Energy Efficiency (Section Evolution)
+[FAIL] HARD-5: Multi-Step Reasoning (Section Evolution)
+  -> Failed to learn multi-step chain (metric: 0.000000)
+[PASS] HARD-6: Adaptive Parameters (Section Evolution)
+[FAIL] HARD-7: Noise Robustness (Section Evolution)
+  -> Failed to learn pattern despite noise (metric: 0.000000)
+[PASS] HARD-8: Long-Term Stability (Section Evolution)
+[FAIL] HARD-9: Pattern Generalization (Section Evolution)
+  -> Failed to generalize patterns (metric: 0.000000)
+[PASS] HARD-10: Energy Conservation Stress (Section Evolution)
+[FAIL] HARD-11: Emergent Structure (Section Evolution)
+  -> No emergent structure formed (metric: 3.000000)
+[FAIL] HARD-12: Adaptive Learning Rate (Section Evolution)
+  -> Learning did not improve over time (metric: 0.000000)
+
+========================================
+Test suite complete.
+========================================

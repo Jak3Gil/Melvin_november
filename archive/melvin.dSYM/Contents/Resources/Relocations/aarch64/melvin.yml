@@ -1,0 +1,53 @@
+---
+triple:          'arm64-apple-darwin'
+binary-path:     melvin
+relocations:
+  - { offsetInCU: 0x26, offset: 0x26, size: 0x8, addend: 0x0, symName: _alloc_node, symObjAddr: 0x0, symBinAddr: 0x100003320, symSize: 0x13C }
+  - { offsetInCU: 0x3F, offset: 0x3F, size: 0x8, addend: 0x0, symName: _g_simplicity_pressure, symObjAddr: 0x11D58, symBinAddr: 0x10000C010, symSize: 0x0 }
+  - { offsetInCU: 0x5B, offset: 0x5B, size: 0x8, addend: 0x0, symName: _g_prediction_error_pressure, symObjAddr: 0x11D5C, symBinAddr: 0x10000C014, symSize: 0x0 }
+  - { offsetInCU: 0x70, offset: 0x70, size: 0x8, addend: 0x0, symName: _g_mc_count, symObjAddr: 0x11D60, symBinAddr: 0x10000C018, symSize: 0x0 }
+  - { offsetInCU: 0xA6, offset: 0xA6, size: 0x8, addend: 0x0, symName: _g_node_error, symObjAddr: 0x11D68, symBinAddr: 0x10000C020, symSize: 0x0 }
+  - { offsetInCU: 0xB4, offset: 0xB4, size: 0x8, addend: 0x0, symName: _induce_patterns_legacy, symObjAddr: 0x1810, symBinAddr: 0x100004B30, symSize: 0xE4 }
+  - { offsetInCU: 0xD7, offset: 0xD7, size: 0x8, addend: 0x0, symName: _induce_patterns_legacy.pattern_trigger_node, symObjAddr: 0x4AB0, symBinAddr: 0x10000C000, symSize: 0x0 }
+  - { offsetInCU: 0x145, offset: 0x145, size: 0x8, addend: 0x0, symName: _induce_patterns, symObjAddr: 0x18F4, symBinAddr: 0x100004C14, symSize: 0xE4 }
+  - { offsetInCU: 0x168, offset: 0x168, size: 0x8, addend: 0x0, symName: _induce_patterns.pattern_trigger_node, symObjAddr: 0x4AB8, symBinAddr: 0x10000C008, symSize: 0x0 }
+  - { offsetInCU: 0x1C4, offset: 0x1C4, size: 0x8, addend: 0x0, symName: _main, symObjAddr: 0x297C, symBinAddr: 0x100005C9C, symSize: 0xE04 }
+  - { offsetInCU: 0x1EB, offset: 0x1EB, size: 0x8, addend: 0x0, symName: _main.last_display_nodes, symObjAddr: 0x11DE8, symBinAddr: 0x10000D8A0, symSize: 0x0 }
+  - { offsetInCU: 0x201, offset: 0x201, size: 0x8, addend: 0x0, symName: _main.last_display_edges, symObjAddr: 0x11DF0, symBinAddr: 0x10000D8A8, symSize: 0x0 }
+  - { offsetInCU: 0xB00, offset: 0xB00, size: 0x8, addend: 0x0, symName: _g_mc_table, symBinAddr: 0x10000C028, symSize: 0x0 }
+  - { offsetInCU: 0xE06, offset: 0xE06, size: 0x8, addend: 0x0, symName: _g_debug, symObjAddr: 0x11D70, symBinAddr: 0x10000D828, symSize: 0x0 }
+  - { offsetInCU: 0xE23, offset: 0xE23, size: 0x8, addend: 0x0, symName: _g_buffer_cap, symObjAddr: 0x11D78, symBinAddr: 0x10000D830, symSize: 0x0 }
+  - { offsetInCU: 0xE39, offset: 0xE39, size: 0x8, addend: 0x0, symName: _g_predicted_a, symObjAddr: 0x11D80, symBinAddr: 0x10000D838, symSize: 0x0 }
+  - { offsetInCU: 0xE4E, offset: 0xE4E, size: 0x8, addend: 0x0, symName: _g_simplicity_metrics, symObjAddr: 0x11D88, symBinAddr: 0x10000D840, symSize: 0x0 }
+  - { offsetInCU: 0xEFE, offset: 0xEFE, size: 0x8, addend: 0x0, symName: _g_log_simplicity, symObjAddr: 0x11DE0, symBinAddr: 0x10000D898, symSize: 0x0 }
+  - { offsetInCU: 0xF2D, offset: 0xF2D, size: 0x8, addend: 0x0, symName: _alloc_node, symObjAddr: 0x0, symBinAddr: 0x100003320, symSize: 0x13C }
+  - { offsetInCU: 0xFE6, offset: 0xFE6, size: 0x8, addend: 0x0, symName: _add_edge, symObjAddr: 0x2D0, symBinAddr: 0x1000035F0, symSize: 0x11C }
+  - { offsetInCU: 0x10CD, offset: 0x10CD, size: 0x8, addend: 0x0, symName: _grow_graph, symObjAddr: 0x13C, symBinAddr: 0x10000345C, symSize: 0x194 }
+  - { offsetInCU: 0x12B8, offset: 0x12B8, size: 0x8, addend: 0x0, symName: _find_or_create_node, symObjAddr: 0x3EC, symBinAddr: 0x10000370C, symSize: 0xA8 }
+  - { offsetInCU: 0x138D, offset: 0x138D, size: 0x8, addend: 0x0, symName: _register_mc, symObjAddr: 0x494, symBinAddr: 0x1000037B4, symSize: 0x34 }
+  - { offsetInCU: 0x13AF, offset: 0x13AF, size: 0x8, addend: 0x0, symName: _mc_set_edge_threshold, symObjAddr: 0x4C8, symBinAddr: 0x1000037E8, symSize: 0x7C }
+  - { offsetInCU: 0x1406, offset: 0x1406, size: 0x8, addend: 0x0, symName: _mc_set_mc_threshold, symObjAddr: 0x544, symBinAddr: 0x100003864, symSize: 0x7C }
+  - { offsetInCU: 0x145D, offset: 0x145D, size: 0x8, addend: 0x0, symName: _mc_set_decay_factor, symObjAddr: 0x5C0, symBinAddr: 0x1000038E0, symSize: 0x7C }
+  - { offsetInCU: 0x14B4, offset: 0x14B4, size: 0x8, addend: 0x0, symName: _mc_set_edge_score_threshold, symObjAddr: 0x63C, symBinAddr: 0x10000395C, symSize: 0x7C }
+  - { offsetInCU: 0x150B, offset: 0x150B, size: 0x8, addend: 0x0, symName: _mc_set_learning_rate, symObjAddr: 0x6B8, symBinAddr: 0x1000039D8, symSize: 0x7C }
+  - { offsetInCU: 0x1562, offset: 0x1562, size: 0x8, addend: 0x0, symName: _mc_set_alpha_blend, symObjAddr: 0x734, symBinAddr: 0x100003A54, symSize: 0x7C }
+  - { offsetInCU: 0x15B9, offset: 0x15B9, size: 0x8, addend: 0x0, symName: _run_mc_nodes, symObjAddr: 0x7B0, symBinAddr: 0x100003AD0, symSize: 0x150 }
+  - { offsetInCU: 0x166E, offset: 0x166E, size: 0x8, addend: 0x0, symName: _ensure_buffers, symObjAddr: 0x900, symBinAddr: 0x100003C20, symSize: 0xA8 }
+  - { offsetInCU: 0x16A2, offset: 0x16A2, size: 0x8, addend: 0x0, symName: _ingest_input, symObjAddr: 0x9A8, symBinAddr: 0x100003CC8, symSize: 0x4 }
+  - { offsetInCU: 0x1705, offset: 0x1705, size: 0x8, addend: 0x0, symName: _propagate_predictions, symObjAddr: 0x9AC, symBinAddr: 0x100003CCC, symSize: 0x2D8 }
+  - { offsetInCU: 0x1861, offset: 0x1861, size: 0x8, addend: 0x0, symName: _apply_environment, symObjAddr: 0xC84, symBinAddr: 0x100003FA4, symSize: 0xB0 }
+  - { offsetInCU: 0x18C7, offset: 0x18C7, size: 0x8, addend: 0x0, symName: _decay_activations, symObjAddr: 0xD34, symBinAddr: 0x100004054, symSize: 0x134 }
+  - { offsetInCU: 0x196E, offset: 0x196E, size: 0x8, addend: 0x0, symName: _compute_error, symObjAddr: 0xE68, symBinAddr: 0x100004188, symSize: 0x47C }
+  - { offsetInCU: 0x1AB7, offset: 0x1AB7, size: 0x8, addend: 0x0, symName: _update_edge_weights, symObjAddr: 0x12E4, symBinAddr: 0x100004604, symSize: 0x140 }
+  - { offsetInCU: 0x1BCE, offset: 0x1BCE, size: 0x8, addend: 0x0, symName: _update_edges, symObjAddr: 0x1424, symBinAddr: 0x100004744, symSize: 0x4 }
+  - { offsetInCU: 0x1BEC, offset: 0x1BEC, size: 0x8, addend: 0x0, symName: _update_edges, symObjAddr: 0x1424, symBinAddr: 0x100004744, symSize: 0x4 }
+  - { offsetInCU: 0x1BFE, offset: 0x1BFE, size: 0x8, addend: 0x0, symName: _update_nodes_from_error, symObjAddr: 0x1428, symBinAddr: 0x100004748, symSize: 0xC4 }
+  - { offsetInCU: 0x1C7D, offset: 0x1C7D, size: 0x8, addend: 0x0, symName: _log_learning_stats, symObjAddr: 0x14EC, symBinAddr: 0x10000480C, symSize: 0x320 }
+  - { offsetInCU: 0x1D7F, offset: 0x1D7F, size: 0x8, addend: 0x0, symName: _emit_output, symObjAddr: 0x180C, symBinAddr: 0x100004B2C, symSize: 0x4 }
+  - { offsetInCU: 0x209E, offset: 0x209E, size: 0x8, addend: 0x0, symName: _match_patterns, symObjAddr: 0x19D8, symBinAddr: 0x100004CF8, symSize: 0x7F0 }
+  - { offsetInCU: 0x24C9, offset: 0x24C9, size: 0x8, addend: 0x0, symName: _melvin_send_intrinsic_reward, symObjAddr: 0x274C, symBinAddr: 0x100005A6C, symSize: 0x230 }
+  - { offsetInCU: 0x297E, offset: 0x297E, size: 0x8, addend: 0x0, symName: _melvin_tick, symObjAddr: 0x21C8, symBinAddr: 0x1000054E8, symSize: 0x584 }
+  - { offsetInCU: 0x3060, offset: 0x3060, size: 0x8, addend: 0x0, symName: _load_plugin_function, symObjAddr: 0x3780, symBinAddr: 0x100006AA0, symSize: 0x188 }
+  - { offsetInCU: 0x3192, offset: 0x3192, size: 0x8, addend: 0x0, symName: _melvin_startup_selftest_edges, symObjAddr: 0x3908, symBinAddr: 0x100006C28, symSize: 0x2E8 }
+  - { offsetInCU: 0x372D, offset: 0x372D, size: 0x8, addend: 0x0, symName: _melvin_startup_selftest_edges.cold.1, symObjAddr: 0x3BF0, symBinAddr: 0x100006F10, symSize: 0x20 }
+...

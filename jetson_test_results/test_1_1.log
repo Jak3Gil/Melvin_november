@@ -1,0 +1,26 @@
+[INSTINCTS] Injecting initial patterns into graph (0 nodes)...
+[INSTINCTS] Channel patterns: 21 nodes, 28 edges
+[INSTINCTS] Code patterns: 13 nodes, 10 edges
+[INSTINCTS] Reward patterns: 3 nodes, 5 edges
+[INSTINCTS] Body patterns: 4 nodes, 7 edges
+[INSTINCTS] EXEC patterns: 10 nodes, 23 edges
+[INSTINCTS] Math patterns: 8 nodes, 19 edges
+[INSTINCTS] Compile patterns: 5 nodes, 13 edges
+[INSTINCTS] Port patterns: 4 nodes, 15 edges
+[INSTINCTS] Injecting multi-hop reasoning patterns...
+[INSTINCTS] Generic chain patterns: 12 nodes, 21 edges
+[INSTINCTS] Pipeline pattern: 4 nodes, 9 edges
+[INSTINCTS] Recurrent memory pattern: 3 nodes, 7 edges
+[INSTINCTS] Tool chain pattern: 4 nodes, 12 edges
+[INSTINCTS] Body multi-hop pattern: 2 nodes, 8 edges
+[INSTINCTS] Multi-hop patterns injected:
+  Chain nodes: 12, Pipeline nodes: 4, Memory nodes: 3
+  Tool nodes: 4, Body multi-hop nodes: 2
+  Total edges added: 54
+[INSTINCTS] Pattern injection complete:
+  Nodes: 0 -> 139 (+139)
+  Edges: 0 -> 174 (+174)
+[INSTINCTS] Graph can now evolve or replace these patterns.
+ERROR: Cannot write to node 'MATH:IN_A:I32'
+ERROR: Cannot write to node 'MATH:IN_B:I32'
+[HOMEOSTASIS] sweep triggered

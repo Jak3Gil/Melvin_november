@@ -1,0 +1,30 @@
+---
+triple:          'arm64-apple-darwin'
+binary-path:     test_emergence_live
+relocations:
+  - { offsetInCU: 0x26, offset: 0x26, size: 0x8, addend: 0x0, symName: _main, symObjAddr: 0x0, symBinAddr: 0x100000EF0, symSize: 0x6F4 }
+  - { offsetInCU: 0x41, offset: 0x41, size: 0x8, addend: 0x0, symName: _main, symObjAddr: 0x0, symBinAddr: 0x100000EF0, symSize: 0x6F4 }
+  - { offsetInCU: 0x66, offset: 0x66, size: 0x8, addend: 0x0, symName: _main.last_molecule_count, symObjAddr: 0x3628, symBinAddr: 0x100008000, symSize: 0x0 }
+  - { offsetInCU: 0x26, offset: 0xD36, size: 0x8, addend: 0x0, symName: _create_new_file, symObjAddr: 0x0, symBinAddr: 0x1000015E4, symSize: 0x23C }
+  - { offsetInCU: 0x382, offset: 0x1092, size: 0x8, addend: 0x0, symName: _create_new_file, symObjAddr: 0x0, symBinAddr: 0x1000015E4, symSize: 0x23C }
+  - { offsetInCU: 0x6C8, offset: 0x13D8, size: 0x8, addend: 0x0, symName: _load_file, symObjAddr: 0x23C, symBinAddr: 0x100001820, symSize: 0x208 }
+  - { offsetInCU: 0x9CD, offset: 0x16DD, size: 0x8, addend: 0x0, symName: _load_file.cold.1, symObjAddr: 0x774, symBinAddr: 0x1000035F8, symSize: 0x30 }
+  - { offsetInCU: 0x9E4, offset: 0x16F4, size: 0x8, addend: 0x0, symName: _load_file.cold.2, symObjAddr: 0x7A4, symBinAddr: 0x100003628, symSize: 0x30 }
+  - { offsetInCU: 0x9FB, offset: 0x170B, size: 0x8, addend: 0x0, symName: _grow_graph, symObjAddr: 0x444, symBinAddr: 0x100001A28, symSize: 0x2DC }
+  - { offsetInCU: 0xB96, offset: 0x18A6, size: 0x8, addend: 0x0, symName: _close_file, symObjAddr: 0x720, symBinAddr: 0x100001D04, symSize: 0x54 }
+  - { offsetInCU: 0x26, offset: 0x19A1, size: 0x8, addend: 0x0, symName: _runtime_init, symObjAddr: 0x0, symBinAddr: 0x100001D58, symSize: 0x170 }
+  - { offsetInCU: 0x50B, offset: 0x1E86, size: 0x8, addend: 0x0, symName: _runtime_init, symObjAddr: 0x0, symBinAddr: 0x100001D58, symSize: 0x170 }
+  - { offsetInCU: 0x582, offset: 0x1EFD, size: 0x8, addend: 0x0, symName: _runtime_cleanup, symObjAddr: 0x170, symBinAddr: 0x100001EC8, symSize: 0x48 }
+  - { offsetInCU: 0x59F, offset: 0x1F1A, size: 0x8, addend: 0x0, symName: _inject_pulse, symObjAddr: 0x1B8, symBinAddr: 0x100001F10, symSize: 0x190 }
+  - { offsetInCU: 0x6F6, offset: 0x2071, size: 0x8, addend: 0x0, symName: _propagate_pulses, symObjAddr: 0x348, symBinAddr: 0x1000020A0, symSize: 0x2A8 }
+  - { offsetInCU: 0x917, offset: 0x2292, size: 0x8, addend: 0x0, symName: _apply_weight_decay, symObjAddr: 0x5F0, symBinAddr: 0x100002348, symSize: 0xD0 }
+  - { offsetInCU: 0x96C, offset: 0x22E7, size: 0x8, addend: 0x0, symName: _strengthen_edges_on_use, symObjAddr: 0x6C0, symBinAddr: 0x100002418, symSize: 0xFC }
+  - { offsetInCU: 0x9D1, offset: 0x234C, size: 0x8, addend: 0x0, symName: _create_nodes_on_new_input, symObjAddr: 0x7BC, symBinAddr: 0x100002514, symSize: 0x4 }
+  - { offsetInCU: 0xA68, offset: 0x23E3, size: 0x8, addend: 0x0, symName: _create_edges_on_pulse_flow, symObjAddr: 0x7C0, symBinAddr: 0x100002518, symSize: 0x420 }
+  - { offsetInCU: 0xEBD, offset: 0x2838, size: 0x8, addend: 0x0, symName: _create_edge_between, symObjAddr: 0xBE0, symBinAddr: 0x100002938, symSize: 0x218 }
+  - { offsetInCU: 0x10FA, offset: 0x2A75, size: 0x8, addend: 0x0, symName: _enforce_energy_budget, symObjAddr: 0xDF8, symBinAddr: 0x100002B50, symSize: 0xCC }
+  - { offsetInCU: 0x1155, offset: 0x2AD0, size: 0x8, addend: 0x0, symName: _swap_buffers, symObjAddr: 0xEC4, symBinAddr: 0x100002C1C, symSize: 0xB0 }
+  - { offsetInCU: 0x11A4, offset: 0x2B1F, size: 0x8, addend: 0x0, symName: _execute_hot_nodes, symObjAddr: 0xF74, symBinAddr: 0x100002CCC, symSize: 0xF4 }
+  - { offsetInCU: 0x1223, offset: 0x2B9E, size: 0x8, addend: 0x0, symName: _detect_formations, symObjAddr: 0x1068, symBinAddr: 0x100002DC0, symSize: 0x2DC }
+  - { offsetInCU: 0x1667, offset: 0x2FE2, size: 0x8, addend: 0x0, symName: _physics_tick, symObjAddr: 0x1344, symBinAddr: 0x10000309C, symSize: 0x55C }
+...

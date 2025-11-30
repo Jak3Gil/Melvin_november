@@ -1,0 +1,2258 @@
+#define _POSIX_C_SOURCE 200809L
+
+/*
+ * MELVIN.C - The Physics Runtime
+ * 
+ * PHILOSOPHY: Indirect rules that directly affect performance
+ * 
+ * This file contains NO explicit intelligence - only mechanical physics rules.
+ * Intelligence emerges from how the graph responds to these rules under pressure.
+ * 
+ * INDIRECT RULES:
+ * - Don't say "delete useless nodes" → weights decay to zero (indirect pruning)
+ * - Don't say "create patterns" → similarity creates pressure (indirect formation)
+ * - Don't say "avoid chaos" → size penalty creates selectivity (indirect constraint)
+ * 
+ * DIRECT PERFORMANCE:
+ * - Learning rule (Δw = η * a * err) → directly reduces prediction error
+ * - Simplicity score (penalize size, reward compression) → directly minimizes energy
+ * - Pattern matching → directly enables compression (less storage, same function)
+ * 
+ * The rules are minimal physics laws. The graph self-organizes to minimize energy
+ * (prediction error) while maximizing simplicity (compression) under these laws.
+ */
+#include "melvin.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <dirent.h>
+#include <errno.h>
+#include <time.h>
+#include <dlfcn.h> // Added for dynamic loading
+#include <math.h>
+#include <inttypes.h>  // for PRIu64 and write()
+#include <inttypes.h>
+#include <stdint.h>
+
+// Debug flag
+static int g_debug = 0;
+static int g_log_simplicity = 0; // Enable via env var MELVIN_LOG_SIMPLICITY=1
+
+// ========================================================
+// Simplicity Objective Metrics
+// ========================================================
+
+// Channel types for prediction error tracking
+#define CH_TEXT    1
+#define CH_SENSOR  2
+#define CH_MOTOR   3
+#define CH_VISION  4
+#define CH_REWARD  4  // Reuse same value if no separate reward channel yet
+
+typedef struct {
+    // Prediction error (how badly we failed to predict inputs)
+    double pred_error_total;
+    double pred_error_text;
+    double pred_error_sensor;
+    double pred_error_motor;
+    
+    // Size / complexity
+    uint64_t num_nodes;
+    uint64_t num_edges;
+    uint64_t num_patterns;
+    
+    // Compression / reuse proxies
+    double avg_pattern_length;      // avg number of slots per pattern (approx)
+    double pattern_usage_rate;      // fraction of active nodes that belong to patterns
+    double episodic_compression;    // ratio: raw bytes vs pattern-explained bytes (approx)
+    
+    // Derived objective
+    double simplicity_score;        // higher is "better" (more intelligent / simpler)
+} SimplicityMetrics;
+
+// Global metrics accumulator (reset each tick)
+static SimplicityMetrics g_simplicity_metrics = {0};
+
+// Global pressure variables (set by reward injection, used by edge creation/pattern induction)
+static float g_simplicity_pressure = 0.0f;  // Positive = reward, Negative = penalty
+static float g_prediction_error_pressure = 0.0f;  // High error = high pressure to reduce it
+
+// ========================================================
+// MC Table Definition
+// ========================================================
+
+#define MAX_MC_FUNCS 256
+
+// Forward declaration not needed if melvin.h is included and defines Brain
+// struct Brain;
+// typedef struct Brain Brain;
+
+typedef void (*MCFn)(Brain *g, uint64_t node_id);
+
+typedef struct {
+    const char *name;
+    MCFn        fn;
+    uint32_t    flags;
+} MCEntry;
+
+MCEntry  g_mc_table[MAX_MC_FUNCS];  // Made non-static for bootstrap access
+uint32_t g_mc_count = 0;
+
+// ========================================================
+// Helper Functions
+// ========================================================
+
+// Constants for initial capacities
+#define INITIAL_NODE_CAPACITY 65536
+#define INITIAL_EDGE_CAPACITY 262144
+
+// Grow the graph file dynamically when we run out of space
+// Uses fixed capacities and updates header offsets
+static int grow_graph(Brain *g, uint64_t min_nodes, uint64_t min_edges) {
+    size_t header_size = sizeof(BrainHeader);
+    size_t node_size = sizeof(Node);
+    size_t edge_size = sizeof(Edge);
+    
+    // Get current capacities (use defaults if not set)
+    uint64_t current_node_cap = g->header->node_capacity;
+    uint64_t current_edge_cap = g->header->edge_capacity;
+    
+    // If capacities are zero (old format), initialize them
+    if (current_node_cap == 0) {
+        current_node_cap = INITIAL_NODE_CAPACITY;
+    }
+    if (current_edge_cap == 0) {
+        current_edge_cap = INITIAL_EDGE_CAPACITY;
+    }
+    
+    // Calculate new capacities - grow by 50% or to minimum needed, whichever is larger
+    uint64_t new_node_cap = (min_nodes > current_node_cap * 3 / 2) ? min_nodes : (current_node_cap * 3 / 2);
+    uint64_t new_edge_cap = (min_edges > current_edge_cap * 3 / 2) ? min_edges : (current_edge_cap * 3 / 2);
+    
+    // Don't grow if we already have enough space
+    if (new_node_cap <= current_node_cap && new_edge_cap <= current_edge_cap) {
+        return 0;
+    }
+    
+    // Calculate new offsets
+    uint64_t node_region_offset = header_size;
+    uint64_t edge_region_offset = node_region_offset + new_node_cap * node_size;
+    
+    // Calculate new file size
+    size_t new_size = edge_region_offset + new_edge_cap * edge_size;
+    
+    printf("[grow] Growing graph: node_cap %llu->%llu, edge_cap %llu->%llu\n",
+           (unsigned long long)current_node_cap, (unsigned long long)new_node_cap,
+           (unsigned long long)current_edge_cap, (unsigned long long)new_edge_cap);
+    
+    // Unmap current mapping
+    munmap(g->header, g->mmap_size);
+    
+    // Grow the file
+    if (ftruncate(g->fd, new_size) < 0) {
+        perror("[grow] ftruncate failed");
+        return -1;
+    }
+    
+    // Remap with new size
+    void *new_map = mmap(NULL, new_size, PROT_READ | PROT_WRITE, MAP_SHARED, g->fd, 0);
+    if (new_map == MAP_FAILED) {
+        perror("[grow] mmap failed");
+        return -1;
+    }
+    
+    // Update header with new capacities and offsets
+    g->header = (BrainHeader*)new_map;
+    g->header->node_capacity = new_node_cap;
+    g->header->edge_capacity = new_edge_cap;
+    g->header->node_region_offset = node_region_offset;
+    g->header->edge_region_offset = edge_region_offset;
+    
+    // Set pointers from offsets (ONCE, based on header)
+    uint8_t *base = (uint8_t*)new_map;
+    g->nodes = (Node*)(base + g->header->node_region_offset);
+    g->edges = (Edge*)(base + g->header->edge_region_offset);
+    g->mmap_size = new_size;
+    
+    // Initialize new space to zero
+    if (new_node_cap > current_node_cap) {
+        // Initialize new nodes (including adjacency list pointers)
+        for (uint64_t i = current_node_cap; i < new_node_cap; i++) {
+            memset(&g->nodes[i], 0, node_size);
+            g->nodes[i].first_out = UINT64_MAX;
+            g->nodes[i].first_in = UINT64_MAX;
+        }
+    }
+    if (new_edge_cap > current_edge_cap) {
+        memset(&g->edges[current_edge_cap], 0, (new_edge_cap - current_edge_cap) * edge_size);
+    }
+    
+    printf("[grow] Graph grown successfully\n");
+    return 0;
+}
+
+// Forward declaration
+void add_edge(Brain *g, uint64_t src, uint64_t dst, float w, uint32_t flags);
+
+// Find a free node (exported for plugins)
+// No limits - grows dynamically as needed, limited only by disk space
+// No capacity concept - file grows organically
+uint64_t alloc_node(Brain *g) {
+    // Check if we need to grow the graph
+    if (g->header->num_nodes >= g->header->node_capacity) {
+        if (grow_graph(g, g->header->num_nodes + 1, g->header->num_edges) < 0) {
+            printf("[alloc_node] Error: Failed to grow graph\n");
+            return 0;
+        }
+    }
+    
+    // Check capacity bounds
+    if (g->header->num_nodes >= g->header->node_capacity) {
+        printf("[alloc_node] Error: Node capacity exceeded\n");
+        return 0;
+    }
+    
+    // Allocate next node index
+    uint64_t id = g->header->num_nodes++;
+    
+    // Initialize node fields
+    memset(&g->nodes[id], 0, sizeof(Node));
+    g->nodes[id].first_out = UINT64_MAX;
+    g->nodes[id].first_in = UINT64_MAX;
+    
+    // CRITICAL FIX: Give new nodes strong activation pulse for co-activation
+    // This ensures new nodes fire strongly for several ticks, enabling co-activation
+    // Without this, nodes activate too weakly and decay too fast to co-activate
+    g->nodes[id].a = 1.0f;        // Strong activation pulse for new nodes
+    g->nodes[id].bias = 0.1f;     // Keep default bias for prediction potential
+    g->nodes[id].decay = 0.01f;   // Set slow decay (will persist across ticks)
+    
+    // INDIRECT RULE: Strong initial activation creates co-activation pressure
+    // DIRECT EFFECT: Nodes with strong activation → co-activation → edges form
+    
+    // CRITICAL: Create sequence edges - connect new node to previous node
+    // This creates temporal chain: ... → N-2 → N-1 → N → ...
+    // Sequence edges enable temporal learning and pattern formation
+    if (id > 0) {
+        uint64_t prev_id = id - 1;
+        // Create bidirectional sequence edges for temporal learning
+        // Forward: previous → current (temporal flow)
+        printf("[alloc_node] Creating sequence edge: %llu -> %llu\n", 
+               (unsigned long long)prev_id, (unsigned long long)id);
+        add_edge(g, prev_id, id, 0.5f, EDGE_FLAG_SEQ);
+        // Backward: current → previous (temporal context)
+        printf("[alloc_node] Creating sequence edge: %llu -> %llu\n", 
+               (unsigned long long)id, (unsigned long long)prev_id);
+        add_edge(g, id, prev_id, 0.3f, EDGE_FLAG_SEQ);
+    }
+    
+    return id;
+}
+
+// Find or create a node by hash/identifier (exported for plugins)
+// Prevents duplicates - nodes should be reused, not duplicated
+// Returns existing node if found, creates new one only if needed
+uint64_t find_or_create_node(Brain *g, uint32_t hash, uint32_t kind) {
+    // Search for existing node with this hash and kind
+    uint64_t n = g->header->num_nodes;
+    for (uint64_t i = 0; i < n; i++) {
+        Node *node = &g->nodes[i];
+        if (node->kind == kind && (uint32_t)node->value == hash) {
+            // Found existing node - reuse it
+            return i;
+        }
+    }
+    
+    // Not found - create new node
+    uint64_t id = alloc_node(g);
+    if (id != 0 && id != UINT64_MAX) {
+        Node *node = &g->nodes[id];
+        node->kind = kind;
+        node->value = (float)hash;
+        node->a = 0.5f; // Default activation
+    }
+    return id;
+}
+
+// Add edge (exported for plugins)
+// Uses fixed capacity - grows dynamically when needed
+void add_edge(Brain *g, uint64_t src, uint64_t dst, float w, uint32_t flags) {
+    // Check if we need to grow the graph
+    if (g->header->num_edges >= g->header->edge_capacity) {
+        if (grow_graph(g, g->header->num_nodes, g->header->num_edges + 1) < 0) {
+            printf("[add_edge] Error: Failed to grow graph\n");
+            return;
+        }
+    }
+    
+    // Check capacity bounds
+    if (g->header->num_edges >= g->header->edge_capacity) {
+        printf("[add_edge] Error: Edge capacity exceeded\n");
+        return;
+    }
+    
+    // Allocate next edge index
+    uint64_t new_edge_id = g->header->num_edges++;
+    
+    // Write to fixed edge region (g->edges pointer set once at init/load)
+    Edge *e = &g->edges[new_edge_id];
+    e->src = src;
+    e->dst = dst;
+    e->w = w;
+    e->flags = flags;
+    e->usage_count = 1;
+    e->next_out = UINT64_MAX; // Initialize to end of list
+    e->next_in = UINT64_MAX;
+    
+    // Add to src's outgoing list (insert at head)
+    uint64_t n = g->header->num_nodes;
+    if (src < n) {
+        Node *src_node = &g->nodes[src];
+        e->next_out = src_node->first_out;
+        src_node->first_out = new_edge_id;
+    }
+    
+    // Add to dst's incoming list (insert at head)
+    if (dst < n) {
+        Node *dst_node = &g->nodes[dst];
+        e->next_in = dst_node->first_in;
+        dst_node->first_in = new_edge_id;
+    }
+}
+
+// ========================================================
+// MC Functions - All moved to plugins
+// ========================================================
+// All MC functions are now in plugins/ and loaded dynamically
+
+// ========================================================
+// Core Runtime
+// ========================================================
+
+// Helper to compile and load a plugin
+static MCFn load_plugin_function(const char *plugin_name, const char *func_name) {
+    char so_path[256];
+    char src_path[256];
+    char cmd[512];
+    
+    snprintf(so_path, sizeof(so_path), "plugins/%s.so", plugin_name);
+    snprintf(src_path, sizeof(src_path), "plugins/%s.c", plugin_name);
+    
+    // Compile if needed
+    if (access(so_path, F_OK) != 0) {
+        fprintf(stderr, "[main] Compiling %s...\n", src_path);
+        snprintf(cmd, sizeof(cmd), "clang -shared -fPIC -O2 -I. -undefined dynamic_lookup -o %s %s", so_path, src_path);
+        int rc = system(cmd);
+        if (rc != 0) {
+            fprintf(stderr, "[main] Failed to compile %s\n", src_path);
+            return NULL;
+        }
+    }
+    
+    // Load plugin
+    void *h = dlopen(so_path, RTLD_NOW);
+    if (!h) {
+        fprintf(stderr, "[main] Failed to load %s: %s\n", so_path, dlerror());
+        return NULL;
+    }
+    
+    MCFn fn = (MCFn)dlsym(h, func_name);
+    if (!fn) {
+        fprintf(stderr, "[main] Failed to find %s in %s: %s\n", func_name, so_path, dlerror());
+        dlclose(h);
+        return NULL;
+    }
+    
+    return fn;
+}
+
+void register_mc(const char *name, MCFn fn) {
+    if (g_mc_count >= MAX_MC_FUNCS) return;
+    g_mc_table[g_mc_count].name = name;
+    g_mc_table[g_mc_count].fn = fn;
+    g_mc_table[g_mc_count].flags = 0;
+    g_mc_count++;
+}
+
+void run_mc_nodes(Brain *g) {
+    uint64_t n = g->header->num_nodes;
+    uint64_t mc_executed = 0;
+    
+    for (uint64_t i = 0; i < n; ++i) {
+        Node *node = &g->nodes[i];
+        if (node->mc_id == 0) continue;
+        
+        // MC nodes execute when activation crosses threshold (lower threshold for MC execution)
+        // MC code is the interface to CPU - lower threshold means more communication with CPU
+        const float MC_THRESHOLD = 0.3f; // Lower than before - more MC execution
+        if (node->a < MC_THRESHOLD) continue;
+        
+        if (node->mc_id < MAX_MC_FUNCS) {
+            MCEntry *entry = &g_mc_table[node->mc_id];
+            if (entry->fn) {
+                // Execute MC function - this communicates with CPU/plugins
+                entry->fn(g, i);
+                mc_executed++;
+                
+                // MC execution increases success count - track for pattern induction
+                node->success_count++;
+            } else if (g_debug) {
+                fprintf(stderr, "[MC] function missing for id %u (node %llu, a=%.3f)\n", 
+                        node->mc_id, (unsigned long long)i, node->a);
+            }
+        }
+    }
+    
+    // Log MC execution when it happens (condition-based)
+    if (mc_executed > 0 && g_debug) {
+        fprintf(stderr, "[MC] tick=%llu executed=%llu MC nodes\n",
+                (unsigned long long)g->header->tick, (unsigned long long)mc_executed);
+    }
+}
+
+#include <math.h>
+
+// ... (previous includes)
+
+// Global transient buffers
+static float *g_predicted_a = NULL;
+static float *g_node_error = NULL;
+static uint64_t g_buffer_cap = 0;
+
+static void ensure_buffers(Brain *g) {
+    if (g->header->num_nodes > g_buffer_cap) {
+        uint64_t old_cap = g_buffer_cap;
+        g_buffer_cap = g->header->num_nodes;
+        g_predicted_a = realloc(g_predicted_a, g_buffer_cap * sizeof(float));
+        g_node_error = realloc(g_node_error, g_buffer_cap * sizeof(float));
+        
+        // CRITICAL FIX: Initialize new memory to zero to prevent NaN
+        // When buffer grows, new slots contain garbage/NaN which breaks calculations
+        if (old_cap < g_buffer_cap) {
+            memset(&g_predicted_a[old_cap], 0, (g_buffer_cap - old_cap) * sizeof(float));
+            memset(&g_node_error[old_cap], 0, (g_buffer_cap - old_cap) * sizeof(float));
+        }
+    }
+}
+
+static float sigmoid(float x) {
+    return 1.0f / (1.0f + expf(-x));
+}
+
+void ingest_input(Brain *g) {
+    // Input ingestion handled by MC nodes or external systems
+    // This is a placeholder for any runtime-level input processing
+}
+
+void propagate_predictions(Brain *g) {
+    ensure_buffers(g);
+    uint64_t n = g->header->num_nodes;
+
+    // 1. Reset predictions to bias
+    for(uint64_t i=0; i<n; i++) {
+        g_predicted_a[i] = g->nodes[i].bias;
+    }
+
+    // 2. Sum weighted inputs from edges (using adjacency lists - efficient traversal)
+    // NATURAL PRUNING: Edges with zero weight naturally have no effect (effectively pruned)
+    // We don't check weight here - if weight=0, the edge contributes nothing
+    // The rules naturally prune: useless edges → zero weight → no effect
+    for(uint64_t src = 0; src < n; src++) {
+        Node *src_node = &g->nodes[src];
+        if (src_node->first_out == UINT64_MAX) continue; // No outgoing edges
+        
+        float src_activation = src_node->a;
+        if (src_activation == 0.0f) continue; // Skip if source is inactive
+        
+        // Traverse outgoing edges from src
+        uint64_t e_count = g->header->num_edges;
+        uint64_t edge_id = src_node->first_out;
+        while (edge_id != UINT64_MAX && edge_id < e_count) {
+            Edge *e = &g->edges[edge_id];
+            if (e->dst < n) {
+                // Message: weight × source activation
+                // If weight is zero (useless edge), this contributes nothing
+                // The rules naturally pruned it - no explicit deletion needed
+                float input = e->w * src_activation;
+                g_predicted_a[e->dst] += input;
+            }
+            edge_id = e->next_out; // Follow adjacency list
+        }
+    }
+
+    // 3. Apply nonlinearity and clamp to [0, 1]
+    for(uint64_t i=0; i<n; i++) {
+        g_predicted_a[i] = sigmoid(g_predicted_a[i]);
+        // Clamp to prevent explosion
+        if (g_predicted_a[i] < 0.0f) g_predicted_a[i] = 0.0f;
+        if (g_predicted_a[i] > 1.0f) g_predicted_a[i] = 1.0f;
+    }
+    
+    // Note: We do NOT modify actual activations here.
+    // Actual activations are set by ingest_input, MC nodes, or apply_environment.
+}
+
+void apply_environment(Brain *g) {
+    // Apply environment inputs / update activations from predictions
+    // CRITICAL: DO NOT decay here - decay happens AFTER edge creation
+    // This ensures co-activation is visible during update_edges()
+    uint64_t n = g->header->num_nodes;
+    for(uint64_t i=0; i<n; i++) {
+        Node *node = &g->nodes[i];
+        
+        // Update actual activation from prediction (this is how predictions become reality)
+        // CRITICAL: Preserve strong initial activation (a=1.0) from new nodes
+        // This ensures co-activation: new nodes fire strongly, old nodes maintain activation
+        float predicted = g_predicted_a[i];
+        
+        // If node has strong activation (>0.9), preserve it (new node pulse)
+        // Otherwise, update from prediction or blend
+        if (node->a > 0.9f) {
+            // Strong activation pulse - preserve it for co-activation
+            // Don't blend with prediction yet - this ensures co-activation window
+            // Decay will happen later
+        } else if (node->a < 0.01f) {
+            // Node not externally activated - use prediction
+            node->a = predicted;
+        } else {
+            // Node externally activated - blend with prediction (momentum)
+            // CRITICAL: Don't decay here - decay happens later after edge creation
+            float alpha = 0.3f; // Blend factor
+            node->a = alpha * predicted + (1.0f - alpha) * node->a; // No decay yet
+        }
+        
+        // Clamp to [0, 1]
+        if (node->a < 0.0f) node->a = 0.0f;
+        if (node->a > 1.0f) node->a = 1.0f;
+    }
+}
+
+void decay_activations(Brain *g) {
+    // CRITICAL FIX: Slow decay (0.99f) so activation persists across ticks for co-activation
+    // This is called AFTER update_edges() so co-activation happens before decay
+    const float decay_factor = 0.99f; // Previously too low - slow decay for persistence
+    uint64_t n = g->header->num_nodes;
+    for(uint64_t i=0; i<n; i++) {
+        Node *node = &g->nodes[i];
+        
+        // Apply slow decay - activation persists across ticks
+        // This allows Node A (tick N) and Node B (tick N+1) to both be active during update_edges()
+        float node_decay = node->decay;
+        if (node_decay == 0.0f) {
+            // Use default slow decay if node hasn't set decay
+            node_decay = 0.01f; // 1% decay per tick = persistence
+        }
+        node->a *= (1.0f - node_decay * decay_factor); // Apply slow decay
+        
+        // Clamp to [0, 1]
+        if (node->a < 0.0f) node->a = 0.0f;
+        if (node->a > 1.0f) node->a = 1.0f;
+    }
+}
+
+// Accumulate prediction error into simplicity metrics
+static void sm_accumulate_prediction_error(SimplicityMetrics *m, double err, int channel_type) {
+    double err_abs = fabs(err);
+    m->pred_error_total += err_abs;
+    switch (channel_type) {
+        case CH_TEXT:   m->pred_error_text   += err_abs; break;
+        case CH_SENSOR: m->pred_error_sensor += err_abs; break;
+        case CH_MOTOR:  m->pred_error_motor  += err_abs; break;
+        default: break;
+    }
+}
+
+void compute_error(Brain *g) {
+    ensure_buffers(g);
+    uint64_t n = g->header->num_nodes;
+    
+    // Reset error accumulation for this tick
+    double total_error = 0.0;
+    
+    for(uint64_t i=0; i<n; i++) {
+        float a_actual = g->nodes[i].a;
+        float a_pred = g_predicted_a[i];
+        
+        // CRITICAL FIX: Guard against NaN in calculations
+        if (isnan(a_actual) || isinf(a_actual)) a_actual = 0.0f;
+        if (isnan(a_pred) || isinf(a_pred)) a_pred = 0.0f;
+        
+        float e = a_actual - a_pred;
+        // Clamp error to reasonable range
+        if (e > 1.0f) e = 1.0f;
+        if (e < -1.0f) e = -1.0f;
+        if (isnan(e) || isinf(e)) e = 0.0f; // Final guard
+        g_node_error[i] = e;
+        
+        // Accumulate into simplicity metrics
+        // Assume all nodes contribute to general prediction error
+        // Channel-specific tracking would require metadata on nodes
+        total_error += fabs(e);
+    }
+    
+    // Accumulate total prediction error (approximate - treating all nodes as general input)
+    sm_accumulate_prediction_error(&g_simplicity_metrics, total_error / (double)n, 0);
+}
+
+// Forward declaration for startup self-test
+void update_edges(Brain *g);
+
+// Startup self-test: creates two nodes with a=1.0, calls update_edges(), verifies edges created
+// Uses unbuffered I/O to bypass buffering issues
+static void melvin_startup_selftest_edges(Brain *g) {
+    const char *start_msg = "[selftest] edge test starting\n";
+    write(2, start_msg, (unsigned)strlen(start_msg));
+    fflush(stderr);
+    
+    // 1) Create two nodes
+    uint64_t n1 = alloc_node(g);
+    uint64_t n2 = alloc_node(g);
+    
+    if (n1 == UINT64_MAX || n2 == UINT64_MAX) {
+        const char *fail_msg = "[selftest] FATAL: Failed to allocate nodes. Aborting.\n";
+        write(2, fail_msg, (unsigned)strlen(fail_msg));
+        abort();
+    }
+    
+    Node *node1 = &g->nodes[n1];
+    Node *node2 = &g->nodes[n2];
+    
+    // 2) Force co-activation
+    node1->a = 1.0f;
+    node2->a = 1.0f;
+    node1->bias = 0.5f;
+    node2->bias = 0.5f;
+    
+    // Initialize error buffers (needed for edge creation score)
+    ensure_buffers(g);
+    if (g_node_error) {
+        g_node_error[n1] = 0.1f; // Small error to create pressure
+        g_node_error[n2] = 0.1f;
+    }
+    
+    const char *nodes_msg = "[selftest] created two nodes with a=1.0\n";
+    write(2, nodes_msg, (unsigned)strlen(nodes_msg));
+    fflush(stderr);
+    
+    // 3) Call edge update directly
+    update_edges(g);
+    
+    // 4) Check edge count
+    char buf[256];
+    int len = snprintf(buf, sizeof(buf),
+                       "[selftest] after update_edges: num_edges=%llu\n",
+                       (unsigned long long)g->header->num_edges);
+    if (len > 0 && len < (int)sizeof(buf)) {
+        write(2, buf, (unsigned)len);
+        fflush(stderr);
+    }
+    
+    if (g->header->num_edges == 0) {
+        const char *fail_msg =
+            "[selftest] FATAL: expected at least 1 edge, got 0. Edge creation broken. Aborting.\n";
+        write(2, fail_msg, (unsigned)strlen(fail_msg));
+        fflush(stderr);
+        abort();
+    } else {
+        const char *ok_msg = "[selftest] PASS: edge creation works\n";
+        write(2, ok_msg, (unsigned)strlen(ok_msg));
+        fflush(stderr);
+    }
+}
+
+// This function scans active nodes and creates edges between co-active pairs.
+// Update edges: Indirect rule with direct performance impact
+// INDIRECT: Rule doesn't say "create useful edges" - it says "edges form under pressure"
+// DIRECT: Edge creation directly affects prediction error (useful edges reduce error)
+//         Size penalty directly discourages useless edges (they increase penalty)
+void update_edges(Brain *g) {
+    // DEBUG: Entry point
+    static uint64_t call_count = 0;
+    call_count++;
+    if (call_count % 1000 == 0) {
+        printf("[edges] update_edges called (tick=%llu, num_nodes=%llu, num_edges=%llu)\n",
+               (unsigned long long)g->header->tick,
+               (unsigned long long)g->header->num_nodes,
+               (unsigned long long)g->header->num_edges);
+    }
+    uint64_t e_count = g->header->num_edges;
+    uint64_t n = g->header->num_nodes;
+    const float eta = 0.001f;  // Learning rate
+    const float W_MAX = 10.0f;
+    const float lambda = 0.9f; // Eligibility trace decay
+    
+    // INDIRECT RULE: Edges form when pressure conditions are met
+    // - Co-activation creates pressure (signal strength)
+    // - Prediction error creates pressure (need to reduce it)
+    // - Simplicity creates pressure (compression reward)
+    // DIRECT EFFECT: Useful edges reduce error → better performance
+    //                Useless edges increase size → worse performance (penalty)
+    
+    // Collect ALL active nodes (no sampling, no arbitrary limits)
+    // Use dynamic allocation to handle any number of active nodes
+    static uint64_t *active_nodes = NULL;
+    static uint64_t active_cap = 0;
+    uint64_t num_active = 0;
+    
+    // Allocate buffer if needed (grow as needed)
+    if (active_cap < n) {
+        active_cap = (n < 10000) ? n : 10000; // Start with reasonable size
+        active_nodes = realloc(active_nodes, active_cap * sizeof(uint64_t));
+    }
+    
+    // Collect all active nodes (condition: activation > threshold)
+    // The rule: nodes activate when predictions (bias + edges) exceed threshold
+    // CRITICAL: Ensure threshold is consistent (0.3f) for co-activation
+    const float EDGE_ACT_THRESHOLD = 0.3f; // Consistent threshold for co-activation
+    
+    for (uint64_t i = 0; i < n && num_active < active_cap; i++) {
+        if (g->nodes[i].a > EDGE_ACT_THRESHOLD) {
+            active_nodes[num_active++] = i;
+        }
+    }
+    
+    // DEBUG: Log active node count
+    if (call_count % 1000 == 0) {
+        printf("[edges] found %llu active nodes (threshold=%.3f)\n",
+               (unsigned long long)num_active, EDGE_ACT_THRESHOLD);
+        if (num_active > 0 && num_active <= 10) {
+            for (uint64_t k = 0; k < num_active; k++) {
+                printf("[edges]   active[%llu]=%llu a=%.3f\n",
+                       (unsigned long long)k,
+                       (unsigned long long)active_nodes[k],
+                       g->nodes[active_nodes[k]].a);
+            }
+        }
+    }
+    
+    // If we hit capacity, we'll process what we have (condition-based, not error)
+    // For very large graphs, this naturally limits to most active nodes
+    
+    // Check pairs of active nodes - if both are active together, create edge
+    // Per EDGE.txt: condition is co-activation → edge forms (no other limits)
+    for (uint64_t ai = 0; ai < num_active; ai++) {
+        uint64_t i = active_nodes[ai];
+        Node *src = &g->nodes[i];
+        
+        for (uint64_t aj = ai + 1; aj < num_active; aj++) {
+            uint64_t j = active_nodes[aj];
+            Node *dst = &g->nodes[j];
+            
+            // Condition: both nodes must be co-activating
+            // CRITICAL: Use consistent threshold for co-activation
+            const float EDGE_ACT_THRESHOLD = 0.3f;
+            
+            // DEBUG: Log candidate pair
+            if (src->a > EDGE_ACT_THRESHOLD && dst->a > EDGE_ACT_THRESHOLD) {
+                printf("[edges] candidate pair: src=%llu a=%.3f, dst=%llu a=%.3f\n",
+                       (unsigned long long)i, src->a,
+                       (unsigned long long)j, dst->a);
+                // Check if this exact edge already exists (using adjacency list - efficient)
+                // Per EDGE.txt: edges are created when condition is met, but we shouldn't duplicate
+                int edge_exists = 0;
+                
+                // Check outgoing edges from src (using adjacency list)
+                uint64_t e_count = g->header->num_edges;
+                Node *src_node = &g->nodes[i];
+                uint64_t edge_id = src_node->first_out;
+                while (edge_id != UINT64_MAX && edge_id < e_count && !edge_exists) {
+                    Edge *e = &g->edges[edge_id];
+                    if (e->dst == j) { // Exact match: same src and dst
+                        edge_exists = 1;
+                        break;
+                    }
+                    edge_id = e->next_out; // Follow adjacency list
+                }
+                
+                // If edge doesn't exist, check if creation is beneficial (selectivity)
+                // Don't create edges chaotically - check patterns, simplicity, reward
+                if (!edge_exists) {
+                    // SELECTIVITY: Check if either node is part of a pattern (prefer pattern-based connections)
+                    int src_in_pattern = 0;
+                    int dst_in_pattern = 0;
+                    
+                    // Check if src is connected to pattern (using adjacency list)
+                    uint64_t src_edge_id = src_node->first_in;
+                    while (src_edge_id != UINT64_MAX && src_edge_id < e_count) {
+                        Edge *e = &g->edges[src_edge_id];
+                        if (e->src < n) {
+                            Node *src_pattern = &g->nodes[e->src];
+                            if (src_pattern->kind == NODE_KIND_PATTERN_ROOT && (e->flags & EDGE_FLAG_PATTERN)) {
+                                src_in_pattern = 1;
+                                break;
+                            }
+                        }
+                        src_edge_id = e->next_in;
+                    }
+                    
+                    // Check if dst is connected to pattern
+                    Node *dst_node = &g->nodes[j];
+                    uint64_t dst_edge_id = dst_node->first_in;
+                    while (dst_edge_id != UINT64_MAX && dst_edge_id < e_count) {
+                        Edge *e = &g->edges[dst_edge_id];
+                        if (e->src < n) {
+                            Node *dst_pattern = &g->nodes[e->src];
+                            if (dst_pattern->kind == NODE_KIND_PATTERN_ROOT && (e->flags & EDGE_FLAG_PATTERN)) {
+                                dst_in_pattern = 1;
+                                break;
+                            }
+                        }
+                        dst_edge_id = e->next_in;
+                    }
+                    
+                    // PRESSURE-DRIVEN SELECTIVITY: Create edge only if it reduces prediction error
+                    // The WHY: We're minimizing energy (prediction error) while maximizing simplicity (compression)
+                    // NATURAL PRUNING: Edges that don't help will decay to zero weight via learning rule
+                    // The size penalty in simplicity creates pressure to avoid useless edges
+                    
+                    // 1. Check local prediction error - edges connecting high-error nodes are valuable
+                    // CRITICAL FIX: Guard against NaN from uninitialized error values
+                    float src_error_val = g_node_error[i];
+                    float dst_error_val = g_node_error[j];
+                    if (isnan(src_error_val) || isinf(src_error_val)) src_error_val = 0.0f;
+                    if (isnan(dst_error_val) || isinf(dst_error_val)) dst_error_val = 0.0f;
+                    
+                    float src_error = fabsf(src_error_val);
+                    float dst_error = fabsf(dst_error_val);
+                    float error_pressure = (src_error + dst_error) * 0.5f; // Average error = pressure to reduce
+                    
+                    // Guard against NaN in error_pressure
+                    if (isnan(error_pressure) || isinf(error_pressure)) error_pressure = 0.0f;
+                    
+                    // 2. Pattern bonus (compression reward)
+                    float pattern_bonus = 0.0f;
+                    if (src_in_pattern && dst_in_pattern) {
+                        pattern_bonus = 0.3f; // Pattern-to-pattern: highest priority (compression)
+                    } else if (src_in_pattern || dst_in_pattern) {
+                        pattern_bonus = 0.15f; // Pattern expansion: medium priority
+                    }
+                    
+                    // 3. Co-activation (signal strength)
+                    float co_activation = src->a * dst->a;
+                    
+                    // 4. Reliability bonus (trustworthy connections - avoid useless nodes)
+                    // Nodes with low reliability are likely useless → don't connect to them
+                    float reliability_bonus = (src->reliability + dst->reliability) * 0.5f * 0.2f;
+                    
+                    // 5. Simplicity pressure (global reward signal)
+                    // The size penalty (W_SIZE * size) creates pressure against creating useless edges
+                    // This threshold is the indirect way the rules prevent useless structures
+                    // CRITICAL FIX: Check for NaN to prevent NaN propagation
+                    float simplicity_bonus = (isnan(g_simplicity_pressure) || isinf(g_simplicity_pressure)) 
+                                             ? 0.0f 
+                                             : g_simplicity_pressure * 0.1f; // Reward for simplicity
+                    
+                    // PRESSURE CALCULATION: Create edge if it helps reduce error OR improves simplicity
+                    // Error pressure (positive) encourages connections that reduce prediction error
+                    // Simplicity pressure (positive) encourages pattern-based connections (compression)
+                    // NATURAL PRUNING: If edge doesn't help, learning will make weight→0 (effectively pruned)
+                    float creation_score = co_activation;
+                    creation_score += error_pressure * 0.3f; // PRESSURE: Reduce error
+                    creation_score += pattern_bonus; // PRESSURE: Increase compression
+                    creation_score += reliability_bonus; // Avoid unreliable (useless) nodes
+                    creation_score += simplicity_bonus; // PRESSURE: Reward simplicity (penalize size)
+                    
+                    // DYNAMIC THRESHOLD: Adjust based on current pressure
+                    // High error pressure = lower threshold (need more edges to reduce error)
+                    // Low error pressure = higher threshold (selective, prefer patterns)
+                    // The threshold is how the rules indirectly prevent useless edges:
+                    // - High simplicity = higher threshold = more selective = avoid useless
+                    // - Size penalty in simplicity score = pressure against useless structures
+                    float base_threshold = 0.15f;
+                    float threshold = base_threshold;
+                    if (g_prediction_error_pressure < -0.2f) {
+                        threshold *= 0.7f; // High error = more permissive (need connections)
+                    } else if (g_simplicity_pressure > 0.1f) {
+                        threshold *= 1.3f; // High simplicity = more selective (avoid useless)
+                    }
+                    
+                    // Only create edge if score exceeds threshold (pressure-driven selectivity)
+                    // Useless edges won't meet threshold → never created → no need to prune
+                    
+                    // DEBUG: Log score calculation
+                    printf("[edges]   score: co_activation=%.3f error_pressure=%.3f pattern=%.3f reliability=%.3f simplicity=%.3f\n",
+                           co_activation, error_pressure, pattern_bonus, reliability_bonus, simplicity_bonus);
+                    printf("[edges]   creation_score=%.3f threshold=%.3f (create? %s)\n",
+                           creation_score, threshold, (creation_score >= threshold) ? "YES" : "NO");
+                    
+                    if (creation_score >= threshold) {
+                        // DEBUG: Before creating edge
+                        uint64_t old_num_edges = g->header->num_edges;
+                        // Weight based on co-activation strength and pattern membership
+                        float weight = 0.1f * co_activation;
+                        if (src_in_pattern && dst_in_pattern) {
+                            weight *= 1.5f; // Boost pattern-to-pattern connections
+                        }
+                        // Per EDGE.txt: initial weight, tags based on context
+                        // Use BIND flag for co-activation edges (they bind nodes together)
+                        uint32_t flags = EDGE_FLAG_BIND;
+                        if (src_in_pattern || dst_in_pattern) {
+                            flags |= EDGE_FLAG_PATTERN; // Tag as pattern-related
+                        }
+                        printf("[edges] CREATING edge: src=%llu dst=%llu weight=%.3f flags=0x%x (num_edges before=%llu)\n",
+                               (unsigned long long)i, (unsigned long long)j, weight, flags,
+                               (unsigned long long)old_num_edges);
+                        
+                        add_edge(g, i, j, weight, flags);
+                        
+                        // DEBUG: After creating edge
+                        printf("[edges]   num_edges after=%llu (incremented? %s)\n",
+                               (unsigned long long)g->header->num_edges,
+                               (g->header->num_edges > old_num_edges) ? "YES" : "NO");
+                    }
+                }
+            }
+        }
+    }
+    
+    // Update existing edges - INDIRECT PRUNING via learning rule
+    // INDIRECT: Rule doesn't say "delete useless edges" - it says "weights adjust to reduce error"
+    // DIRECT: Useless edges (don't reduce error) → weight decays to zero → no effect (effectively pruned)
+    //         Useful edges (reduce error) → weight strengthens → better predictions (direct performance)
+    for(uint64_t i=0; i<e_count; i++) {
+        Edge *e = &g->edges[i];
+        if (e->src >= n || e->dst >= n) continue;
+        
+        Node *src = &g->nodes[e->src];
+        float a_src = src->a;
+        // CRITICAL FIX: Guard against NaN from uninitialized error values
+        float err_dst_val = g_node_error[e->dst];
+        if (isnan(err_dst_val) || isinf(err_dst_val)) err_dst_val = 0.0f;
+        float err_dst = err_dst_val;
+        
+        // Learning rule: Δw = η * a_src * err_dst
+        // If edge doesn't help reduce error (err_dst positive), weight decreases
+        // If edge increases error, weight becomes more negative → decays away
+        float dw = eta * a_src * err_dst;
+        
+        // NaN guard (check for NaN or infinity)
+        if (dw != dw || dw > 1e10f || dw < -1e10f) dw = 0.0f;
+        
+        e->w += dw;
+        
+        // NATURAL PRUNING: Edges with near-zero weight are effectively pruned
+        // They don't contribute to predictions, so they're useless
+        // The size penalty in simplicity score creates pressure to avoid creating them
+        // But we don't explicitly delete - they just become weight=0 (no effect)
+        
+        // Clamp weights
+        if (e->w > W_MAX) e->w = W_MAX;
+        if (e->w < -W_MAX) e->w = -W_MAX;
+        
+        // NATURAL DECAY: Edges that never contribute gradually decay
+        // If edge hasn't been used (no source activation), decay slightly
+        // This creates natural pruning without explicit deletion code
+        if (a_src < 0.01f && e->usage_count == 0) {
+            e->w *= 0.99f; // Decay unused edges (very slow - they can recover if needed)
+        }
+        
+        // Update eligibility trace
+        e->elig = lambda * e->elig + a_src;
+        
+        // Update usage count when edge contributes
+        if (fabsf(a_src) > 0.1f) {
+            e->usage_count++;
+        }
+    }
+    
+}
+
+void update_nodes_from_error(Brain *g) {
+    uint64_t n = g->header->num_nodes;
+    
+    for(uint64_t i=0; i<n; i++) {
+        Node *node = &g->nodes[i];
+        // CRITICAL FIX: Guard against NaN from uninitialized error values
+        float err_val = g_node_error[i];
+        if (isnan(err_val) || isinf(err_val)) err_val = 0.0f;
+        float err_abs = fabsf(err_val);
+        
+        // Update reliability: nodes with low error get high reliability
+        // NATURAL PRUNING: Unreliable nodes naturally become less useful
+        // They get lower reliability → less likely to be selected → effectively pruned
+        float reliability_update = 1.0f - fminf(1.0f, err_abs);
+        node->reliability = 0.99f * node->reliability + 0.01f * reliability_update;
+        
+        // Clamp reliability to [0, 1]
+        if (node->reliability < 0.0f) node->reliability = 0.0f;
+        if (node->reliability > 1.0f) node->reliability = 1.0f;
+        
+        // Track success/failure counts
+        if (err_abs < 0.1f) {
+            node->success_count++;
+        } else {
+            node->failure_count++;
+        }
+        
+        // NATURAL PRUNING: Nodes that never activate or contribute decay
+        // They become useless → activation stays low → never selected
+        // The simplicity penalty (size) creates pressure to avoid creating useless nodes
+        // But we don't explicitly delete - they just become inactive (no effect)
+        // Nodes with zero incoming edges and low activation are effectively pruned
+    }
+}
+
+
+void log_learning_stats(Brain *g) {
+    if (!g_debug) return;
+    // Log when there's something to report (condition-based, not time-based)
+    // Only log when there's actual activity to report
+    uint64_t n = g->header->num_nodes;
+    uint64_t active_count = 0;
+    for (uint64_t i = 0; i < n && i < 1000; i++) {
+        if (g->nodes[i].a > 0.1f) active_count++;
+    }
+    // Only log if there's significant activity (condition: active nodes exist)
+    if (active_count < 10) return;
+    uint64_t e_count = g->header->num_edges;
+    
+    // Count edges with non-zero weight
+    uint64_t active_edges = 0;
+    for(uint64_t i=0; i<e_count; i++) {
+        if (fabsf(g->edges[i].w) > 0.01f) active_edges++;
+    }
+    
+    // Count nodes by kind (generic statistics only)
+    uint64_t kind_counts[16] = {0};
+    uint64_t mc_nodes = 0;
+    uint64_t active_nodes = 0;
+    
+    for(uint64_t i=0; i<n; i++) {
+        Node *node = &g->nodes[i];
+        if (node->kind < 16) kind_counts[node->kind]++;
+        if (node->mc_id > 0) mc_nodes++;
+        if (node->a > 0.1f) active_nodes++;
+    }
+    
+    fprintf(stderr, "[tick %llu] nodes=%llu edges=%llu active_edges=%llu active_nodes=%llu mc_nodes=%llu",
+            (unsigned long long)g->header->tick,
+            (unsigned long long)n,
+            (unsigned long long)e_count,
+            (unsigned long long)active_edges,
+            (unsigned long long)active_nodes,
+            (unsigned long long)mc_nodes);
+    
+    fprintf(stderr, "\n");
+}
+
+// ========================================================
+// Simplicity Metrics Computation
+// ========================================================
+
+// Initialize metrics for a new tick
+static void sm_init(SimplicityMetrics *m) {
+    memset(m, 0, sizeof(*m));
+}
+
+// Measure graph complexity
+static void sm_measure_complexity(Brain *g, SimplicityMetrics *m) {
+    m->num_nodes = g->header->num_nodes;
+    m->num_edges = g->header->num_edges;
+    
+    // Count patterns (PATTERN_ROOT nodes)
+    m->num_patterns = 0;
+    uint64_t n = g->header->num_nodes;
+    uint64_t total_pattern_nodes = 0; // Nodes connected to patterns
+    uint64_t total_pattern_edges = 0; // Edges tagged as PATTERN
+    
+    for (uint64_t i = 0; i < n; i++) {
+        if (g->nodes[i].kind == NODE_KIND_PATTERN_ROOT) {
+            m->num_patterns++;
+        }
+    }
+    
+    // Count edges with PATTERN flag to approximate pattern coverage
+    uint64_t e_count = g->header->num_edges;
+    for (uint64_t i = 0; i < e_count; i++) {
+        if (g->edges[i].flags & EDGE_FLAG_PATTERN) {
+            total_pattern_edges++;
+        }
+    }
+    
+    // Approximate nodes in patterns from pattern edges
+    // Each pattern edge connects a pattern to a node, so count unique destinations
+    uint64_t pattern_connected_nodes = 0;
+    for (uint64_t i = 0; i < e_count; i++) {
+        if (g->edges[i].flags & EDGE_FLAG_PATTERN && g->edges[i].dst < n) {
+            // Count unique nodes (approximate - will double count)
+            pattern_connected_nodes++;
+        }
+    }
+    
+    m->pattern_usage_rate = (n > 0) ? (double)pattern_connected_nodes / (double)n : 0.0;
+    if (m->pattern_usage_rate > 1.0) m->pattern_usage_rate = 1.0; // Clamp
+}
+
+// Measure pattern compression/reuse
+static void sm_measure_patterns(Brain *g, SimplicityMetrics *m) {
+    if (m->num_patterns == 0) {
+        m->avg_pattern_length = 0.0;
+        m->episodic_compression = 0.0;
+        return;
+    }
+    
+    // Count pattern edges per pattern (approximate average length)
+    uint64_t e_count = g->header->num_edges;
+    uint64_t total_pattern_slots = 0;
+    
+    // For each pattern root, count outgoing pattern edges
+    uint64_t n = g->header->num_nodes;
+    for (uint64_t pid = 0; pid < n; pid++) {
+        if (g->nodes[pid].kind == NODE_KIND_PATTERN_ROOT) {
+            uint64_t slots = 0;
+            for (uint64_t i = 0; i < e_count; i++) {
+                if (g->edges[i].src == pid && (g->edges[i].flags & EDGE_FLAG_PATTERN)) {
+                    slots++;
+                }
+            }
+            total_pattern_slots += slots;
+        }
+    }
+    
+    m->avg_pattern_length = (m->num_patterns > 0) ?
+        (double)total_pattern_slots / (double)m->num_patterns : 0.0;
+    
+    // Episodic compression: use pattern_usage_rate as proxy
+    // Higher pattern_usage_rate means more data is explained by patterns (compression)
+    m->episodic_compression = m->pattern_usage_rate;
+}
+
+// Simplicity objective: INDIRECT rule with DIRECT performance measurement
+// INDIRECT: Score doesn't tell graph what to do - it measures how well it's minimizing energy
+// DIRECT: Lower prediction error → better score → direct performance metric
+//         Lower size (compression) → better score → direct efficiency metric
+//         Higher compression → better score → direct intelligence proxy
+// The score IS the performance - it directly measures how well the system is working
+static void sm_compute_objective(SimplicityMetrics *m) {
+    // Hyperparameters: tunable constants that define the physics laws
+    const double W_PRED   = -1.0;   // penalize prediction error (minimize energy)
+    const double W_SIZE   = -1e-6;  // small penalty per node/edge (indirect pruning pressure)
+    const double W_COMP   =  1.0;   // reward compression/reuse (indirect pattern pressure)
+    
+    // Ensure all metrics are valid (not NaN or inf)
+    double pred_error = (isnan(m->pred_error_total) || isinf(m->pred_error_total)) ? 0.0 : m->pred_error_total;
+    double compression = (isnan(m->episodic_compression) || isinf(m->episodic_compression)) ? 0.0 : m->episodic_compression;
+    
+    double size_penalty = (double)m->num_nodes + (double)m->num_edges;
+    
+    double score = 0.0;
+    score += W_PRED * pred_error;
+    score += W_SIZE * size_penalty;
+    score += W_COMP * compression;
+    
+    // Ensure score is valid (not NaN or inf)
+    if (isnan(score) || isinf(score)) {
+        score = 0.0;
+    }
+    
+    m->simplicity_score = score;
+}
+
+// Normalize score to reward signal
+static float sm_reward_from_score(const SimplicityMetrics *m) {
+    double r = m->simplicity_score;
+    
+    // Ensure score is valid (not NaN or inf)
+    if (isnan(r) || isinf(r)) {
+        return 0.0f;
+    }
+    
+    // Normalize to reasonable range for reward signal
+    // Scale down to small values that can be used as reward
+    r = r * 0.01; // Scale factor
+    
+    // Clamp to reasonable range
+    if (r > 10.0) r = 10.0;
+    if (r < -10.0) r = -10.0;
+    
+    return (float)r;
+}
+
+// Inject intrinsic reward into graph AND store global pressure
+static void melvin_send_intrinsic_reward(Brain *g, float reward_value) {
+    // Store global pressure for use by edge creation, pattern induction, etc.
+    // (Variables declared at top of file)
+    g_simplicity_pressure = reward_value;
+    
+    // Also compute prediction error pressure (inverse - high error = high pressure)
+    // Normalize prediction error to pressure range [-1, 1]
+    double avg_error = g_simplicity_metrics.pred_error_total / (double)(g->header->num_nodes > 0 ? g->header->num_nodes : 1);
+    g_prediction_error_pressure = (float)(-avg_error); // Negative = pressure to reduce error
+    
+    // Find or create reward channel node
+    // Look for existing META node with reward value
+    uint64_t n = g->header->num_nodes;
+    uint64_t reward_node = UINT64_MAX;
+    
+    // Try to find existing reward node (META with specific value)
+    for (uint64_t i = 0; i < n; i++) {
+        Node *node = &g->nodes[i];
+        if (node->kind == NODE_KIND_META && (uint32_t)node->value == 0x52455744) { // "REWD"
+            reward_node = i;
+            break;
+        }
+    }
+    
+    // Create reward node if not found
+    if (reward_node == UINT64_MAX) {
+        reward_node = alloc_node(g);
+        if (reward_node != UINT64_MAX && reward_node < g->header->num_nodes) {
+            Node *rn = &g->nodes[reward_node];
+            rn->kind = NODE_KIND_META;
+            rn->value = 0x52455744; // "REWD"
+            rn->a = 0.0f;
+            rn->bias = 0.0f;
+            rn->decay = 0.95f; // Slow decay - reward persists
+        } else {
+            return; // Failed to allocate
+        }
+    }
+    
+    // Inject reward as activation spike
+    // This reward signal will propagate through the graph and modulate learning
+    Node *reward = &g->nodes[reward_node];
+    reward->a += reward_value * 0.1f; // Accumulate reward (small scale)
+    
+    // Clamp activation
+    if (reward->a > 1.0f) reward->a = 1.0f;
+    if (reward->a < -1.0f) reward->a = -1.0f;
+    
+    // Also store in value field for direct access
+    reward->value = reward_value;
+    
+    // PRESSURE: Connect reward node to all high-error nodes to drive learning
+    // High error = pressure to reduce it (reward propagation encourages pattern formation)
+    if (g_prediction_error_pressure < -0.1f) { // Significant error pressure
+        // Find nodes with high prediction error and connect to reward
+        for (uint64_t i = 0; i < n && i < 1000; i++) { // Limit to avoid explosion
+            // CRITICAL FIX: Guard against NaN from uninitialized error values
+            float node_err_val = g_node_error[i];
+            if (isnan(node_err_val) || isinf(node_err_val)) node_err_val = 0.0f;
+            float node_error = fabsf(node_err_val);
+            if (node_error > 0.3f) { // High error node
+                // Connect reward -> high-error node (reward signal encourages better prediction)
+                // Only create edge if it doesn't exist (check adjacency list)
+                Node *err_node = &g->nodes[i];
+                uint64_t edge_id = err_node->first_in;
+                int has_reward_edge = 0;
+                while (edge_id != UINT64_MAX && edge_id < g->header->num_edges) {
+                    Edge *e = &g->edges[edge_id];
+                    if (e->src == reward_node) {
+                        has_reward_edge = 1;
+                        break;
+                    }
+                    edge_id = e->next_in;
+                }
+                if (!has_reward_edge) {
+                    // Weight based on error magnitude (high error = stronger reward connection)
+                    add_edge(g, reward_node, i, node_error * 0.5f, EDGE_FLAG_BIND | EDGE_FLAG_CONTROL);
+                }
+            }
+        }
+    }
+}
+
+// Log simplicity metrics
+static void sm_log(const SimplicityMetrics *m, uint64_t tick) {
+    if (!g_log_simplicity) return;
+    
+    fprintf(stderr,
+        "[simplicity] tick=%" PRIu64 " score=%.4f pred_total=%.4f size=(nodes=%" PRIu64 ",edges=%" PRIu64 ",patterns=%" PRIu64 ") comp=%.4f usage=%.4f\n",
+        tick,
+        m->simplicity_score,
+        m->pred_error_total,
+        m->num_nodes,
+        m->num_edges,
+        m->num_patterns,
+        m->episodic_compression,
+        m->pattern_usage_rate);
+}
+
+void emit_output(Brain *g) {
+    // Stub
+}
+
+// Pattern induction: INDIRECT rule with DIRECT performance impact
+// INDIRECT: Rule doesn't say "create patterns" - it says "similar paths create pressure"
+// DIRECT: Patterns enable compression → fewer nodes/edges → lower size penalty → better simplicity score
+//         Patterns reduce prediction error → high-error paths compressed → direct performance improvement
+// PRESSURE: High prediction error creates pressure to form patterns (compression reduces error)
+// The rule is indirect (similarity creates pressure), but the effect is direct (better performance)
+static void induce_patterns(Brain *g) {
+    uint64_t n = g->header->num_nodes;
+    uint64_t e_count = g->header->num_edges;
+    
+    // PRESSURE CHECK: Only induce patterns if there's pressure (error or simplicity reward)
+    // No pressure = no reason to form patterns
+    if (g_prediction_error_pressure > -0.05f && g_simplicity_pressure < 0.01f) {
+        // Very low pressure - skip pattern induction (save computation)
+        return;
+    }
+    
+    // Find or create the single shared BLANK node (placeholder for variables/data)
+    static uint64_t shared_blank_node = UINT64_MAX;
+    if (shared_blank_node == UINT64_MAX || shared_blank_node >= n) {
+        // Find existing BLANK node or create one
+        shared_blank_node = UINT64_MAX;
+        for (uint64_t i = 0; i < n; i++) {
+            if (g->nodes[i].kind == NODE_KIND_BLANK) {
+                shared_blank_node = i;
+                break;
+            }
+        }
+        // If no BLANK exists, create one
+        if (shared_blank_node == UINT64_MAX) {
+            shared_blank_node = alloc_node(g);
+            if (shared_blank_node != 0 && shared_blank_node != UINT64_MAX) {
+                g->nodes[shared_blank_node].kind = NODE_KIND_BLANK;
+                g->nodes[shared_blank_node].value = 0; // Shared placeholder
+            }
+        }
+    }
+    
+    // Find paths (sequences of connected nodes) in the graph
+    // A path is a sequence: start -> node1 -> node2 -> ... -> end
+    // Look for paths that are similar (50% similarity threshold)
+    
+    // Track recently active nodes as path starting points (condition-based)
+    // Use dynamic allocation to handle large graphs
+    static uint64_t *active_starts = NULL;
+    static uint64_t starts_cap = 0;
+    uint64_t num_starts = 0;
+    
+    // Allocate buffer if needed
+    if (starts_cap < n && starts_cap < 10000) {
+        starts_cap = (n < 10000) ? n : 10000;
+        active_starts = realloc(active_starts, starts_cap * sizeof(uint64_t));
+    }
+    
+    // Find active nodes as potential path starts (sample across graph for patterns)
+    // Don't just check first 128 - use round-robin sampling to cover entire graph
+    static uint64_t search_offset = 0;
+    uint64_t search_count = 0;
+    uint64_t max_searches = (n < 5000) ? n : 5000; // Search up to 5k nodes per tick
+    
+    for (uint64_t i = 0; i < n && num_starts < starts_cap && search_count < max_searches; i++) {
+        uint64_t idx = (search_offset + i) % n; // Round-robin through graph
+        search_count++;
+        if (g->nodes[idx].a > 0.2f) {
+            active_starts[num_starts++] = idx;
+        }
+    }
+    search_offset = (search_offset + search_count) % n; // Advance offset for next tick
+    
+    // Extract paths from active starts (follow outgoing edges to build paths)
+    // Use dynamic allocation for paths
+    struct {
+        uint64_t nodes[8];
+        uint64_t length;
+    } *paths = NULL;
+    static struct {
+        uint64_t nodes[8];
+        uint64_t length;
+    } *static_paths = NULL;
+    static uint64_t paths_cap = 0;
+    uint64_t num_paths = 0;
+    
+    // Allocate paths buffer
+    if (paths_cap < 1000) {
+        paths_cap = 1000;
+        static_paths = realloc(static_paths, paths_cap * sizeof(static_paths[0]));
+    }
+    paths = static_paths;
+    
+    // Build paths from active nodes (follow edges up to length 8)
+    for (uint64_t si = 0; si < num_starts && num_paths < paths_cap; si++) {
+        uint64_t start = active_starts[si];
+        paths[num_paths].nodes[0] = start;
+        paths[num_paths].length = 1;
+        
+        // Follow edges to build path
+        for (uint64_t depth = 0; depth < 7 && paths[num_paths].length < 8; depth++) {
+            uint64_t current = paths[num_paths].nodes[paths[num_paths].length - 1];
+            uint64_t next = UINT64_MAX;
+            float best_weight = 0.0f;
+            
+            // Find best next node (strongest edge, preferably SEQ) - using adjacency list
+            uint64_t e_count = g->header->num_edges;
+            Node *current_node = &g->nodes[current];
+            uint64_t edge_id = current_node->first_out;
+            
+            while (edge_id != UINT64_MAX && edge_id < e_count) {
+                Edge *e = &g->edges[edge_id];
+                if (e->dst >= n) {
+                    edge_id = e->next_out;
+                    continue;
+                }
+                
+                if (e->dst != start) { // Don't loop back to start
+                    // Prefer SEQ edges or strong edges
+                    if ((e->flags & EDGE_FLAG_SEQ) || (fabsf(e->w) > best_weight && e->usage_count > 1)) {
+                        // Check if node already in path (avoid cycles)
+                        int in_path = 0;
+                        for (uint64_t k = 0; k < paths[num_paths].length; k++) {
+                            if (paths[num_paths].nodes[k] == e->dst) {
+                                in_path = 1;
+                                break;
+                            }
+                        }
+                        if (!in_path) {
+                            next = e->dst;
+                            best_weight = fabsf(e->w);
+                        }
+                    }
+                }
+                edge_id = e->next_out; // Follow adjacency list
+            }
+            
+            if (next != UINT64_MAX) {
+                paths[num_paths].nodes[paths[num_paths].length++] = next;
+            } else {
+                break; // No more edges to follow
+            }
+        }
+        
+        // Only keep paths with at least 3 nodes
+        if (paths[num_paths].length >= 3) {
+            num_paths++;
+        }
+    }
+    
+    // Compare paths pairwise to find similar ones (50% similarity)
+    const float SIMILARITY_THRESHOLD = 0.5f; // 50% similarity
+    
+    for (uint64_t p1 = 0; p1 < num_paths; p1++) {
+        for (uint64_t p2 = p1 + 1; p2 < num_paths; p2++) {
+            // Compute similarity between paths
+            uint64_t common_nodes = 0;
+            uint64_t max_length = (paths[p1].length > paths[p2].length) ? paths[p1].length : paths[p2].length;
+            uint64_t min_length = (paths[p1].length < paths[p2].length) ? paths[p1].length : paths[p2].length;
+            
+            // Check if nodes match (same node or same kind+value)
+            for (uint64_t i1 = 0; i1 < paths[p1].length; i1++) {
+                uint64_t n1 = paths[p1].nodes[i1];
+                if (n1 >= n) continue;
+                Node *node1 = &g->nodes[n1];
+                
+                for (uint64_t i2 = 0; i2 < paths[p2].length; i2++) {
+                    uint64_t n2 = paths[p2].nodes[i2];
+                    if (n2 >= n) continue;
+                    Node *node2 = &g->nodes[n2];
+                    
+                    // Check if nodes match (same or similar)
+                    if (n1 == n2) {
+                        common_nodes++;
+                    } else if (node1->kind == node2->kind) {
+                        // Same kind - check if same value (DATA byte, CONTROL/TAG ID)
+                        if (node1->kind == NODE_KIND_DATA || 
+                            (node1->kind == NODE_KIND_CONTROL && (uint32_t)node1->value == (uint32_t)node2->value) ||
+                            (node1->kind == NODE_KIND_TAG && (uint32_t)node1->value == (uint32_t)node2->value)) {
+                            common_nodes++;
+                        }
+                    }
+                }
+            }
+            
+            // Compute similarity ratio
+            float similarity = (max_length > 0) ? ((float)common_nodes / (float)max_length) : 0.0f;
+            
+            // If paths are similar (50% or more), create pattern
+            if (similarity >= SIMILARITY_THRESHOLD) {
+                // Check if pattern already exists for this similarity
+                // (Simple check: if any pattern root connects to first node of path)
+                int pattern_exists = 0;
+                uint64_t check_e_count = (e_count < 10000) ? e_count : 10000;
+                for (uint64_t k = 0; k < check_e_count; k++) {
+                    Edge *e = &g->edges[k];
+                    if (e->src >= n || e->dst >= n) continue;
+                    if (e->dst == paths[p1].nodes[0]) {
+                        Node *src_node = &g->nodes[e->src];
+                        if (src_node->kind == NODE_KIND_PATTERN_ROOT) {
+                            pattern_exists = 1;
+                            break;
+                        }
+                    }
+                }
+                if (pattern_exists) continue;
+                
+                // Create pattern from similar paths
+                uint64_t pattern_root = alloc_node(g);
+                if (pattern_root == 0 || pattern_root == UINT64_MAX) continue;
+                
+                Node *pattern = &g->nodes[pattern_root];
+                pattern->kind = NODE_KIND_PATTERN_ROOT;
+                pattern->a = similarity; // Activation based on similarity
+                pattern->bias = 0.0f;
+                pattern->reliability = 0.5f;
+                
+                // Extract invariants (common nodes) and variants (different nodes)
+                // Use the longer path as reference structure
+                uint64_t ref_path = (paths[p1].length >= paths[p2].length) ? p1 : p2;
+                uint64_t comp_path = (ref_path == p1) ? p2 : p1;
+                
+                // Compare paths position by position
+                uint64_t max_len = (paths[ref_path].length > paths[comp_path].length) ? 
+                                   paths[ref_path].length : paths[comp_path].length;
+                
+                for (uint64_t pos = 0; pos < max_len && pos < 8; pos++) {
+                    uint64_t ref_node = (pos < paths[ref_path].length) ? paths[ref_path].nodes[pos] : UINT64_MAX;
+                    uint64_t comp_node = (pos < paths[comp_path].length) ? paths[comp_path].nodes[pos] : UINT64_MAX;
+                    
+                    if (ref_node >= n) continue;
+                    Node *ref_n = &g->nodes[ref_node];
+                    
+                    // Check if nodes match at this position
+                    int nodes_match = 0;
+                    if (comp_node < n && comp_node != UINT64_MAX) {
+                        Node *comp_n = &g->nodes[comp_node];
+                        if (ref_node == comp_node) {
+                            nodes_match = 1;
+                        } else if (ref_n->kind == comp_n->kind) {
+                            // Same kind - check value match
+                            if (ref_n->kind == NODE_KIND_DATA || 
+                                ((uint32_t)ref_n->value == (uint32_t)comp_n->value)) {
+                                nodes_match = 1;
+                            }
+                        }
+                    }
+                    
+                    // If nodes match → INVARIANT (concrete)
+                    // If nodes differ → VARIANT (BLANK)
+                    uint32_t edge_flags = EDGE_FLAG_PATTERN | EDGE_FLAG_BIND;
+                    if (pos > 0) edge_flags |= EDGE_FLAG_SEQ; // Sequence edges
+                    
+                    if (nodes_match && ref_n->kind != NODE_KIND_BLANK) {
+                        // Invariant: concrete node - connect directly
+                        add_edge(g, pattern_root, ref_node, 1.0f, edge_flags);
+                        add_edge(g, ref_node, pattern_root, 0.9f, edge_flags);
+                    } else {
+                        // Variant: use shared BLANK placeholder
+                        if (shared_blank_node != UINT64_MAX && shared_blank_node < n) {
+                            add_edge(g, pattern_root, shared_blank_node, 1.0f, edge_flags);
+                            add_edge(g, shared_blank_node, pattern_root, 0.8f, edge_flags);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Forward declarations for pattern matching
+static void execute_pattern_effects(Brain *g, uint64_t pattern_node);
+static float compute_pattern_match_score(Brain *g, uint64_t pattern_node);
+static void induce_patterns(Brain *g);
+
+// Pattern matching: evaluate patterns against graph state (per spec)
+// Local, incremental: only consider context around currently active nodes
+void match_patterns(Brain *g) {
+    uint64_t n = g->header->num_nodes;
+    uint64_t e_count = g->header->num_edges;
+    uint64_t patterns_evaluated = 0;
+    uint64_t patterns_matched = 0;
+    
+    // Find active nodes (local context) - only match patterns around active areas
+    uint64_t active_nodes[256];
+    uint64_t num_active = 0;
+    for (uint64_t i = 0; i < n && num_active < 256; i++) {
+        if (g->nodes[i].a > 0.2f) {
+            active_nodes[num_active++] = i;
+        }
+    }
+    
+    if (num_active == 0) return; // No active context to match against
+    
+    // Find all pattern roots
+    for (uint64_t i = 0; i < n; i++) {
+        Node *pattern = &g->nodes[i];
+        if (pattern->kind != NODE_KIND_PATTERN_ROOT) {
+            continue;
+        }
+        
+        patterns_evaluated++;
+        
+        // Match pattern against local context (active nodes + neighbors)
+        float match_score = compute_pattern_match_score(g, i);
+        
+        // If match score exceeds threshold, activate pattern
+        const float MATCH_THRESHOLD = 0.6f;
+        if (match_score >= MATCH_THRESHOLD) {
+            patterns_matched++;
+            
+            // Activate pattern root
+            pattern->a = fmaxf(pattern->a, match_score);
+            if (pattern->a > 1.0f) pattern->a = 1.0f;
+            
+            // Strengthen pattern edges when pattern matches (reinforce structure)
+            for (uint64_t j = 0; j < e_count; j++) {
+                Edge *e = &g->edges[j];
+                if (e->src >= n || e->dst >= n) continue;
+                
+                // Strengthen edges connected to this pattern
+                if ((e->src == i || e->dst == i) && (e->flags & EDGE_FLAG_PATTERN)) {
+                    e->w += 0.01f * match_score; // Reinforce pattern structure
+                    if (e->w > 10.0f) e->w = 10.0f;
+                    e->usage_count++; // Track pattern usage
+                }
+            }
+            
+            // Track pattern success (for reliability)
+            pattern->success_count++;
+            
+            // Execute effects
+            execute_pattern_effects(g, i);
+        } else {
+            // Decay pattern activation if not matching
+            pattern->a *= 0.95f;
+        }
+    }
+    
+    // Log pattern matching when patterns actually match (condition-based)
+    if (patterns_evaluated > 0 && patterns_matched > 0) {
+        fprintf(stderr, "[pattern_match] tick=%llu evaluated=%llu matched=%llu\n",
+                (unsigned long long)g->header->tick,
+                (unsigned long long)patterns_evaluated,
+                (unsigned long long)patterns_matched);
+    }
+}
+
+// Compute pattern match score (per spec: find concrete anchors, grow match, bind blanks)
+// Matching is local: only consider context around active nodes
+static float compute_pattern_match_score(Brain *g, uint64_t pattern_node) {
+    uint64_t e_count = g->header->num_edges;
+    uint64_t n = g->header->num_nodes;
+    
+    // Step 1: Find concrete anchors in pattern (concrete nodes that must match)
+    // Step 2: Find matching concrete nodes in local context (active nodes + neighbors)
+    // Step 3: Grow match through constraint edges (SEQ, ROLE, REL)
+    // Step 4: Bind BLANK nodes to candidate concrete nodes
+    // Step 5: Score based on concrete matches + blank binding consistency
+    
+    // Collect active nodes (local context)
+    uint64_t active_nodes[128];
+    uint64_t num_active = 0;
+    for (uint64_t i = 0; i < n && num_active < 128; i++) {
+        if (g->nodes[i].a > 0.2f) {
+            active_nodes[num_active++] = i;
+        }
+    }
+    
+    // Find concrete nodes and BLANK nodes connected to pattern
+    uint64_t concrete_pattern_nodes[32];
+    uint64_t blank_pattern_nodes[32];
+    uint64_t num_concrete = 0;
+    uint64_t num_blanks = 0;
+    
+    // Find nodes connected to pattern via PATTERN edges
+    for (uint64_t i = 0; i < e_count && (num_concrete < 32 || num_blanks < 32); i++) {
+        Edge *e = &g->edges[i];
+        if (e->src >= n || e->dst >= n) continue;
+        
+        // Pattern -> Node edge (outgoing from pattern)
+        if (e->src == pattern_node && (e->flags & EDGE_FLAG_PATTERN)) {
+            uint64_t target = e->dst;
+            if (target >= n) continue;
+            
+            Node *target_node = &g->nodes[target];
+            if (target_node->kind == NODE_KIND_BLANK) {
+                if (num_blanks < 32) blank_pattern_nodes[num_blanks++] = target;
+            } else if (target_node->kind == NODE_KIND_DATA || 
+                      target_node->kind == NODE_KIND_CONTROL || 
+                      target_node->kind == NODE_KIND_TAG) {
+                if (num_concrete < 32) concrete_pattern_nodes[num_concrete++] = target;
+            }
+        }
+    }
+    
+    // If no concrete anchors, try to match via BLANKs or default to low score
+    if (num_concrete == 0 && num_blanks == 0) {
+        return 0.3f; // No structure to match
+    }
+    
+    float total_score = 0.0f;
+    float match_count = 0.0f;
+    
+    // Step 1 & 2: Find and match concrete anchors
+    for (uint64_t ci = 0; ci < num_concrete; ci++) {
+        uint64_t pattern_concrete = concrete_pattern_nodes[ci];
+        Node *pattern_n = &g->nodes[pattern_concrete];
+        
+        // Search local context for matching concrete node
+        // Match by: same kind, same value (byte/data), similar activation
+        for (uint64_t ai = 0; ai < num_active; ai++) {
+            uint64_t graph_node = active_nodes[ai];
+            Node *graph_n = &g->nodes[graph_node];
+            
+            // Check if concrete nodes match
+            if (pattern_n->kind == graph_n->kind) {
+                float concrete_score = 0.0f;
+                
+                if (pattern_n->kind == NODE_KIND_DATA) {
+                    // DATA nodes: must match exact value (byte)
+                    if ((uint32_t)pattern_n->value == (uint32_t)graph_n->value) {
+                        concrete_score = 1.0f;
+                    }
+                } else if (pattern_n->kind == NODE_KIND_CONTROL || pattern_n->kind == NODE_KIND_TAG) {
+                    // CONTROL/TAG: match by value (ID) or similar activation
+                    if ((uint32_t)pattern_n->value == (uint32_t)graph_n->value) {
+                        concrete_score = 1.0f;
+                    } else if (fabsf(pattern_n->a - graph_n->a) < 0.3f) {
+                        concrete_score = 0.6f; // Partial match by activation
+                    }
+                }
+                
+                if (concrete_score > 0.0f) {
+                    total_score += concrete_score;
+                    match_count += 1.0f;
+                    break; // Found a match for this concrete node
+                }
+            }
+        }
+    }
+    
+    // Step 3 & 4: Check BLANK bindings and constraint consistency
+    // For each BLANK, find candidate bindings in local context
+    for (uint64_t bi = 0; bi < num_blanks; bi++) {
+        uint64_t blank_id = blank_pattern_nodes[bi];
+        
+        // Find constraint edges from pattern to this BLANK
+        uint32_t blank_constraints = 0;
+        for (uint64_t i = 0; i < e_count; i++) {
+            Edge *e = &g->edges[i];
+            if (e->src >= n || e->dst >= n) continue;
+            if (e->src == pattern_node && e->dst == blank_id) {
+                if (e->flags & EDGE_FLAG_SEQ) blank_constraints |= EDGE_FLAG_SEQ;
+                if (e->flags & EDGE_FLAG_ROLE) blank_constraints |= EDGE_FLAG_ROLE;
+                if (e->flags & EDGE_FLAG_REL) blank_constraints |= EDGE_FLAG_REL;
+            }
+        }
+        
+        // Find candidate bindings in local context
+        // BLANK can bind to any node that satisfies constraints
+        float best_binding_score = 0.0f;
+        for (uint64_t ai = 0; ai < num_active; ai++) {
+            uint64_t candidate = active_nodes[ai];
+            Node *cand_node = &g->nodes[candidate];
+            
+            // Check if candidate satisfies constraints
+            float binding_score = 0.5f; // Base score for any binding
+            
+            // If SEQ constraint: check if candidate is in sequence
+            if (blank_constraints & EDGE_FLAG_SEQ) {
+                // Check if candidate has SEQ edges from matched concrete nodes
+                // Simplified: if candidate is active and nearby, it's a good binding
+                if (cand_node->a > 0.3f) binding_score += 0.2f;
+            }
+            
+            // If ROLE constraint: check role consistency
+            if (blank_constraints & EDGE_FLAG_ROLE) {
+                // Roles are implicit - accept any active node
+                if (cand_node->a > 0.3f) binding_score += 0.2f;
+            }
+            
+            if (binding_score > best_binding_score) {
+                best_binding_score = binding_score;
+            }
+        }
+        
+        total_score += best_binding_score;
+        match_count += 1.0f;
+    }
+    
+    // Normalize score
+    if (match_count > 0.0f) {
+        return total_score / match_count;
+    }
+    
+    return 0.0f;
+}
+
+// Execute pattern effects when pattern matches
+static void execute_pattern_effects(Brain *g, uint64_t pattern_node) {
+    uint64_t e_count = g->header->num_edges;
+    uint64_t n = g->header->num_nodes;
+    
+    // Find effects connected to pattern
+    // Effects are structured as: PATTERN -> BLANK -> OUTPUT_CHANNEL
+    // Or: PATTERN -> REWARD_CHANNEL (direct reward)
+    
+    // First, check for direct reward edges (PATTERN -> REWARD with CHAN | CONTROL flags)
+    for (uint64_t i = 0; i < e_count; i++) {
+        Edge *e = &g->edges[i];
+        if (e->src >= n || e->dst >= n) continue;
+        
+        // Direct pattern -> reward channel edge
+        if (e->src == pattern_node && (e->flags & EDGE_FLAG_CHAN) && (e->flags & EDGE_FLAG_CONTROL)) {
+            Node *dst = &g->nodes[e->dst];
+            
+            // Check if destination is reward channel
+            if (dst->kind == NODE_KIND_META && (uint32_t)dst->value == 0x52455744) { // "REWD"
+                // The weight encodes the reward value
+                float reward_value = e->w;
+                melvin_send_intrinsic_reward(g, reward_value);
+            }
+        }
+    }
+    
+    // Find effect blanks (PATTERN -> BLANK -> OUTPUT_CHANNEL)
+    // Pattern structure for effects: PATTERN -> BLANK (with PATTERN | BIND flags)
+    // Then BLANK -> OUTPUT_CHANNEL (with CONTROL | CHAN flags)
+    uint64_t effect_blanks[64];
+    uint64_t num_effect_blanks = 0;
+    
+    for (uint64_t i = 0; i < e_count && num_effect_blanks < 64; i++) {
+        Edge *e = &g->edges[i];
+        if (e->src >= n || e->dst >= n) continue;
+        
+        // Pattern -> Blank edge (outgoing, for effects)
+        if (e->src == pattern_node && (e->flags & EDGE_FLAG_PATTERN) && (e->flags & EDGE_FLAG_BIND)) {
+            Node *dst = &g->nodes[e->dst];
+            if (dst->kind == NODE_KIND_BLANK) {
+                effect_blanks[num_effect_blanks++] = e->dst;
+            }
+        }
+    }
+    
+    // For each effect blank, check if it connects to an output channel
+    for (uint64_t bi = 0; bi < num_effect_blanks; bi++) {
+        uint64_t blank_id = effect_blanks[bi];
+        
+        // Find output channel connected to this blank
+        for (uint64_t i = 0; i < e_count; i++) {
+            Edge *e = &g->edges[i];
+            if (e->src >= n || e->dst >= n) continue;
+            
+            // Blank -> Output channel edge
+            if (e->src == blank_id && (e->flags & EDGE_FLAG_CONTROL) && (e->flags & EDGE_FLAG_CHAN)) {
+                Node *channel = &g->nodes[e->dst];
+                
+                // Execute effect based on channel type and effect type
+                // Effects from scaffolds:
+                // - inhibit_motor:JOINT_ID -> suppress motor channel activation
+                // - encourage_explore:STATE -> increase exploration bias
+                // - discourage_loop:STATE -> decrease loop-related activation
+                
+                // Channel type is stored in channel node's value field
+                uint32_t channel_type = (uint32_t)channel->value;
+                float effect_strength = e->w;
+                
+                // Execute effect based on channel type
+                if (channel->kind == NODE_KIND_TAG) {
+                    // Channel node - apply effect based on channel type
+                    
+                    if (channel_type == CH_MOTOR) {
+                        // Motor channel effects
+                        if (effect_strength < 0.0f) {
+                            // Inhibit motor: reduce activation
+                            channel->a *= 0.9f;
+                            if (channel->a < 0.0f) channel->a = 0.0f;
+                        } else if (effect_strength > 0.0f) {
+                            // Encourage motor: increase activation slightly
+                            channel->a = fminf(1.0f, channel->a + 0.1f * effect_strength);
+                        }
+                    } else if (channel_type == CH_VISION || channel_type == CH_SENSOR) {
+                        // Vision/sensor channel effects
+                        if (effect_strength < 0.0f) {
+                            // Suppress: reduce activation
+                            channel->a *= 0.95f;
+                        } else if (effect_strength > 0.0f) {
+                            // Enhance: increase activation
+                            channel->a = fminf(1.0f, channel->a + 0.05f * effect_strength);
+                        }
+                    } else if (channel_type == CH_TEXT) {
+                        // Text channel effects
+                        if (effect_strength < 0.0f) {
+                            // Suppress text output
+                            channel->a *= 0.9f;
+                        } else if (effect_strength > 0.0f) {
+                            // Encourage text output
+                            channel->a = fminf(1.0f, channel->a + 0.1f * effect_strength);
+                        }
+                    }
+                    
+                    // For exploration/loop control, we modify bias instead
+                    // This is simplified - full implementation would identify specific nodes
+                    if (fabsf(effect_strength) > 0.5f) {
+                        // Adjust bias for encourage/discourage effects
+                        if (effect_strength > 0.0f) {
+                            channel->bias += 0.1f * effect_strength; // Encourage
+                        } else {
+                            channel->bias += 0.1f * effect_strength; // Discourage (negative)
+                        }
+                        // Clamp bias
+                        if (channel->bias > 10.0f) channel->bias = 10.0f;
+                        if (channel->bias < -10.0f) channel->bias = -10.0f;
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+// Main tick function - applies indirect rules that directly affect performance
+// INDIRECT: Rules don't tell graph what to do, only what CAN happen
+// DIRECT: These rules directly determine prediction error and simplicity (performance)
+void melvin_tick(Brain *g) {
+    // Initialize simplicity metrics for this tick
+    sm_init(&g_simplicity_metrics);
+    
+    // 0. External input / MC effects
+    ingest_input(g);
+    
+    // 1. Propagate predictions: compute Â
+    propagate_predictions(g);
+    
+    // 2. Apply environment / update activations from predictions (NO decay yet)
+    // CRITICAL: Co-activation must happen BEFORE decay
+    apply_environment(g);
+    
+    // 3. Compute local errors e_j = A_j - Â_j (this also accumulates into metrics)
+    compute_error(g);
+    
+    // 4. Update weights & node reliability (co-activation happens HERE)
+    // Node A and Node B must BOTH be active during this phase
+    update_edges(g);
+    update_nodes_from_error(g);
+    
+    // 4.5. Decay activations AFTER edge creation (so co-activation is visible)
+    // This ensures activation persists across ticks for co-activation
+    decay_activations(g);
+    
+    // 5. Run MC-backed nodes chosen by the graph
+    run_mc_nodes(g);
+    
+    // 5.5. Pattern induction: discover new patterns from repeated structures
+    induce_patterns(g);
+    
+    // 5.6. Pattern matching: evaluate patterns against graph state
+    match_patterns(g);
+    
+    // 6. Compute simplicity metrics
+    sm_measure_complexity(g, &g_simplicity_metrics);
+    sm_measure_patterns(g, &g_simplicity_metrics);
+    sm_compute_objective(&g_simplicity_metrics);
+    
+    // 7. Inject intrinsic reward into graph
+    float intrinsic_reward = sm_reward_from_score(&g_simplicity_metrics);
+    melvin_send_intrinsic_reward(g, intrinsic_reward);
+    
+    // 8. Emit outputs if any
+    emit_output(g);
+    
+    // 9. Debug logging
+    log_learning_stats(g);
+    sm_log(&g_simplicity_metrics, g->header->tick);
+    
+    g->header->tick++;
+}
+
+// Rebuild adjacency lists from existing edges (backward compatibility)
+// If file was created before adjacency lists, first_out/first_in are uninitialized
+// We need to rebuild them from existing edges
+static void rebuild_adjacency_lists(Brain *g) {
+    uint64_t n = g->header->num_nodes;
+    uint64_t e_count = g->header->num_edges;
+    
+    // Safety check: validate pointers
+    if (g->edges == NULL || g->nodes == NULL || n == 0) {
+        return;
+    }
+    
+    // Safety: don't process more edges than exist
+    if (e_count > 0) {
+        // Check if we have enough memory mapped for edges
+        size_t edge_offset = (uint8_t*)g->edges - (uint8_t*)g->header;
+        size_t min_size_needed = edge_offset + e_count * sizeof(Edge);
+        if (min_size_needed > g->mmap_size) {
+            fprintf(stderr, "[rebuild_adjacency] Warning: not enough mapped memory for %llu edges\n", 
+                    (unsigned long long)e_count);
+            e_count = (g->mmap_size - edge_offset) / sizeof(Edge); // Limit to what's available
+        }
+    }
+    
+    // Initialize all nodes' adjacency list pointers
+    for (uint64_t i = 0; i < n; i++) {
+        g->nodes[i].first_out = UINT64_MAX;
+        g->nodes[i].first_in = UINT64_MAX;
+    }
+    
+    // Initialize all edges' next pointers and rebuild adjacency lists
+    // Traverse backwards so insertion at head preserves edge order
+    for (int64_t i = (int64_t)e_count - 1; i >= 0; i--) {
+        if ((uint64_t)i >= e_count) break; // Safety check
+        Edge *e = &g->edges[i];
+        
+        // Initialize next pointers
+        e->next_out = UINT64_MAX;
+        e->next_in = UINT64_MAX;
+        
+        // Safety: skip invalid edges
+        if (e->src >= n || e->dst >= n) continue;
+        
+        // Add to src's outgoing list (insert at head)
+        Node *src_node = &g->nodes[e->src];
+        e->next_out = src_node->first_out;
+        src_node->first_out = i;
+        
+        // Add to dst's incoming list (insert at head)
+        Node *dst_node = &g->nodes[e->dst];
+        e->next_in = dst_node->first_in;
+        dst_node->first_in = i;
+    }
+}
+
+int main(int argc, char **argv) {
+    const char *db_path = "melvin.m";
+    if (argc > 1) {
+        if (strcmp(argv[1], "-d") == 0 || strcmp(argv[1], "--debug") == 0) {
+            g_debug = 1;
+            if (argc > 2) db_path = argv[2];
+        } else {
+            db_path = argv[1];
+        }
+    }
+    
+    // Check for simplicity logging flag
+    if (getenv("MELVIN_LOG_SIMPLICITY")) {
+        g_log_simplicity = 1;
+    }
+    
+    // Initialize simplicity metrics
+    sm_init(&g_simplicity_metrics);
+
+    int fd = open(db_path, O_RDWR);
+    if (fd < 0) {
+        fprintf(stderr, "Could not open %s. Run melvin_minit first.\n", db_path);
+        return 1;
+    }
+
+    struct stat st;
+    fstat(fd, &st);
+    size_t filesize = st.st_size;
+
+    void *map = mmap(NULL, filesize, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    if (map == MAP_FAILED) {
+        perror("mmap");
+        return 1;
+    }
+
+    Brain g;
+    g.fd = fd;
+    g.mmap_size = filesize;
+    g.header = (BrainHeader*)map;
+    
+    size_t header_size = sizeof(BrainHeader);
+    size_t node_size = sizeof(Node);
+    size_t edge_size = sizeof(Edge);
+    
+    // Check if file needs initialization (old format or empty)
+    int needs_init = 0;
+    if (g.header->node_capacity == 0 || g.header->edge_capacity == 0) {
+        needs_init = 1;
+    }
+    
+    // Initialize capacities and offsets if needed
+    if (needs_init) {
+        // Set initial capacities
+        g.header->node_capacity = INITIAL_NODE_CAPACITY;
+        g.header->edge_capacity = INITIAL_EDGE_CAPACITY;
+        
+        // Calculate offsets
+        g.header->node_region_offset = header_size;
+        g.header->edge_region_offset = g.header->node_region_offset + 
+                                       g.header->node_capacity * node_size;
+        
+        // Calculate required file size
+        size_t required_size = g.header->edge_region_offset + 
+                              g.header->edge_capacity * edge_size;
+        
+        // Grow file if needed
+        if (filesize < required_size) {
+            if (ftruncate(fd, required_size) < 0) {
+                perror("ftruncate initial size");
+                return 1;
+            }
+            // Remap with new size
+            munmap(map, filesize);
+            map = mmap(NULL, required_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+            if (map == MAP_FAILED) {
+                perror("mmap after initial grow");
+                return 1;
+            }
+            g.header = (BrainHeader*)map;
+            g.mmap_size = required_size;
+        }
+    }
+    
+    // Set pointers ONCE from header offsets (never recalculate)
+    uint8_t *base = (uint8_t*)map;
+    g.nodes = (Node*)(base + g.header->node_region_offset);
+    g.edges = (Edge*)(base + g.header->edge_region_offset);
+    
+    // Sanity check: verify layout
+    printf("[main] LAYOUT CHECK:\n");
+    printf("  nodes_base=%p edges_base=%p delta=%lld bytes\n",
+           (void*)g.nodes,
+           (void*)g.edges,
+           (long long)((uint8_t*)g.edges - (uint8_t*)g.nodes));
+    printf("  node_capacity=%llu edge_capacity=%llu\n",
+           (unsigned long long)g.header->node_capacity,
+           (unsigned long long)g.header->edge_capacity);
+    printf("  node_region_offset=%llu edge_region_offset=%llu\n",
+           (unsigned long long)g.header->node_region_offset,
+           (unsigned long long)g.header->edge_region_offset);
+    
+    // Verify delta is correct
+    size_t expected_delta = g.header->node_capacity * node_size;
+    size_t actual_delta = (uint8_t*)g.edges - (uint8_t*)g.nodes;
+    if (actual_delta < expected_delta) {
+        printf("[main] ERROR: Edge region overlaps node region! delta=%zu, expected>=%zu\n",
+               actual_delta, expected_delta);
+        return 1;
+    }
+    if ((uint8_t*)g.edges == (uint8_t*)g.nodes) {
+        printf("[main] ERROR: edges_base == nodes_base!\n");
+        return 1;
+    }
+    printf("[main] ✓ Layout verified: edges are correctly positioned after nodes\n");
+    
+    // Rebuild adjacency lists from existing edges (backward compatibility)
+    // If file was created before adjacency lists, rebuild them now
+    // MUST be called after edges pointer is set correctly
+    if (g.header->num_edges > 0) {
+        rebuild_adjacency_lists(&g);
+    }
+
+    printf("Melvin Runtime v2 (No Limits - Organic Growth)\n");
+    printf("Nodes: %llu (unlimited, grows organically)\n", 
+           (unsigned long long)g.header->num_nodes);
+    printf("Edges: %llu (unlimited, grows organically)\n", 
+           (unsigned long long)g.header->num_edges);
+
+    // Set stdin to non-blocking
+    int flags = fcntl(0, F_GETFL, 0);
+    fcntl(0, F_SETFL, flags | O_NONBLOCK);
+
+    // Load all plugins
+    MCFn mc_fs_seed = load_plugin_function("mc_fs", "mc_fs_seed");
+    MCFn mc_fs_read_chunk = load_plugin_function("mc_fs", "mc_fs_read_chunk");
+    MCFn mc_stdio_in = load_plugin_function("mc_io", "mc_stdio_in");
+    MCFn mc_stdio_out = load_plugin_function("mc_io", "mc_stdio_out");
+    MCFn mc_compile = load_plugin_function("mc_build", "mc_compile");
+    MCFn mc_loader = load_plugin_function("mc_build", "mc_loader");
+    MCFn mc_materialize_module_from_graph = load_plugin_function("mc_build", "mc_materialize_module_from_graph");
+    MCFn mc_bootstrap_cog_module = load_plugin_function("mc_bootstrap", "mc_bootstrap_cog_module");
+    MCFn mc_parse_c_file = load_plugin_function("mc_parse", "mc_parse_c_file");
+    MCFn mc_process_scaffolds = load_plugin_function("mc_scaffold", "mc_process_scaffolds");
+    
+    // Load display plugin
+    MCFn mc_display_graph = load_plugin_function("mc_display", "mc_display_graph");
+    MCFn mc_display_init = load_plugin_function("mc_display", "mc_display_init");
+    MCFn mc_test_edges = load_plugin_function("mc_test_edges", "mc_test_edges");
+    
+    // Register MC functions
+    register_mc("zero", NULL);
+    if (mc_test_edges) {
+        register_mc("test_edges", mc_test_edges);
+        printf("[main] Registered mc_test_edges plugin\n");
+    }
+    register_mc("fs_seed", mc_fs_seed);
+    register_mc("fs_read", mc_fs_read_chunk);
+    register_mc("stdio_in", mc_stdio_in);
+    register_mc("stdio_out", mc_stdio_out);
+    register_mc("compile", mc_compile);
+    register_mc("loader", mc_loader);
+    register_mc("materialize", mc_materialize_module_from_graph);
+    register_mc("bootstrap_cog", mc_bootstrap_cog_module);
+    register_mc("parse_c", mc_parse_c_file);
+    register_mc("process_scaffolds", mc_process_scaffolds);
+    if (mc_display_graph) register_mc("display_graph", mc_display_graph);
+    if (mc_display_init) register_mc("display_init", mc_display_init);
+    
+    // Create and activate scaffold processing node on startup
+    if (mc_process_scaffolds) {
+        uint64_t scaffold_node = alloc_node(&g);
+        if (scaffold_node != UINT64_MAX && scaffold_node < g.header->num_nodes) {
+            g.nodes[scaffold_node].kind = NODE_KIND_CONTROL;
+            // Find the MC ID for process_scaffolds
+            for (uint32_t i = 0; i < g_mc_count; i++) {
+                if (g_mc_table[i].name && strcmp(g_mc_table[i].name, "process_scaffolds") == 0) {
+                    g.nodes[scaffold_node].mc_id = i;
+                    g.nodes[scaffold_node].bias = 5.0f; // Activate on startup
+                    g.nodes[scaffold_node].a = 1.0f;
+                    printf("[main] Created scaffold processing node %llu\n", (unsigned long long)scaffold_node);
+                    break;
+                }
+            }
+        }
+    }
+    
+    // Create and activate display initialization node on startup
+    if (mc_display_init) {
+        uint64_t display_init_node = alloc_node(&g);
+        if (display_init_node != UINT64_MAX && display_init_node < g.header->num_nodes) {
+            g.nodes[display_init_node].kind = NODE_KIND_CONTROL;
+            // Find the MC ID for display_init
+            for (uint32_t i = 0; i < g_mc_count; i++) {
+                if (g_mc_table[i].name && strcmp(g_mc_table[i].name, "display_init") == 0) {
+                    g.nodes[display_init_node].mc_id = i;
+                    g.nodes[display_init_node].bias = 5.0f; // Activate on startup
+                    g.nodes[display_init_node].a = 1.0f;
+                    printf("[main] Created display initialization node %llu\n", (unsigned long long)display_init_node);
+                    break;
+                }
+            }
+        }
+        
+        // Create display rendering node (will be activated by graph)
+        if (mc_display_graph) {
+            uint64_t display_node = alloc_node(&g);
+            if (display_node != UINT64_MAX && display_node < g.header->num_nodes) {
+                g.nodes[display_node].kind = NODE_KIND_CONTROL;
+                for (uint32_t i = 0; i < g_mc_count; i++) {
+                    if (g_mc_table[i].name && strcmp(g_mc_table[i].name, "display_graph") == 0) {
+                        g.nodes[display_node].mc_id = i;
+                        g.nodes[display_node].bias = 3.0f; // Moderate bias to activate when needed
+                        g.nodes[display_node].a = 0.0f; // Start inactive, will be activated
+                        printf("[main] Created display graph node %llu\n", (unsigned long long)display_node);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    // Run startup self-test: verify edge creation works before entering main loop
+    melvin_startup_selftest_edges(&g);
+    
+    // Run startup self-test: verify edge creation works before entering main loop
+    melvin_startup_selftest_edges(&g);
+    
+    // Main loop
+    while (1) {
+        melvin_tick(&g);
+        
+        // Display tick count when graph state changes significantly (condition-based, not time-based)
+        static uint64_t last_display_nodes = 0;
+        static uint64_t last_display_edges = 0;
+        if (g.header->num_nodes != last_display_nodes || g.header->num_edges != last_display_edges) {
+            printf("Tick %llu Nodes=%llu Edges=%llu\r", 
+                   (unsigned long long)g.header->tick,
+                   (unsigned long long)g.header->num_nodes,
+                   (unsigned long long)g.header->num_edges);
+            fflush(stdout);
+            last_display_nodes = g.header->num_nodes;
+            last_display_edges = g.header->num_edges;
+        }
+        
+        usleep(1000); // 1ms sleep to prevent 100% CPU in loop
+    }
+
+    return 0;
+}
+

@@ -1,0 +1,405 @@
+[melvin_m_map] mprotect (RWX): Permission denied
+[melvin_m_map] ERROR: Cannot set blob to RWX - EXEC subsystem requires this
+[melvin_m_map] mprotect (RWX): Permission denied
+[melvin_m_map] ERROR: Cannot set blob to RWX - EXEC subsystem requires this
+[melvin_m_map] mprotect (RWX): Permission denied
+[melvin_m_map] ERROR: Cannot set blob to RWX - EXEC subsystem requires this
+[melvin_m_map] mprotect (RWX): Permission denied
+[melvin_m_map] ERROR: Cannot set blob to RWX - EXEC subsystem requires this
+[melvin_m_map] mprotect (RWX): Permission denied
+[melvin_m_map] ERROR: Cannot set blob to RWX - EXEC subsystem requires this
+[melvin_m_map] mprotect (RWX): Permission denied
+[melvin_m_map] ERROR: Cannot set blob to RWX - EXEC subsystem requires this
+[melvin_m_map] mprotect (RWX): Permission denied
+[melvin_m_map] ERROR: Cannot set blob to RWX - EXEC subsystem requires this
+[melvin_m_map] mprotect (RWX): Permission denied
+[melvin_m_map] ERROR: Cannot set blob to RWX - EXEC subsystem requires this
+[melvin_m_map] mprotect (RWX): Permission denied
+[melvin_m_map] ERROR: Cannot set blob to RWX - EXEC subsystem requires this
+========================================
+EVOLUTION DIAGNOSTIC TEST SUITE
+========================================
+
+These tests use PERSISTENT .m files that build over time.
+Learning should COMPOUND across runs.
+
+For multi-run test across process boundaries:
+  Phase 1: ./test_evolution_diagnostic --phase=1
+  Phase 2: ./test_evolution_diagnostic --phase=2
+
+=== RUN 1 ===
+
+========================================
+EVOLUTION TEST 1: Compounding Learning
+Run #1 (building on previous runs)
+This test is designed to show learning compounding over multiple invocations.
+========================================
+Loading existing file: evolution_compounding.m
+[melvin_m_map] Mapped melvin.m file: evolution_compounding.m
+  Nodes: 40/1024, Edges: 21/4096, Blob: 0/1048576, Tick: 0
+[EDGE_EVOLUTION] BEFORE_TRAIN: src=1000065 dst=1000066 weight=0.200000 trace=10340.00 eligibility=0.461324 usage=0
+
+=== DIAGNOSTIC: Before training ===
+Nodes: 40/1024
+Edges: 21/4096
+Decay rate: 0.4510
+Learning rate: 0.010448
+Active nodes: 32 (avg activation: 0.3416)
+Strong edges (>0.3): 6 (avg: 0.7000, max: 1.0000)
+
+Training on ABC pattern (500 iterations)...
+[EDGE_EVOLUTION] AFTER_TRAIN: src=1000065 dst=1000066 weight=0.200000 trace=12926.00 eligibility=0.461326 usage=0
+
+=== DIAGNOSTIC: After training ===
+Nodes: 40/1024
+Edges: 21/4096
+Decay rate: 0.4510
+Learning rate: 0.010448
+Active nodes: 32 (avg activation: 0.3416)
+Strong edges (>0.3): 6 (avg: 0.7000, max: 1.0000)
+
+=== LEARNING PROGRESS: ABC ===
+Found 3 pattern nodes
+
+=== EDGE 1000065 -> 1000066 (Pattern edge) ===
+Weight: 0.200000
+Trace: 12926.000000
+Eligibility: 0.461326
+Usage: 0
+Age: 12926
+
+=== EDGE 1000066 -> 1000067 (Pattern edge) ===
+Weight: 0.200000
+Trace: 12922.000000
+Eligibility: 0.520394
+Usage: 0
+Age: 12922
+
+=== LEARNING RESULTS ===
+A->B weight: 0.200000 (was 0.200000, change: 0.000000)
+B->C weight: 0.200000
+Total pattern strength: 0.400000
+
+=== COMPOUNDING CHECK ===
+Trace increase: 2586.00
+Weight increase: 0.000000
+WARNING: Trace increased by 2586.00 but weight only increased by 0.000000
+         Learning may not be compounding properly!
+
+File saved. Next run will build on this learning.
+
+========================================
+EVOLUTION TEST 2: Multi-Step Reasoning
+Run #1 (building on previous runs)
+========================================
+Loading existing file: evolution_multistep.m
+[melvin_m_map] Mapped melvin.m file: evolution_multistep.m
+  Nodes: 42/1024, Edges: 32/4096, Blob: 0/1048576, Tick: 0
+
+=== DIAGNOSTIC: Before training ===
+Nodes: 42/1024
+Edges: 32/4096
+Decay rate: 0.4510
+Learning rate: 0.010448
+Active nodes: 34 (avg activation: 0.3679)
+Strong edges (>0.3): 8 (avg: 0.7000, max: 1.0000)
+
+Training on A->B->C->D chain (1000 iterations)...
+
+=== DIAGNOSTIC: After training ===
+Nodes: 42/1024
+Edges: 32/4096
+Decay rate: 0.4510
+Learning rate: 0.010448
+Active nodes: 34 (avg activation: 0.3082)
+Strong edges (>0.3): 8 (avg: 0.7000, max: 1.0000)
+
+=== MULTI-STEP CHAIN STRENGTH ===
+A->B: 0.200000
+B->C: 0.200000
+C->D: 0.200000
+Chain complete: NO
+Total chain strength: 0.600000
+
+=== TESTING PREDICTION ===
+Activated A with strength 2.0
+  After 0 events: D activation = -0.101753
+  After 200 events: D activation = 0.211983
+  After 400 events: D activation = 0.229875
+  After 600 events: D activation = 0.481425
+  After 800 events: D activation = 0.456397
+Final D activation: 0.350674
+Multi-step prediction: SUCCESS
+
+========================================
+EVOLUTION TEST 3: Learning Compounding
+Run #1 (checking if learning compounds)
+========================================
+[melvin_m_map] Mapped melvin.m file: evolution_learning.m
+  Nodes: 38/1024, Edges: 12/4096, Blob: 0/1048576, Tick: 0
+Weight before training: 0.200000
+Training on X->Y pattern (500 iterations)...
+Weight after training: 0.200000
+Weight change: 0.000000
+Learning compounded: NO
+
+=== EDGE 1000088 -> 1000089 (X->Y after training) ===
+Weight: 0.200000
+Trace: 8501.000000
+Eligibility: 0.514405
+Usage: 0
+Age: 8501
+
+
+=== RUN 2 (should build on Run 1) ===
+
+========================================
+EVOLUTION TEST 1: Compounding Learning
+Run #2 (building on previous runs)
+This test is designed to show learning compounding over multiple invocations.
+========================================
+Loading existing file: evolution_compounding.m
+[melvin_m_map] Mapped melvin.m file: evolution_compounding.m
+  Nodes: 40/1024, Edges: 21/4096, Blob: 0/1048576, Tick: 0
+[EDGE_EVOLUTION] BEFORE_TRAIN: src=1000065 dst=1000066 weight=0.200000 trace=12926.00 eligibility=0.461326 usage=0
+
+=== DIAGNOSTIC: Before training ===
+Nodes: 40/1024
+Edges: 21/4096
+Decay rate: 0.4510
+Learning rate: 0.010448
+Active nodes: 32 (avg activation: 0.3416)
+Strong edges (>0.3): 6 (avg: 0.7000, max: 1.0000)
+
+Training on ABC pattern (500 iterations)...
+[EDGE_EVOLUTION] AFTER_TRAIN: src=1000065 dst=1000066 weight=0.200000 trace=15512.00 eligibility=0.461326 usage=0
+
+=== DIAGNOSTIC: After training ===
+Nodes: 40/1024
+Edges: 21/4096
+Decay rate: 0.4510
+Learning rate: 0.010448
+Active nodes: 32 (avg activation: 0.3416)
+Strong edges (>0.3): 6 (avg: 0.7000, max: 1.0000)
+
+=== LEARNING PROGRESS: ABC ===
+Found 3 pattern nodes
+
+=== EDGE 1000065 -> 1000066 (Pattern edge) ===
+Weight: 0.200000
+Trace: 15512.000000
+Eligibility: 0.461326
+Usage: 0
+Age: 15512
+
+=== EDGE 1000066 -> 1000067 (Pattern edge) ===
+Weight: 0.200000
+Trace: 15510.000000
+Eligibility: 0.520394
+Usage: 0
+Age: 15510
+
+=== LEARNING RESULTS ===
+A->B weight: 0.200000 (was 0.200000, change: 0.000000)
+B->C weight: 0.200000
+Total pattern strength: 0.400000
+
+=== COMPOUNDING CHECK ===
+Trace increase: 2586.00
+Weight increase: 0.000000
+WARNING: Trace increased by 2586.00 but weight only increased by 0.000000
+         Learning may not be compounding properly!
+
+File saved. Next run will build on this learning.
+
+========================================
+EVOLUTION TEST 2: Multi-Step Reasoning
+Run #2 (building on previous runs)
+========================================
+Loading existing file: evolution_multistep.m
+[melvin_m_map] Mapped melvin.m file: evolution_multistep.m
+  Nodes: 42/1024, Edges: 32/4096, Blob: 0/1048576, Tick: 0
+
+=== DIAGNOSTIC: Before training ===
+Nodes: 42/1024
+Edges: 32/4096
+Decay rate: 0.4510
+Learning rate: 0.010448
+Active nodes: 34 (avg activation: 0.3704)
+Strong edges (>0.3): 8 (avg: 0.7000, max: 1.0000)
+
+Training on A->B->C->D chain (1000 iterations)...
+
+=== DIAGNOSTIC: After training ===
+Nodes: 42/1024
+Edges: 32/4096
+Decay rate: 0.4510
+Learning rate: 0.010448
+Active nodes: 34 (avg activation: 0.3082)
+Strong edges (>0.3): 8 (avg: 0.7000, max: 1.0000)
+
+=== MULTI-STEP CHAIN STRENGTH ===
+A->B: 0.200000
+B->C: 0.200000
+C->D: 0.200000
+Chain complete: NO
+Total chain strength: 0.600000
+
+=== TESTING PREDICTION ===
+Activated A with strength 2.0
+  After 0 events: D activation = -0.095709
+  After 200 events: D activation = 0.211843
+  After 400 events: D activation = 0.226292
+  After 600 events: D activation = 0.479073
+  After 800 events: D activation = 0.460539
+Final D activation: 0.347785
+Multi-step prediction: SUCCESS
+
+========================================
+EVOLUTION TEST 3: Learning Compounding
+Run #2 (checking if learning compounds)
+========================================
+[melvin_m_map] Mapped melvin.m file: evolution_learning.m
+  Nodes: 38/1024, Edges: 12/4096, Blob: 0/1048576, Tick: 0
+Weight before training: 0.200000
+Training on X->Y pattern (500 iterations)...
+Weight after training: 0.200000
+Weight change: 0.000000
+Learning compounded: NO
+
+=== EDGE 1000088 -> 1000089 (X->Y after training) ===
+Weight: 0.200000
+Trace: 10625.000000
+Eligibility: 0.515816
+Usage: 0
+Age: 10625
+
+
+=== RUN 3 (should build on Runs 1-2) ===
+
+========================================
+EVOLUTION TEST 1: Compounding Learning
+Run #3 (building on previous runs)
+This test is designed to show learning compounding over multiple invocations.
+========================================
+Loading existing file: evolution_compounding.m
+[melvin_m_map] Mapped melvin.m file: evolution_compounding.m
+  Nodes: 40/1024, Edges: 21/4096, Blob: 0/1048576, Tick: 0
+[EDGE_EVOLUTION] BEFORE_TRAIN: src=1000065 dst=1000066 weight=0.200000 trace=15512.00 eligibility=0.461326 usage=0
+
+=== DIAGNOSTIC: Before training ===
+Nodes: 40/1024
+Edges: 21/4096
+Decay rate: 0.4510
+Learning rate: 0.010448
+Active nodes: 32 (avg activation: 0.3416)
+Strong edges (>0.3): 6 (avg: 0.7000, max: 1.0000)
+
+Training on ABC pattern (500 iterations)...
+[EDGE_EVOLUTION] AFTER_TRAIN: src=1000065 dst=1000066 weight=0.200000 trace=18098.00 eligibility=0.461326 usage=0
+
+=== DIAGNOSTIC: After training ===
+Nodes: 40/1024
+Edges: 21/4096
+Decay rate: 0.4510
+Learning rate: 0.010448
+Active nodes: 32 (avg activation: 0.3416)
+Strong edges (>0.3): 6 (avg: 0.7000, max: 1.0000)
+
+=== LEARNING PROGRESS: ABC ===
+Found 3 pattern nodes
+
+=== EDGE 1000065 -> 1000066 (Pattern edge) ===
+Weight: 0.200000
+Trace: 18098.000000
+Eligibility: 0.461326
+Usage: 0
+Age: 18098
+
+=== EDGE 1000066 -> 1000067 (Pattern edge) ===
+Weight: 0.200000
+Trace: 18098.000000
+Eligibility: 0.520394
+Usage: 0
+Age: 18098
+
+=== LEARNING RESULTS ===
+A->B weight: 0.200000 (was 0.200000, change: 0.000000)
+B->C weight: 0.200000
+Total pattern strength: 0.400000
+
+=== COMPOUNDING CHECK ===
+Trace increase: 2586.00
+Weight increase: 0.000000
+WARNING: Trace increased by 2586.00 but weight only increased by 0.000000
+         Learning may not be compounding properly!
+
+File saved. Next run will build on this learning.
+
+========================================
+EVOLUTION TEST 2: Multi-Step Reasoning
+Run #3 (building on previous runs)
+========================================
+Loading existing file: evolution_multistep.m
+[melvin_m_map] Mapped melvin.m file: evolution_multistep.m
+  Nodes: 42/1024, Edges: 32/4096, Blob: 0/1048576, Tick: 0
+
+=== DIAGNOSTIC: Before training ===
+Nodes: 42/1024
+Edges: 32/4096
+Decay rate: 0.4510
+Learning rate: 0.010448
+Active nodes: 34 (avg activation: 0.3696)
+Strong edges (>0.3): 8 (avg: 0.7000, max: 1.0000)
+
+Training on A->B->C->D chain (1000 iterations)...
+
+=== DIAGNOSTIC: After training ===
+Nodes: 42/1024
+Edges: 32/4096
+Decay rate: 0.4510
+Learning rate: 0.010448
+Active nodes: 34 (avg activation: 0.3082)
+Strong edges (>0.3): 8 (avg: 0.7000, max: 1.0000)
+
+=== MULTI-STEP CHAIN STRENGTH ===
+A->B: 0.200000
+B->C: 0.200000
+C->D: 0.200000
+Chain complete: NO
+Total chain strength: 0.600000
+
+=== TESTING PREDICTION ===
+Activated A with strength 2.0
+  After 0 events: D activation = -0.097736
+  After 200 events: D activation = 0.211887
+  After 400 events: D activation = 0.227483
+  After 600 events: D activation = 0.479853
+  After 800 events: D activation = 0.459149
+Final D activation: 0.348729
+Multi-step prediction: SUCCESS
+
+========================================
+EVOLUTION TEST 3: Learning Compounding
+Run #3 (checking if learning compounds)
+========================================
+[melvin_m_map] Mapped melvin.m file: evolution_learning.m
+  Nodes: 38/1024, Edges: 12/4096, Blob: 0/1048576, Tick: 0
+Weight before training: 0.200000
+Training on X->Y pattern (500 iterations)...
+Weight after training: 0.200000
+Weight change: 0.000000
+Learning compounded: NO
+
+=== EDGE 1000088 -> 1000089 (X->Y after training) ===
+Weight: 0.200000
+Trace: 12749.000000
+Eligibility: 0.515621
+Usage: 0
+Age: 12749
+
+========================================
+Evolution tests complete.
+Files saved: evolution_compounding.m, evolution_multistep.m, evolution_learning.m
+Run again to see learning compound further.
+========================================

@@ -1,0 +1,44 @@
+INSTRUCTIONS FOR YOUR VM SHELL
+================================
+
+Since you're already in the VM shell, run these commands:
+
+1. INSTALL BUILD TOOLS:
+   sudo apt update
+   sudo apt install -y build-essential gcc make git
+
+2. SET UP SSH (for easy file transfer):
+   sudo apt install -y openssh-server
+   sudo systemctl start ssh
+   sudo systemctl enable ssh
+
+3. CHECK YOUR IP:
+   ip addr show | grep 'inet ' | grep -v '127.0.0.1'
+   (Should show 192.168.64.2)
+
+4. CREATE MELVIN DIRECTORY:
+   mkdir -p ~/melvin_november
+
+5. AFTER SSH IS RUNNING:
+   Go back to your Mac terminal and run:
+   cd ~/melvin_november/Melvin_november
+   ./transfer_and_test.sh 192.168.64.2
+
+OR - if you want to copy files manually while in VM:
+
+6. USE VIRTUAL MACHINE SHARED FOLDER (if UTM supports it):
+   - Mount a shared folder in UTM settings
+   - Copy files from shared folder to ~/melvin_november
+
+OR - Copy files via UTM's clipboard/copy-paste if available.
+
+Once files are in ~/melvin_november, in VM run:
+   cd ~/melvin_november
+   gcc -o test_exec_stub test_exec_stub.c -lm -std=c11
+   ./test_exec_stub
+
+Expected: Should return 0x42 (not 0x40 like on macOS!)
+
+
+
+

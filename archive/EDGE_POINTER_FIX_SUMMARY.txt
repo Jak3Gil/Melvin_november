@@ -1,0 +1,42 @@
+EDGE POINTER CONSISTENCY FIX
+============================
+
+PROBLEM IDENTIFIED:
+------------------
+Edge pointer calculation was inconsistent:
+- Line 144: Used 'allocated_nodes' (heuristic calculation)
+- Lines 198, 2102, 2122: Used 'num_nodes' (correct)
+
+This caused edges to be written to wrong memory location, creating
+corrupted edges with invalid node IDs.
+
+SOLUTION IMPLEMENTED:
+--------------------
+1. Removed heuristic calculation of 'allocated_nodes'
+2. Always use 'g->header->num_nodes' directly
+3. Consistent calculation across all code paths:
+   g->edges = (Edge*)((uint8_t*)g->nodes + g->header->num_nodes * node_size);
+
+FILE LAYOUT (GUARANTEED):
+------------------------
+[Header: 256 bytes]
+[Nodes: num_nodes × 44 bytes]  <- Actual nodes that exist
+[Edges: num_edges × 48 bytes]  <- Edges start HERE (after actual nodes)
+[Unused allocated space]       <- Extra space for growth
+
+KEY PRINCIPLE:
+-------------
+Edges MUST start right after actual nodes (num_nodes),
+NOT after allocated space. This ensures:
+- Edges are written to correct location
+- Edge src/dst point to valid nodes
+- No memory corruption
+
+VALIDATION:
+----------
+All edge pointer calculations now use same formula:
+- update_pointers_after_mmap(): Uses num_nodes ✓
+- grow_graph(): Uses num_nodes ✓
+- main(): Uses num_nodes ✓
+
+This ensures consistency across all code paths.

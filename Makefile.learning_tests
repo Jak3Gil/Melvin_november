@@ -1,0 +1,41 @@
+# Makefile for Learning Capabilities Test Suite
+# Tests that respect TESTING_CONTRACT.md
+
+CC = gcc
+CFLAGS = -std=c11 -Wall -lm
+MELVIN_CORE = melvin.c instincts.c melvin_exec_helpers.c
+
+all: test_1 test_2 test_3
+
+test_1: test_1_simple_association.c melvin_test_api.c
+	$(CC) $(CFLAGS) -o test_1_simple_association test_1_simple_association.c melvin_test_api.c -lm
+
+test_2: test_2_multihop_reasoning.c melvin_test_api.c
+	$(CC) $(CFLAGS) -o test_2_multihop_reasoning test_2_multihop_reasoning.c melvin_test_api.c -lm
+
+test_3: test_3_learn_to_learn.c melvin_test_api.c
+	$(CC) $(CFLAGS) -o test_3_learn_to_learn test_3_learn_to_learn.c melvin_test_api.c -lm
+
+clean:
+	rm -f test_1_simple_association test_2_multihop_reasoning test_3_learn_to_learn
+	rm -f test_*_brain.m
+
+run-all: test_1 test_2 test_3
+	@echo "=========================================="
+	@echo "Running Learning Capabilities Test Suite"
+	@echo "=========================================="
+	@echo ""
+	@echo "TEST 1: Simple Association"
+	@echo "----------------------------------------"
+	./test_1_simple_association --fresh
+	@echo ""
+	@echo "TEST 2: Multi-Hop Reasoning"
+	@echo "----------------------------------------"
+	./test_2_multihop_reasoning --fresh
+	@echo ""
+	@echo "TEST 3: Learn to Learn"
+	@echo "----------------------------------------"
+	./test_3_learn_to_learn --fresh
+
+.PHONY: all clean run-all test_1 test_2 test_3
+

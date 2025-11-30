@@ -1,0 +1,43 @@
+========================================
+UNUSED CODE ANALYSIS - melvin.c
+========================================
+
+1. UNUSED FUNCTION (declared but never called):
+   - evaluate_context_condition() at line 993
+   - Forward declared at line 721
+   - Never called (compute_pattern_match_score does evaluation directly)
+   - Can be removed
+
+2. EMPTY STUBS (need implementation):
+   - ingest_input() at line 359 - just a stub
+   - emit_output() at line 716 - just a stub
+   - These are called in melvin_tick() but do nothing
+
+3. UNUSED VARIABLES/PARAMETERS:
+   - evaluate_context_condition() 'condition' parameter - never used
+   - Pattern matching uses graph structure instead of condition strings
+
+4. DEAD CODE:
+   - Forward declaration of evaluate_context_condition at line 721 - function exists but unused
+
+========================================
+PATTERN STRUCTURE UNDERSTANDING
+========================================
+
+Patterns should be:
+- PATTERN_ROOT nodes (kind = NODE_KIND_PATTERN_ROOT)
+- Connected to BLANK nodes (kind = NODE_KIND_BLANK) via edges
+- Connected to DATA nodes (kind = NODE_KIND_DATA) via edges
+- Connected to other PATTERN nodes via edges
+- All via universal edges (EDGE_FLAG_PATTERN | EDGE_FLAG_BIND)
+
+Pattern structure:
+  PATTERN_ROOT
+    ↙  ↓  ↘
+  BLANK nodes (variables)
+  DATA nodes (concrete values)
+  PATTERN nodes (nested patterns)
+    ↙  ↓  ↘
+  CHANNEL nodes (I/O)
+
+Edges are universal - they connect any node to any node.

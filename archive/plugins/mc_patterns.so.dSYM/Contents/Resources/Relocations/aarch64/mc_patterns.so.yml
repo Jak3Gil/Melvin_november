@@ -1,0 +1,14 @@
+---
+triple:          'arm64-apple-darwin'
+binary-path:     'plugins/mc_patterns.so'
+relocations:
+  - { offsetInCU: 0x26, offset: 0x26, size: 0x8, addend: 0x0, symName: _mc_induce_patterns, symObjAddr: 0x0, symBinAddr: 0x395C, symSize: 0x5B8 }
+  - { offsetInCU: 0x33, offset: 0x33, size: 0x8, addend: 0x0, symName: _mc_induce_patterns, symObjAddr: 0x0, symBinAddr: 0x395C, symSize: 0x5B8 }
+  - { offsetInCU: 0x54, offset: 0x54, size: 0x8, addend: 0x0, symName: _mc_induce_patterns.shared_blank_node, symObjAddr: 0x5E8, symBinAddr: 0x8020, symSize: 0x0 }
+  - { offsetInCU: 0x69, offset: 0x69, size: 0x8, addend: 0x0, symName: _mc_induce_patterns.active_starts, symObjAddr: 0x26A0, symBinAddr: 0x8028, symSize: 0x0 }
+  - { offsetInCU: 0x7E, offset: 0x7E, size: 0x8, addend: 0x0, symName: _mc_induce_patterns.starts_cap, symObjAddr: 0x26A8, symBinAddr: 0x8030, symSize: 0x0 }
+  - { offsetInCU: 0x93, offset: 0x93, size: 0x8, addend: 0x0, symName: _mc_induce_patterns.search_offset, symObjAddr: 0x26B0, symBinAddr: 0x8038, symSize: 0x0 }
+  - { offsetInCU: 0xA8, offset: 0xA8, size: 0x8, addend: 0x0, symName: _mc_induce_patterns.static_paths, symObjAddr: 0x26B8, symBinAddr: 0x8040, symSize: 0x0 }
+  - { offsetInCU: 0xDA, offset: 0xDA, size: 0x8, addend: 0x0, symName: _mc_induce_patterns.paths_cap, symObjAddr: 0x26C0, symBinAddr: 0x8048, symSize: 0x0 }
+  - { offsetInCU: 0x758, offset: 0x758, size: 0x8, addend: 0x0, symName: _mc_match_pattern, symObjAddr: 0x5B8, symBinAddr: 0x3F14, symSize: 0x24 }
+...

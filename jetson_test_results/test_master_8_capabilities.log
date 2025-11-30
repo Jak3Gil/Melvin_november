@@ -1,0 +1,258 @@
+[INSTINCTS] Injecting initial patterns into graph (0 nodes)...
+[INSTINCTS] Channel patterns: 21 nodes, 28 edges
+[INSTINCTS] Code patterns: 13 nodes, 10 edges
+[INSTINCTS] Reward patterns: 3 nodes, 5 edges
+[INSTINCTS] Body patterns: 4 nodes, 7 edges
+[INSTINCTS] EXEC patterns: 10 nodes, 23 edges
+[INSTINCTS] Math patterns: 8 nodes, 19 edges
+[INSTINCTS] Compile patterns: 5 nodes, 13 edges
+[INSTINCTS] Port patterns: 4 nodes, 15 edges
+[INSTINCTS] Injecting multi-hop reasoning patterns...
+[INSTINCTS] Generic chain patterns: 12 nodes, 21 edges
+[INSTINCTS] Pipeline pattern: 4 nodes, 9 edges
+[INSTINCTS] Recurrent memory pattern: 3 nodes, 7 edges
+[INSTINCTS] Tool chain pattern: 4 nodes, 12 edges
+[INSTINCTS] Body multi-hop pattern: 2 nodes, 8 edges
+[INSTINCTS] Multi-hop patterns injected:
+  Chain nodes: 12, Pipeline nodes: 4, Memory nodes: 3
+  Tool nodes: 4, Body multi-hop nodes: 2
+  Total edges added: 54
+[INSTINCTS] Pattern injection complete:
+  Nodes: 0 -> 139 (+139)
+  Edges: 0 -> 174 (+174)
+[INSTINCTS] Graph can now evolve or replace these patterns.
+[INSTINCTS] Instinct IDs registered for stable node addressing
+[INSTINCTS] Injecting initial patterns into graph (0 nodes)...
+[INSTINCTS] Channel patterns: 21 nodes, 28 edges
+[INSTINCTS] Code patterns: 13 nodes, 10 edges
+[INSTINCTS] Reward patterns: 3 nodes, 5 edges
+[INSTINCTS] Body patterns: 4 nodes, 7 edges
+[INSTINCTS] EXEC patterns: 10 nodes, 23 edges
+[INSTINCTS] Math patterns: 8 nodes, 19 edges
+[INSTINCTS] Compile patterns: 5 nodes, 13 edges
+[INSTINCTS] Port patterns: 4 nodes, 15 edges
+[INSTINCTS] Injecting multi-hop reasoning patterns...
+[INSTINCTS] Generic chain patterns: 12 nodes, 21 edges
+[INSTINCTS] Pipeline pattern: 4 nodes, 9 edges
+[INSTINCTS] Recurrent memory pattern: 3 nodes, 7 edges
+[INSTINCTS] Tool chain pattern: 4 nodes, 12 edges
+[INSTINCTS] Body multi-hop pattern: 2 nodes, 8 edges
+[INSTINCTS] Multi-hop patterns injected:
+  Chain nodes: 12, Pipeline nodes: 4, Memory nodes: 3
+  Tool nodes: 4, Body multi-hop nodes: 2
+  Total edges added: 54
+[INSTINCTS] Pattern injection complete:
+  Nodes: 0 -> 139 (+139)
+  Edges: 0 -> 174 (+174)
+[INSTINCTS] Graph can now evolve or replace these patterns.
+[INSTINCTS] Instinct IDs registered for stable node addressing
+[INSTINCTS] Injecting initial patterns into graph (0 nodes)...
+[INSTINCTS] Channel patterns: 21 nodes, 28 edges
+[INSTINCTS] Code patterns: 13 nodes, 10 edges
+[INSTINCTS] Reward patterns: 3 nodes, 5 edges
+[INSTINCTS] Body patterns: 4 nodes, 7 edges
+[INSTINCTS] EXEC patterns: 10 nodes, 23 edges
+[INSTINCTS] Math patterns: 8 nodes, 19 edges
+[INSTINCTS] Compile patterns: 5 nodes, 13 edges
+[INSTINCTS] Port patterns: 4 nodes, 15 edges
+[INSTINCTS] Injecting multi-hop reasoning patterns...
+[INSTINCTS] Generic chain patterns: 12 nodes, 21 edges
+[INSTINCTS] Pipeline pattern: 4 nodes, 9 edges
+[INSTINCTS] Recurrent memory pattern: 3 nodes, 7 edges
+[INSTINCTS] Tool chain pattern: 4 nodes, 12 edges
+[INSTINCTS] Body multi-hop pattern: 2 nodes, 8 edges
+[INSTINCTS] Multi-hop patterns injected:
+  Chain nodes: 12, Pipeline nodes: 4, Memory nodes: 3
+  Tool nodes: 4, Body multi-hop nodes: 2
+  Total edges added: 54
+[INSTINCTS] Pattern injection complete:
+  Nodes: 0 -> 139 (+139)
+  Edges: 0 -> 174 (+174)
+[INSTINCTS] Graph can now evolve or replace these patterns.
+[INSTINCTS] Instinct IDs registered for stable node addressing
+[EXEC LAW] node=110 violation: payload_len is 0 (no internal reaction core)
+[EXEC LAW] node=110 violation: payload_len is 0 (no internal reaction core)
+[EXEC LAW] node=110 violation: payload_len is 0 (no internal reaction core)
+[EXEC LAW] node=110 violation: payload_len is 0 (no internal reaction core)
+[EXEC LAW] node=110 violation: payload_len is 0 (no internal reaction core)
+[EXEC LAW] node=110 violation: payload_len is 0 (no internal reaction core)
+[EXEC LAW] node=110 violation: payload_len is 0 (no internal reaction core)
+[EXEC LAW] node=110 violation: payload_len is 0 (no internal reaction core)
+[INSTINCTS] Injecting initial patterns into graph (0 nodes)...
+[INSTINCTS] Channel patterns: 21 nodes, 28 edges
+[INSTINCTS] Code patterns: 13 nodes, 10 edges
+[INSTINCTS] Reward patterns: 3 nodes, 5 edges
+[INSTINCTS] Body patterns: 4 nodes, 7 edges
+[INSTINCTS] EXEC patterns: 10 nodes, 23 edges
+[INSTINCTS] Math patterns: 8 nodes, 19 edges
+[INSTINCTS] Compile patterns: 5 nodes, 13 edges
+[INSTINCTS] Port patterns: 4 nodes, 15 edges
+[INSTINCTS] Injecting multi-hop reasoning patterns...
+[INSTINCTS] Generic chain patterns: 12 nodes, 21 edges
+[INSTINCTS] Pipeline pattern: 4 nodes, 9 edges
+[INSTINCTS] Recurrent memory pattern: 3 nodes, 7 edges
+[INSTINCTS] Tool chain pattern: 4 nodes, 12 edges
+[INSTINCTS] Body multi-hop pattern: 2 nodes, 8 edges
+[INSTINCTS] Multi-hop patterns injected:
+  Chain nodes: 12, Pipeline nodes: 4, Memory nodes: 3
+  Tool nodes: 4, Body multi-hop nodes: 2
+  Total edges added: 54
+[INSTINCTS] Pattern injection complete:
+  Nodes: 0 -> 139 (+139)
+  Edges: 0 -> 174 (+174)
+[INSTINCTS] Graph can now evolve or replace these patterns.
+[INSTINCTS] Instinct IDs registered for stable node addressing
+[INSTINCTS] Injecting initial patterns into graph (0 nodes)...
+[INSTINCTS] Channel patterns: 21 nodes, 28 edges
+[INSTINCTS] Code patterns: 13 nodes, 10 edges
+[INSTINCTS] Reward patterns: 3 nodes, 5 edges
+[INSTINCTS] Body patterns: 4 nodes, 7 edges
+[INSTINCTS] EXEC patterns: 10 nodes, 23 edges
+[INSTINCTS] Math patterns: 8 nodes, 19 edges
+[INSTINCTS] Compile patterns: 5 nodes, 13 edges
+[INSTINCTS] Port patterns: 4 nodes, 15 edges
+[INSTINCTS] Injecting multi-hop reasoning patterns...
+[INSTINCTS] Generic chain patterns: 12 nodes, 21 edges
+[INSTINCTS] Pipeline pattern: 4 nodes, 9 edges
+[INSTINCTS] Recurrent memory pattern: 3 nodes, 7 edges
+[INSTINCTS] Tool chain pattern: 4 nodes, 12 edges
+[INSTINCTS] Body multi-hop pattern: 2 nodes, 8 edges
+[INSTINCTS] Multi-hop patterns injected:
+  Chain nodes: 12, Pipeline nodes: 4, Memory nodes: 3
+  Tool nodes: 4, Body multi-hop nodes: 2
+  Total edges added: 54
+[INSTINCTS] Pattern injection complete:
+  Nodes: 0 -> 139 (+139)
+  Edges: 0 -> 174 (+174)
+[INSTINCTS] Graph can now evolve or replace these patterns.
+[INSTINCTS] Instinct IDs registered for stable node addressing
+[INSTINCTS] Injecting initial patterns into graph (0 nodes)...
+[INSTINCTS] Channel patterns: 21 nodes, 28 edges
+[INSTINCTS] Code patterns: 13 nodes, 10 edges
+[INSTINCTS] Reward patterns: 3 nodes, 5 edges
+[INSTINCTS] Body patterns: 4 nodes, 7 edges
+[INSTINCTS] EXEC patterns: 10 nodes, 23 edges
+[INSTINCTS] Math patterns: 8 nodes, 19 edges
+[INSTINCTS] Compile patterns: 5 nodes, 13 edges
+[INSTINCTS] Port patterns: 4 nodes, 15 edges
+[INSTINCTS] Injecting multi-hop reasoning patterns...
+[INSTINCTS] Generic chain patterns: 12 nodes, 21 edges
+[INSTINCTS] Pipeline pattern: 4 nodes, 9 edges
+[INSTINCTS] Recurrent memory pattern: 3 nodes, 7 edges
+[INSTINCTS] Tool chain pattern: 4 nodes, 12 edges
+[INSTINCTS] Body multi-hop pattern: 2 nodes, 8 edges
+[INSTINCTS] Multi-hop patterns injected:
+  Chain nodes: 12, Pipeline nodes: 4, Memory nodes: 3
+  Tool nodes: 4, Body multi-hop nodes: 2
+  Total edges added: 54
+[INSTINCTS] Pattern injection complete:
+  Nodes: 0 -> 139 (+139)
+  Edges: 0 -> 174 (+174)
+[INSTINCTS] Graph can now evolve or replace these patterns.
+[INSTINCTS] Instinct IDs registered for stable node addressing
+========================================
+MASTER TEST SUITE — 8 Core Capabilities
+========================================
+
+This test suite answers:
+"Is Melvin.m behaving like a real, stable, executable brain?"
+
+The 8 capabilities tested:
+1. INPUT → GRAPH → OUTPUT (No Cheating)
+2. Graph-Driven Execution (No Direct C Calls)
+3. Stability + Safety Under Stress
+4. Correctness of Basic Tools (ADD, MUL, etc.)
+5. Multi-Hop Reasoning (Chain of Tools)
+6. Tool Selection (Branching Behavior)
+7. Learning Tests (Co-Activity, Error Reduction)
+8. Long-Run Stability (No Drift, No Corruption)
+
+
+========================================
+CAPABILITY 1: INPUT → GRAPH → OUTPUT (No Cheating)
+========================================
+
+Goal: Verify graph + physics + EXEC produce outputs
+Rule: Test harness only provides inputs and checks outputs
+      Test harness does NOT compute anything except ground truth
+
+[init_new_file] Created new melvin.m file: test_cap1.m (size: 1364352 bytes)
+[melvin_m_map] Blob region marked as RWX (EXEC subsystem ready)
+[melvin_m_map] Mapped melvin.m file: test_cap1.m
+  Nodes: 0/1024, Edges: 0/4096, Blob: 0/1048576, Tick: 0
+
+========================================
+CAPABILITY 2: Graph-Driven Execution (No Direct C Calls)
+========================================
+
+Goal: Verify EXEC tools fire only through event loop
+Rule: No direct calls to melvin_exec_* functions
+      All execution must go through execute_hot_nodes()
+
+[init_new_file] Created new melvin.m file: test_cap2.m (size: 1364352 bytes)
+[melvin_m_map] Blob region marked as RWX (EXEC subsystem ready)
+[melvin_m_map] Mapped melvin.m file: test_cap2.m
+  Nodes: 0/1024, Edges: 0/4096, Blob: 0/1048576, Tick: 0
+
+========================================
+CAPABILITY 3: Stability + Safety Under Stress
+========================================
+
+Goal: Verify no bus errors, invalid pointers, or infinite loops
+Rule: System must remain stable under stress
+
+[init_new_file] Created new melvin.m file: test_cap3.m (size: 1364352 bytes)
+[melvin_m_map] Blob region marked as RWX (EXEC subsystem ready)
+[melvin_m_map] Mapped melvin.m file: test_cap3.m
+  Nodes: 0/1024, Edges: 0/4096, Blob: 0/1048576, Tick: 0
+[grow_graph] Growing: nodes 1024->1024, edges 4096->6144
+[grow_graph] Graph grown successfully
+[grow_graph] Growing: nodes 1024->1024, edges 4096->6144
+[grow_graph] Graph grown successfully
+  Stress iterations: 1000
+  NaN count: 0 ✓
+  Inf count: 0 ✓
+  Invalid pointers: 544 ✗
+  Graph integrity: ✓
+
+========================================
+CAPABILITY 4: Correctness of Basic Tools (ADD, MUL, etc.)
+========================================
+
+Goal: Verify EXEC tools compute correct results
+Rule: Tools must read/write node payloads correctly
+
+[init_new_file] Created new melvin.m file: test_cap4.m (size: 1364352 bytes)
+[melvin_m_map] Blob region marked as RWX (EXEC subsystem ready)
+[melvin_m_map] Mapped melvin.m file: test_cap4.m
+  Nodes: 0/1024, Edges: 0/4096, Blob: 0/1048576, Tick: 0
+
+========================================
+CAPABILITY 5: Multi-Hop Reasoning (Chain of Tools)
+========================================
+
+Goal: Verify graph can call multiple EXEC tools in sequence
+Rule: Chain must be triggered by graph, not tests
+      Example: (a + b) * c computed in two steps
+
+[init_new_file] Created new melvin.m file: test_cap5.m (size: 1364352 bytes)
+[melvin_m_map] Blob region marked as RWX (EXEC subsystem ready)
+[melvin_m_map] Mapped melvin.m file: test_cap5.m
+  Nodes: 0/1024, Edges: 0/4096, Blob: 0/1048576, Tick: 0
+
+========================================
+CAPABILITY 6: Tool Selection (Branching Behavior)
+========================================
+
+Goal: Verify graph selects correct tool based on opcode
+Rule: Input opcode decides which EXEC tool fires
+      opcode=0 → ADD, opcode=1 → MUL
+
+[init_new_file] Created new melvin.m file: test_cap6.m (size: 1364352 bytes)
+[melvin_m_map] Blob region marked as RWX (EXEC subsystem ready)
+[melvin_m_map] Mapped melvin.m file: test_cap6.m
+  Nodes: 0/1024, Edges: 0/4096, Blob: 0/1048576, Tick: 0
+
+========================================
+CAP[HOMEOSTASIS] sweep triggered
+[EDGE_FORMATION] called

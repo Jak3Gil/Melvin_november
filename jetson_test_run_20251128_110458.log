@@ -1,0 +1,168 @@
+==========================================
+MASTER TEST SUITE — 8 Core Capabilities
+JETSON RUNNER
+==========================================
+
+Target: melvin@169.254.123.100
+Path: /home/melvin/melvin_tests
+
+This test suite answers:
+"Is Melvin.m behaving like a real, stable, executable brain?"
+
+The 8 capabilities tested:
+1. INPUT → GRAPH → OUTPUT (No Cheating)
+2. Graph-Driven Execution (No Direct C Calls)
+3. Stability + Safety Under Stress
+4. Correctness of Basic Tools (ADD, MUL, etc.)
+5. Multi-Hop Reasoning (Chain of Tools)
+6. Tool Selection (Branching Behavior)
+7. Learning Tests (Co-Activity, Error Reduction)
+8. Long-Run Stability (No Drift, No Corruption)
+
+Checking connection...
+[0;32m✓ Connection OK[0m
+
+Checking required files...
+[0;32m✓ All required files present[0m
+
+Compiling test locally (syntax check)...
+In file included from test_master_8_capabilities.c:41:
+./melvin.c:2855:81: warning: taking address of packed member 'rng_state' of class or structure 'GraphHeaderDisk' may result in an unaligned pointer value [-Waddress-of-packed-member]
+        if (prune_pressure > g_params.prune_pressure_threshold && random_float(&gh->rng_state) < prune_pressure) {
+                                                                                ^~~~~~~~~~~~~
+./melvin.c:2890:52: warning: taking address of packed member 'rng_state' of class or structure 'GraphHeaderDisk' may result in an unaligned pointer value [-Waddress-of-packed-member]
+        if (prune_pressure > 0.5f && random_float(&gh->rng_state) < prune_pressure) {
+                                                   ^~~~~~~~~~~~~
+./melvin.c:2977:22: warning: unused variable 'gh' [-Wunused-variable]
+    GraphHeaderDisk *gh = rt->file->graph_header;
+                     ^
+./melvin.c:3272:11: warning: unused variable 'curiosity_error_min' [-Wunused-variable]
+    float curiosity_error_min = 0.0f;  // Not used anymore (based on traffic_ema, not error)
+          ^
+./melvin.c:3517:22: warning: unused variable 'gh' [-Wunused-variable]
+    GraphHeaderDisk *gh = rt->file->graph_header;
+                     ^
+./melvin.c:3542:15: warning: unused variable 'nodes' [-Wunused-variable]
+    NodeDisk *nodes = rt->file->nodes;
+              ^
+./melvin.c:3652:44: warning: taking address of packed member 'rng_state' of class or structure 'GraphHeaderDisk' may result in an unaligned pointer value [-Waddress-of-packed-member]
+    if (gh->num_nodes > 0 && random_float(&gh->rng_state) < 0.01f) {
+                                           ^~~~~~~~~~~~~
+./melvin.c:3654:56: warning: taking address of packed member 'rng_state' of class or structure 'GraphHeaderDisk' may result in an unaligned pointer value [-Waddress-of-packed-member]
+        uint64_t random_idx = (uint64_t)(random_float(&gh->rng_state) * gh->num_nodes);
+                                                       ^~~~~~~~~~~~~
+./melvin.c:3824:27: warning: taking address of packed member 'rng_state' of class or structure 'GraphHeaderDisk' may result in an unaligned pointer value [-Waddress-of-packed-member]
+        if (random_float(&gh->rng_state) > bond_probability) {
+                          ^~~~~~~~~~~~~
+./melvin.c:4125:37: warning: taking address of packed member 'rng_state' of class or structure 'GraphHeaderDisk' may result in an unaligned pointer value [-Waddress-of-packed-member]
+        e->is_bond = (random_float(&gh->rng_state) < bond_probability) ? 1 : 0;  // Probabilistic, not hard threshold
+                                    ^~~~~~~~~~~~~
+./melvin.c:4078:15: warning: unused variable 'total_delta_w' [-Wunused-variable]
+        float total_delta_w = e->weight - old_w;
+              ^
+./melvin.c:4146:28: warning: taking address of packed member 'rng_state' of class or structure 'GraphHeaderDisk' may result in an unaligned pointer value [-Waddress-of-packed-member]
+    uint64_t *rng_state = &gh->rng_state;
+                           ^~~~~~~~~~~~~
+./melvin.c:4146:15: warning: unused variable 'rng_state' [-Wunused-variable]
+    uint64_t *rng_state = &gh->rng_state;
+              ^
+./melvin.c:4593:28: warning: taking address of packed member 'rng_state' of class or structure 'GraphHeaderDisk' may result in an unaligned pointer value [-Waddress-of-packed-member]
+    uint64_t *rng_state = &gh->rng_state;
+                           ^~~~~~~~~~~~~
+./melvin.c:4693:28: warning: taking address of packed member 'rng_state' of class or structure 'GraphHeaderDisk' may result in an unaligned pointer value [-Waddress-of-packed-member]
+    uint64_t *rng_state = &gh->rng_state;
+                           ^~~~~~~~~~~~~
+./melvin.c:4697:14: warning: variable 'active_nodes' set but not used [-Wunused-but-set-variable]
+    uint64_t active_nodes = 0;
+             ^
+./melvin.c:5351:43: warning: taking address of packed member 'rng_state' of class or structure 'GraphHeaderDisk' may result in an unaligned pointer value [-Waddress-of-packed-member]
+[0;32m✓ Local compilation OK[0m
+
+Setting up remote directory...
+Copying test files to Jetson...
+[0;32m✓ Files copied[0m
+
+Compiling test on Jetson...
+This may take a minute...
+Pseudo-terminal will not be allocated because stdin is not a terminal.
+Welcome to Ubuntu 20.04.6 LTS (GNU/Linux 5.10.120-tegra aarch64)
+
+ * Documentation:  https://help.ubuntu.com
+ * Management:     https://landscape.canonical.com
+ * Support:        https://ubuntu.com/pro
+
+This system has been minimized by removing packages and content that are
+not required on a system that users do not log into.
+
+To restore this content, you can run the 'unminimize' command.
+
+Expanded Security Maintenance for Infrastructure is not enabled.
+
+9 updates can be applied immediately.
+To see these additional updates run: apt list --upgradable
+
+113 additional security updates can be applied with ESM Infra.
+Learn more about enabling ESM Infra service for Ubuntu 20.04 at
+https://ubuntu.com/20-04
+
+Compiling test_master_8_capabilities...
+In file included from test_master_8_capabilities.c:41:
+melvin.c: In function ‘melvin_prune_by_stability’:
+melvin.c:2855:80: warning: taking address of packed member of ‘struct <anonymous>’ may result in an unaligned pointer value [-Waddress-of-packed-member]
+ 2855 |         if (prune_pressure > g_params.prune_pressure_threshold && random_float(&gh->rng_state) < prune_pressure) {
+      |                                                                                ^~~~~~~~~~~~~~
+melvin.c:2890:51: warning: taking address of packed member of ‘struct <anonymous>’ may result in an unaligned pointer value [-Waddress-of-packed-member]
+ 2890 |         if (prune_pressure > 0.5f && random_float(&gh->rng_state) < prune_pressure) {
+      |                                                   ^~~~~~~~~~~~~~
+melvin.c: In function ‘melvin_apply_coactivation_edges’:
+melvin.c:2977:22: warning: unused variable ‘gh’ [-Wunused-variable]
+ 2977 |     GraphHeaderDisk *gh = rt->file->graph_header;
+      |                      ^~
+In file included from test_master_8_capabilities.c:41:
+melvin.c: In function ‘melvin_apply_curiosity_edges’:
+melvin.c:3272:11: warning: unused variable ‘curiosity_error_min’ [-Wunused-variable]
+ 3272 |     float curiosity_error_min = 0.0f;  // Not used anymore (based on traffic_ema, not error)
+      |           ^~~~~~~~~~~~~~~~~~~
+melvin.c: In function ‘melvin_update_reward_state’:
+melvin.c:3517:22: warning: unused variable ‘gh’ [-Wunused-variable]
+ 3517 |     GraphHeaderDisk *gh = rt->file->graph_header;
+      |                      ^~
+melvin.c: In function ‘melvin_apply_reward_to_edges’:
+melvin.c:3542:15: warning: unused variable ‘nodes’ [-Wunused-variable]
+ 3542 |     NodeDisk *nodes = rt->file->nodes;
+      |               ^~~~~
+melvin.c: In function ‘melvin_handle_idle’:
+melvin.c:3652:43: warning: taking address of packed member of ‘struct <anonymous>’ may result in an unaligned pointer value [-Waddress-of-packed-member]
+ 3652 |     if (gh->num_nodes > 0 && random_float(&gh->rng_state) < 0.01f) {
+      |                                           ^~~~~~~~~~~~~~
+melvin.c:3654:55: warning: taking address of packed member of ‘struct <anonymous>’ may result in an unaligned pointer value [-Waddress-of-packed-member]
+ 3654 |         uint64_t random_idx = (uint64_t)(random_float(&gh->rng_state) * gh->num_nodes);
+      |                                                       ^~~~~~~~~~~~~~
+melvin.c: In function ‘apply_weight_decay’:
+melvin.c:3824:26: warning: taking address of packed member of ‘struct <anonymous>’ may result in an unaligned pointer value [-Waddress-of-packed-member]
+ 3824 |         if (random_float(&gh->rng_state) > bond_probability) {
+      |                          ^~~~~~~~~~~~~~
+melvin.c: In function ‘strengthen_edges_with_prediction_and_reward’:
+melvin.c:4125:36: warning: taking address of packed member of ‘struct <anonymous>’ may result in an unaligned pointer value [-Waddress-of-packed-member]
+ 4125 |         e->is_bond = (random_float(&gh->rng_state) < bond_probability) ? 1 : 0;  // Probabilistic, not hard threshold
+      |                                    ^~~~~~~~~~~~~~
+melvin.c:4078:15: warning: unused variable ‘total_delta_w’ [-Wunused-variable]
+ 4078 |         float total_delta_w = e->weight - old_w;
+      |               ^~~~~~~~~~~~~
+melvin.c: In function ‘ingest_byte_internal’:
+melvin.c:4146:27: warning: taking address of packed member of ‘struct <anonymous>’ may result in an unaligned pointer value [-Waddress-of-packed-member]
+ 4146 |     uint64_t *rng_state = &gh->rng_state;
+      |                           ^~~~~~~~~~~~~~
+melvin.c:4146:15: warning: unused variable ‘rng_state’ [-Wunused-variable]
+ 4146 |     uint64_t *rng_state = &gh->rng_state;
+      |               ^~~~~~~~~
+Compilation complete
+[0;32m✓ Compilation complete[0m
+
+==========================================
+RUNNING MASTER TEST SUITE
+==========================================
+
+This will test all 8 capabilities...
+It may take several minutes to complete.
+

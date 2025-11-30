@@ -1,0 +1,105 @@
+[IDLE] queue empty, calling handle_idle (call #10, counter=9)
+[IDLE] queue empty, calling handle_idle (call #20, counter=19)
+[IDLE] queue empty, calling handle_idle (call #30, counter=29)
+[IDLE] queue empty, calling handle_idle (call #40, counter=39)
+[IDLE] queue empty, calling handle_idle (call #50, counter=49)
+[IDLE] queue empty, calling handle_idle (call #60, counter=59)
+[IDLE] queue empty, calling handle_idle (call #70, counter=69)
+[IDLE] queue empty, calling handle_idle (call #80, counter=79)
+[IDLE] queue empty, calling handle_idle (call #90, counter=89)
+[IDLE] queue empty, calling handle_idle (call #100, counter=99)
+[HOMEOSTASIS] scheduling sweep at logical_time=0
+[HOMEOSTASIS] sweep triggered
+[EDGE_FORMATION] called
+[CURIOSITY] sweep start: num_nodes=35
+[CURIOSITY] sources=1, targets=0
+[CURIOSITY] source id=1000065 traffic_ema=0.972179 stability=0.073783 indeg=2
+========================================
+TEST 1: Single-Node Sanity
+========================================
+
+[init_new_file] Created new melvin.m file: test_1_single_node.m (size: 1364352 bytes)
+[melvin_m_map] Blob region marked as RWX (EXEC subsystem ready)
+[melvin_m_map] Mapped melvin.m file: test_1_single_node.m
+  Nodes: 0/1024, Edges: 0/4096, Blob: 0/1048576, Tick: 0
+Created single node: ID=1000065
+Running 1000 events with steady delta=0.500
+
+Event 0:
+  state=0.779259 (change=0.779259)
+  prediction=0.168978 (change=0.168978)
+  error=0.610281 (change=0.610281)
+  FE_ema=0.035252 (change=0.035252)
+
+Event 100:
+  state=0.179947 (change=0.599312)
+  prediction=0.237691 (change=0.068713)
+  error=0.057745 (change=0.552536)
+  FE_ema=0.104181 (change=0.068929)
+
+Event 200:
+  state=0.165335 (change=0.014611)
+  prediction=0.235642 (change=0.002050)
+  error=0.070307 (change=0.012562)
+  FE_ema=0.056359 (change=0.047822)
+  ✓ PREDICTION CONVERGED at event 200
+
+Event 300:
+  state=0.181653 (change=0.016318)
+  prediction=0.241816 (change=0.006174)
+  error=0.060162 (change=0.010144)
+  FE_ema=0.056723 (change=0.000364)
+  ✓ FE CONVERGED at event 300
+
+Event 400:
+  state=0.177890 (change=0.003763)
+  prediction=0.253355 (change=0.011539)
+  error=0.075464 (change=0.015302)
+  FE_ema=0.058014 (change=0.001291)
+  ✓ STATE CONVERGED at event 400
+
+Event 500:
+  state=0.191037 (change=0.013147)
+  prediction=0.281333 (change=0.027978)
+  error=0.090296 (change=0.014831)
+  FE_ema=0.059222 (change=0.001208)
+
+Event 600:
+  state=0.211013 (change=0.019976)
+  prediction=0.291364 (change=0.010031)
+  error=0.080351 (change=0.009945)
+  FE_ema=0.059800 (change=0.000578)
+
+Event 700:
+  state=0.262581 (change=0.051568)
+  prediction=0.303888 (change=0.012524)
+  error=0.041307 (change=0.039044)
+  FE_ema=0.059752 (change=0.000048)
+
+Event 800:
+  state=0.462925 (change=0.200344)
+  prediction=0.299686 (change=0.004202)
+  error=0.163239 (change=0.121933)
+  FE_ema=0.062145 (change=0.002393)
+
+Event 900:
+  state=0.619018 (change=0.156093)
+  prediction=0.244693 (change=0.054993)
+  error=0.374325 (change=0.211086)
+  FE_ema=0.061723 (change=0.000422)
+
+Event 999:
+  state=0.617413 (change=0.001605)
+  prediction=0.244207 (change=0.000487)
+  error=0.373207 (change=0.001119)
+  FE_ema=0.061462 (change=0.000260)
+
+========================================
+FINAL RESULTS:
+========================================
+Final state: 0.617413
+Final prediction: 0.244207
+Final error: 0.373207
+Final FE_ema: 0.061462
+
+❌ FAIL: Prediction doesn't match state (diff=0.373207)

@@ -1,0 +1,9 @@
+---
+triple:          'arm64-apple-darwin'
+binary-path:     'plugins/mc_selectivity.so'
+relocations:
+  - { offsetInCU: 0x26, offset: 0x26, size: 0x8, addend: 0x0, symName: _mc_evaluate_edge_creation, symObjAddr: 0x0, symBinAddr: 0x3C44, symSize: 0x328 }
+  - { offsetInCU: 0x37E, offset: 0x37E, size: 0x8, addend: 0x0, symName: _mc_evaluate_edge_creation, symObjAddr: 0x0, symBinAddr: 0x3C44, symSize: 0x328 }
+  - { offsetInCU: 0x669, offset: 0x669, size: 0x8, addend: 0x0, symName: _mc_should_create_edge, symObjAddr: 0x328, symBinAddr: 0x3F6C, symSize: 0x4 }
+  - { offsetInCU: 0x69C, offset: 0x69C, size: 0x8, addend: 0x0, symName: _mc_should_create_edge, symObjAddr: 0x328, symBinAddr: 0x3F6C, symSize: 0x4 }
+...

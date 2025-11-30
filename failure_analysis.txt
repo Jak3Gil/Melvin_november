@@ -1,0 +1,70 @@
+TEST FAILURE ROOT CAUSES:
+========================
+
+1. Test 0.5.1: Learning Only Prediction Error
+   ROOT CAUSE: Tests don't set prediction_error on nodes
+   - No epsilon = no learning signal
+   - Learning function exists but has nothing to learn from
+   FIX: Tests must call melvin_set_epsilon_for_node() or 
+        melvin_compute_epsilon_from_observation()
+
+2. Test 0.8.1: Params as Nodes
+   ROOT CAUSE: Tests create NEW files (0 nodes)
+   - melvin.m has param nodes, but tests don't use melvin.m
+   - Fresh files have no param nodes
+   FIX: Tests should start from melvin.m OR call 
+        melvin_inject_instincts() on new files
+
+3. Test HARD-1: Pattern Prediction
+   ROOT CAUSE: Pattern nodes not created
+   - Tests create fresh files
+   - Pattern nodes created by byte ingestion, but may not happen
+   FIX: Ensure tests ingest bytes to create pattern nodes
+        OR start from melvin.m with instinct patterns
+
+4. Test HARD-2: Reward Shaping
+   ROOT CAUSE: Reward not properly routed
+   - Reward needs to reach relevant nodes
+   - May need reward propagation patterns
+   FIX: Use instinct reward patterns (R+HUB, R-MIX)
+        OR ensure reward events reach target nodes
+
+5. Test HARD-5: Multi-Step Reasoning
+   ROOT CAUSE: Chain not strong enough or missing
+   - Requires A->B->C->D chain with strong weights
+   - Needs learning to strengthen chain
+   FIX: Ensure chain exists, set prediction_error, 
+        give enough training time
+
+6. Test HARD-6: Adaptive Parameters
+   ROOT CAUSE: Param nodes don't adapt
+   - Law nodes exist but may not be connected
+   - Need mechanism to update g_params from law nodes
+   FIX: Ensure melvin_sync_params_from_nodes() is called
+        OR law nodes are properly wired
+
+7. Test HARD-7: Noise Robustness
+   ROOT CAUSE: Learning too weak or pattern not stable
+   - Noise overwhelms signal
+   - Weights not strong enough
+   FIX: Increase learning rate, more training iterations,
+        stronger initial patterns
+
+8. Test HARD-9: Pattern Generalization
+   ROOT CAUSE: Patterns too specific, can't generalize
+   - Need abstract patterns, not just concrete sequences
+   FIX: Use instinct patterns as templates,
+        allow graph to create variations
+
+9. Test HARD-11: Emergent Structure
+   ROOT CAUSE: No structure emerges
+   - Graph may be too sparse or learning too slow
+   FIX: Start with instinct scaffolding,
+        increase learning rate, more time
+
+10. Test HARD-12: Adaptive Learning Rate
+    ROOT CAUSE: Learning rate doesn't adapt
+    - LAW_LR_BASE node may not be connected
+    - g_params not updated from law nodes
+    FIX: Ensure law nodes control g_params,
+         verify melvin_sync_params_from_nodes() works
