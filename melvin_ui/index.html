@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Melvin Growth Explorer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        .cycle-card {
+            transition: all 0.3s ease;
+        }
+        .cycle-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        }
+        .confidence-bar {
+            transition: width 0.5s ease;
+        }
+        .driver-bar {
+            transition: width 0.5s ease;
+        }
+        .concept-node {
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .concept-node:hover {
+            stroke-width: 3px;
+        }
+        .connection-line {
+            stroke-opacity: 0.6;
+            transition: stroke-opacity 0.3s ease;
+        }
+        .connection-line:hover {
+            stroke-opacity: 1;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- Header -->
+    <header class="bg-white shadow-sm border-b">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center py-4">
+                <div class="flex items-center">
+                    <div class="text-2xl font-bold text-blue-600">🧠</div>
+                    <h1 class="ml-3 text-2xl font-bold text-gray-900">Melvin Growth Explorer</h1>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <button id="refreshBtn" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition">
+                        🔄 Refresh Data
+                    </button>
+                    <button id="exportBtn" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition">
+                        📊 Export Report
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Summary Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="flex items-center">
+                    <div class="text-3xl text-blue-600">🔄</div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-500">Total Cycles</p>
+                        <p id="totalCycles" class="text-2xl font-bold text-gray-900">0</p>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="flex items-center">
+                    <div class="text-3xl text-green-600">📈</div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-500">Confidence</p>
+                        <p id="avgConfidence" class="text-2xl font-bold text-gray-900">0.000</p>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="flex items-center">
+                    <div class="text-3xl text-purple-600">🧠</div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-500">Concepts</p>
+                        <p id="totalConcepts" class="text-2xl font-bold text-gray-900">0</p>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="flex items-center">
+                    <div class="text-3xl text-orange-600">🎯</div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-500">Cache Hit Rate</p>
+                        <p id="cacheHitRate" class="text-2xl font-bold text-gray-900">0%</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Driver Dashboard -->
+        <div class="bg-white rounded-lg shadow mb-8">
+            <div class="px-6 py-4 border-b">
+                <h2 class="text-xl font-bold text-gray-900">🎭 Driver Dashboard</h2>
+            </div>
+            <div class="p-6">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <!-- Dopamine -->
+                    <div class="text-center">
+                        <div class="text-2xl mb-2">🧬</div>
+                        <h3 class="font-semibold text-gray-900 mb-2">Dopamine (Novelty)</h3>
+                        <div class="w-full bg-gray-200 rounded-full h-4 mb-2">
+                            <div id="dopamineBar" class="bg-red-500 driver-bar h-4 rounded-full" style="width: 50%"></div>
+                        </div>
+                        <p id="dopamineValue" class="text-sm text-gray-600">0.500</p>
+                    </div>
+                    <!-- Serotonin -->
+                    <div class="text-center">
+                        <div class="text-2xl mb-2">🔗</div>
+                        <h3 class="font-semibold text-gray-900 mb-2">Serotonin (Coherence)</h3>
+                        <div class="w-full bg-gray-200 rounded-full h-4 mb-2">
+                            <div id="serotoninBar" class="bg-blue-500 driver-bar h-4 rounded-full" style="width: 50%"></div>
+                        </div>
+                        <p id="serotoninValue" class="text-sm text-gray-600">0.500</p>
+                    </div>
+                    <!-- Endorphins -->
+                    <div class="text-center">
+                        <div class="text-2xl mb-2">😊</div>
+                        <h3 class="font-semibold text-gray-900 mb-2">Endorphins (Satisfaction)</h3>
+                        <div class="w-full bg-gray-200 rounded-full h-4 mb-2">
+                            <div id="endorphinsBar" class="bg-green-500 driver-bar h-4 rounded-full" style="width: 50%"></div>
+                        </div>
+                        <p id="endorphinsValue" class="text-sm text-gray-600">0.500</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Content Tabs -->
+        <div class="bg-white rounded-lg shadow">
+            <div class="border-b">
+                <nav class="flex space-x-8 px-6">
+                    <button id="timelineTab" class="tab-button py-4 px-1 border-b-2 border-blue-500 font-medium text-blue-600">
+                        📅 Cycle Timeline
+                    </button>
+                    <button id="graphTab" class="tab-button py-4 px-1 border-b-2 border-transparent font-medium text-gray-500 hover:text-gray-700">
+                        🕸️ Concept Graph
+                    </button>
+                    <button id="analyticsTab" class="tab-button py-4 px-1 border-b-2 border-transparent font-medium text-gray-500 hover:text-gray-700">
+                        📊 Analytics
+                    </button>
+                </nav>
+            </div>
+
+            <!-- Timeline Tab -->
+            <div id="timelineContent" class="tab-content p-6">
+                <div class="mb-4">
+                    <div class="flex justify-between items-center">
+                        <h3 class="text-lg font-semibold text-gray-900">Recent Cycles</h3>
+                        <div class="flex items-center space-x-2">
+                            <label class="text-sm text-gray-600">Show:</label>
+                            <select id="cycleFilter" class="border border-gray-300 rounded px-3 py-1">
+                                <option value="50">Last 50 cycles</option>
+                                <option value="100">Last 100 cycles</option>
+                                <option value="500">Last 500 cycles</option>
+                                <option value="all">All cycles</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div id="cycleTimeline" class="space-y-4 max-h-96 overflow-y-auto">
+                    <!-- Cycle cards will be populated here -->
+                </div>
+            </div>
+
+            <!-- Graph Tab -->
+            <div id="graphContent" class="tab-content p-6 hidden">
+                <div class="mb-4">
+                    <div class="flex justify-between items-center">
+                        <h3 class="text-lg font-semibold text-gray-900">Concept Graph</h3>
+                        <div class="flex items-center space-x-2">
+                            <button id="resetGraph" class="bg-gray-600 text-white px-3 py-1 rounded text-sm hover:bg-gray-700">
+                                Reset View
+                            </button>
+                            <button id="exportGraph" class="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700">
+                                Export PNG
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div id="graphContainer" class="border border-gray-200 rounded-lg bg-gray-50" style="height: 500px;">
+                    <svg id="graphSvg" width="100%" height="100%"></svg>
+                </div>
+            </div>
+
+            <!-- Analytics Tab -->
+            <div id="analyticsContent" class="tab-content p-6 hidden">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- Confidence Progression -->
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <h3 class="text-lg font-semibold text-gray-900 mb-4">Confidence Progression</h3>
+                        <div id="confidenceChart" style="height: 300px;">
+                            <canvas id="confidenceCanvas"></canvas>
+                        </div>
+                    </div>
+                    <!-- Learning Rate -->
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <h3 class="text-lg font-semibold text-gray-900 mb-4">Learning Rate</h3>
+                        <div id="learningChart" style="height: 300px;">
+                            <canvas id="learningCanvas"></canvas>
+                        </div>
+                    </div>
+                    <!-- Driver Dominance -->
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <h3 class="text-lg font-semibold text-gray-900 mb-4">Driver Dominance</h3>
+                        <div id="driverChart" style="height: 300px;">
+                            <canvas id="driverCanvas"></canvas>
+                        </div>
+                    </div>
+                    <!-- Validation Results -->
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <h3 class="text-lg font-semibold text-gray-900 mb-4">Validation Results</h3>
+                        <div id="validationChart" style="height: 300px;">
+                            <canvas id="validationCanvas"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
+        <div class="bg-white rounded-lg p-6 text-center">
+            <div class="text-2xl mb-4">🔄</div>
+            <p class="text-lg font-semibold">Loading Melvin's Data...</p>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

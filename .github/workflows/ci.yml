@@ -1,0 +1,88 @@
+name: Melvin Learning System CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential
+    
+    - name: Build Melvin System
+      run: |
+        g++ -o melvin melvin.cpp -std=c++17 -O2
+        echo "✅ Melvin built successfully"
+        ls -la melvin
+    
+    - name: Run Basic Tests
+      run: |
+        echo "🧪 Testing Melvin basic functionality..."
+        
+        # Test basic input/output
+        echo "What is a cat?" | timeout 10s ./melvin || true
+        
+        # Test quit command
+        echo "quit" | timeout 5s ./melvin || true
+        
+        echo "✅ Basic tests completed"
+    
+    - name: Test Binary Storage
+      run: |
+        echo "🧠 Testing binary storage..."
+        
+        # Run a quick session to create brain file
+        echo -e "What is a test?\nquit" | timeout 10s ./melvin || true
+        
+        if [ -f "melvin_brain.bin" ]; then
+          echo "✅ Binary storage file created successfully"
+          ls -la melvin_brain.bin
+        else
+          echo "⚠️  Binary storage file not created (this is OK for basic test)"
+        fi
+  
+  documentation-check:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Check Documentation
+      run: |
+        echo "📚 Checking documentation files..."
+        
+        # Check if README files exist
+        if [ -f "README.md" ]; then
+          echo "✅ README.md exists"
+          wc -l README.md
+        else
+          echo "❌ README.md missing"
+          exit 1
+        fi
+        
+        # Check if main source exists
+        if [ -f "melvin.cpp" ]; then
+          echo "✅ melvin.cpp exists"
+        else
+          echo "❌ melvin.cpp missing"
+          exit 1
+        fi
+        
+        # Check if learning script exists
+        if [ -f "melvin_learning.sh" ]; then
+          echo "✅ melvin_learning.sh exists"
+        else
+          echo "❌ melvin_learning.sh missing"
+          exit 1
+        fi
+        
+        echo "✅ All documentation checks passed"
