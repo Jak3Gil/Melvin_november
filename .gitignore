@@ -36,3 +36,7 @@ dist/
 *.exe
 *.dll
 *.so
+
+# Large backup files
+archive/*.backup_*
+*.m.backup_*
