@@ -1,0 +1,36 @@
+# Patch to remove limits and thresholds from melvin.c
+# This makes the graph truly continuous and unlimited
+
+## Summary
+- Remove tick-like limit in uel_main()
+- Remove max_initial_edges limit
+- Remove worker thread cap
+- Replace fixed edge growth with percentage-based
+- Remove port count limits
+- Make queue size fully dynamic
+
+## Key Changes
+
+1. **uel_main() - Remove tick limit**:
+   - Change: Remove `max_iterations = 1000` limit
+   - Change: Process until queue is truly empty
+   - Impact: Graph processes all events, not limited by iteration count
+
+2. **create_initial_edge_suggestions() - Remove limits**:
+   - Change: Remove `max_initial_edges = 1000`
+   - Change: Remove `edges_created < max_initial_edges` checks
+   - Change: Remove port count limits (10, 20, etc.)
+   - Impact: Graph creates all needed initial edges
+
+3. **uel_propagate_from() - Remove worker cap**:
+   - Change: Remove `if (num_workers > 8) num_workers = 8;`
+   - Impact: Use all available CPU cores
+
+4. **create_edge() - Adaptive growth**:
+   - Change: Replace `+ 10000` with `* 2` (double edges)
+   - Impact: More efficient growth
+
+5. **Queue size - Dynamic**:
+   - Change: Start with smaller initial size, grow as needed
+   - Impact: More memory efficient for small graphs
+

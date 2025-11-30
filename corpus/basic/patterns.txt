@@ -1,0 +1,28 @@
+BASIC COMPUTER PATTERNS
+
+1. INPUT → PROCESS → OUTPUT
+   - Read data
+   - Transform it
+   - Write result
+
+2. FILE → READ → BYTES → PROCESS → BYTES → WRITE → FILE
+   - Files contain bytes
+   - Read bytes into memory
+   - Process bytes
+   - Write bytes back
+
+3. SOURCE → COMPILE → MACHINE_CODE → EXECUTE
+   - C source code
+   - Compiler produces machine code
+   - CPU executes machine code
+
+4. SYSCALL → KERNEL → RESULT
+   - User code calls syscall
+   - Kernel handles it
+   - Returns result
+
+5. MEMORY → ALLOCATE → USE → FREE
+   - Request memory
+   - Use it
+   - Release it
+

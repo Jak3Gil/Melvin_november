@@ -98,23 +98,15 @@ static int walk_directory(const char *dir_path, const char *base_path, uint64_t 
         
         /* Only process regular files */
         if (S_ISREG(st.st_mode)) {
-            /* Build relative path from base */
-            char rel_path[PATH_MAX];
-            if (base_path) {
-                snprintf(rel_path, sizeof(rel_path), "%s/%s", base_path, entry->d_name);
-            } else {
-                strncpy(rel_path, entry->d_name, sizeof(rel_path) - 1);
-                rel_path[sizeof(rel_path) - 1] = '\0';
-            }
-            
+            /* Store FULL path (needed for Pass 2 streaming) */
             uint64_t file_size = (uint64_t)st.st_size;
-            if (corpus_add_file(rel_path, file_size) < 0) {
+            if (corpus_add_file(full_path, file_size) < 0) {
                 closedir(dir);
                 return -1;
             }
             
             *total_bytes += file_size;
-            fprintf(stdout, "  %s (%llu bytes)\n", rel_path, (unsigned long long)file_size);
+            fprintf(stdout, "  %s (%llu bytes)\n", full_path, (unsigned long long)file_size);
             fflush(stdout);
         } else if (S_ISDIR(st.st_mode)) {
             /* Recurse into subdirectory */
@@ -350,13 +342,16 @@ int main(int argc, char *argv[]) {
     /* Stream all files into cold_data */
     uint64_t cursor = 0;
     for (size_t i = 0; i < corpus_list.count; i++) {
-        /* Build full path */
-        char full_path[PATH_MAX];
-        snprintf(full_path, sizeof(full_path), "%s/%s", input_dir, corpus_list.files[i].path);
+        /* Path is already full path from walk_directory */
+        const char *file_path = corpus_list.files[i].path;
         
-        printf("  [%zu/%zu] %s\n", i + 1, corpus_list.count, corpus_list.files[i].path);
+        /* Extract just filename for display */
+        const char *filename = strrchr(file_path, '/');
+        filename = filename ? filename + 1 : file_path;
         
-        if (stream_file_to_cold(full_path, cold_data, &cursor, cold_size) < 0) {
+        printf("  [%zu/%zu] %s\n", i + 1, corpus_list.count, filename);
+        
+        if (stream_file_to_cold(file_path, cold_data, &cursor, cold_size) < 0) {
             munmap(map, (size_t)st.st_size);
             close(fd);
             corpus_free();

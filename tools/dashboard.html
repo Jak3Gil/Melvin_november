@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Melvin Dashboard</title>
+    <link rel="stylesheet" href="dashboard.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js" type="module"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🧠 Melvin Dashboard</h1>
+            <div class="status">
+                <span id="connection-status" class="status-badge disconnected">Disconnected</span>
+                <span id="last-update">Never</span>
+            </div>
+        </header>
+        
+        <div class="main-content">
+            <!-- Left Panel: Controls -->
+            <div class="left-panel">
+                <section class="card">
+                    <h2>Control</h2>
+                    <div class="control-buttons">
+                        <button id="btn-start" class="btn-control">▶ Start</button>
+                        <button id="btn-stop" class="btn-control">⏹ Stop</button>
+                        <button id="btn-pause" class="btn-control">⏸ Pause</button>
+                        <button id="btn-resume" class="btn-control">⏯ Resume</button>
+                    </div>
+                    <div id="service-status" class="service-status">
+                        <span class="status-label">Service:</span>
+                        <span id="service-status-text" class="status-value">Unknown</span>
+                    </div>
+                </section>
+                
+                <section class="card">
+                    <h2>Graph State</h2>
+                    <div class="stats-grid">
+                        <div class="stat">
+                            <label>Nodes</label>
+                            <span id="stat-nodes" class="stat-value">0</span>
+                        </div>
+                        <div class="stat">
+                            <label>Edges</label>
+                            <span id="stat-edges" class="stat-value">0</span>
+                        </div>
+                        <div class="stat">
+                            <label>Chaos</label>
+                            <span id="stat-chaos" class="stat-value">0.000</span>
+                        </div>
+                        <div class="stat">
+                            <label>Activation</label>
+                            <span id="stat-activation" class="stat-value">0.000</span>
+                        </div>
+                        <div class="stat">
+                            <label>Edge Strength</label>
+                            <span id="stat-edge-strength" class="stat-value">0.000</span>
+                        </div>
+                        <div class="stat">
+                            <label>Active Nodes</label>
+                            <span id="stat-active-nodes" class="stat-value">0</span>
+                        </div>
+                    </div>
+                </section>
+                
+                <section class="card">
+                    <h2>Feed Patterns</h2>
+                    <div class="drop-zone" id="drop-zone">
+                        <p>📁 Drag & Drop Files Here</p>
+                        <p class="drop-hint">or click to select</p>
+                        <input type="file" id="file-input" multiple style="display: none;">
+                    </div>
+                    <div id="file-list" class="file-list"></div>
+                </section>
+                
+                <section class="card">
+                    <h2>Outputs</h2>
+                    <div id="output-log" class="output-log">
+                        <div class="output-entry">Waiting for outputs...</div>
+                    </div>
+                </section>
+            </div>
+            
+            <!-- Right Panel: 3D Visualization -->
+            <div class="right-panel">
+                <section class="card">
+                    <h2>3D Graph Visualization</h2>
+                    <div id="graph-container" class="graph-container">
+                        <canvas id="graph-canvas"></canvas>
+                    </div>
+                    <div class="graph-controls">
+                        <button id="btn-reset-view">Reset View</button>
+                        <button id="btn-toggle-labels">Toggle Labels</button>
+                        <label>
+                            <input type="range" id="node-size" min="0.1" max="2.0" step="0.1" value="1.0">
+                            Node Size
+                        </label>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </div>
+    
+    <script src="dashboard.js"></script>
+</body>
+</html>
+

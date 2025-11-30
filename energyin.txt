@@ -1,0 +1,164 @@
+
+# **1. all input/energy goes through ONE function**
+
+You can think of it like this:
+
+```
+input_byte → inject_energy() → graph_dynamics()
+```
+
+Everything the world gives Melvin goes through **one entry function** that:
+
+1. Finds the DATA node for that byte
+2. Adds activation (energy) to that node
+3. Creates SEQ/CHAN edges if needed
+4. Then the **unified equations take over** (flow, learning, patterns, FE updates)
+
+There is **no special path** for cameras vs C files vs machine code vs reward.
+Every input is reduced to:
+
+* a DATA node ID
+* an energy injection
+
+---
+
+# **2. How input physically gets into the graph (actual mechanism)**
+
+### **Step A — Byte arrives from outside**
+
+Examples:
+
+* camera frame → pixel bytes
+* keyboard → UTF-8 bytes
+* CAN motor feedback → raw frame bytes
+* file load → sequence of bytes
+* C code → bytes of text or machine code
+* reward → numeric scalar converted to bytes
+
+Melvin does NOT interpret them.
+They are literally raw bytes.
+
+---
+
+### **Step B — Convert byte to node**
+
+For byte value `b`:
+
+```
+node_id = data_node[b]   // one DATA node per possible byte
+```
+
+If it doesn’t exist, you create it once and reuse it forever.
+
+---
+
+### **Step C — Inject energy**
+
+This is the actual “entry point” you’re asking for:
+
+[
+a_{node_id} ;+=; E_{\text{input}}
+]
+
+That’s it.
+
+No preprocessing.
+No meaning.
+No context.
+Just an activation splash.
+
+This is the biological equivalent of sensory neurons spiking when touched or illuminated.
+
+---
+
+### **Step D — Structural bookkeeping**
+
+The system automatically attaches edges that give context:
+
+* Sequential edge:
+
+  ```
+  prev_node → node_id (SEQ)
+  ```
+* Channel edge:
+
+  ```
+  CH_VISION → node_id
+  ```
+
+This gives the graph enough structure to **anchor** the input.
+
+---
+
+### **Step E — Unified equations take over**
+
+After the energy splash, the graph runs:
+
+1. **local message passing**:
+   [
+   m_i = \sum_j w_{ji} a_j
+   ]
+
+2. **global field term**:
+   [
+   F_i = \lambda \sum_j mass_j K(i,j)
+   ]
+
+3. **activation update**:
+   [
+   a_i \leftarrow f((1-\alpha)a_i + \alpha(m_i + F_i - decay))
+   ]
+
+4. **prediction update & error**:
+   [
+   \varepsilon_i = a_i - p_i
+   ]
+
+5. **learning**:
+   [
+   \Delta w_{ij} \propto -\varepsilon_i a_j
+   ]
+
+6. **pattern competition**:
+   patterns whose templates reduce FE start to activate
+
+7. **EXEC**:
+   if running an action reduces FE → EXEC propensity increases
+
+This *is* the whole “mind.”
+
+---
+
+# **3. So what is the whole input → intelligence pipeline?**
+
+### **Simplest possible expression:**
+
+```
+world byte → node activation splash
+→ graph equations move energy
+→ graph changes shape to lower FE
+→ stable circuits form
+→ patterns activate
+→ EXEC acts on the world
+→ world changes
+→ new bytes
+→ loop
+```
+
+That loop **is intelligence**.
+
+---
+
+# **4. Key insight**
+
+**Input doesn’t “go” anywhere special.
+It just raises energy in a data node.
+The equations do everything else.**
+
+No parsers.
+No special AI code.
+No logic.
+No rules.
+Just energy dynamics on a graph.
+
+---

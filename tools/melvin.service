@@ -1,0 +1,23 @@
+[Unit]
+Description=Melvin AI Brain - Continuous Learning System
+After=network.target
+
+[Service]
+Type=simple
+User=melvin
+WorkingDirectory=/home/melvin/melvin
+Environment="MELVIN_BRAIN=/tmp/melvin_brain.m"
+ExecStart=/home/melvin/melvin/melvin_hardware_runner /tmp/melvin_brain.m
+ExecStop=/bin/kill -TERM $MAINPID
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Resource limits (optional)
+# LimitCPU=infinity
+# LimitMEMLOCK=infinity
+
+[Install]
+WantedBy=multi-user.target
+

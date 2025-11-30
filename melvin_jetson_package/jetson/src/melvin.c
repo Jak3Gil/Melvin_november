@@ -174,54 +174,65 @@ static void initialize_soft_structure(Graph *g, bool is_new_file) {
                 }
             }
         }
-        /* TOOL GATEWAY PORTS (300-699): Generic tool interface (abstract - no specific tools) */
-        /* Tools are discovered via syscalls, not hardcoded into substrate */
+        /* TOOL GATEWAY PORTS (300-699): Pattern generation tools */
         else if (i < 700) {
-            n->semantic_hint = 300;  /* Generic tool gateway range */
-            /* Generic tool gateway: input/output propensities suggest tool-like behavior */
-            if ((i % 20) < 10) {
-                /* Tool input range (e.g., 300-309, 400-409, etc.) */
-                n->input_propensity = 0.7f;
-                n->output_propensity = 0.3f;
-            } else {
-                /* Tool output range (e.g., 310-319, 410-419, etc.) */
-                n->input_propensity = 0.3f;
-                n->output_propensity = 0.8f;  /* High - produces tool output */
-            }
+            n->semantic_hint = 300;  /* Tool gateway range */
         }
-        /* MOTOR CONTROL GATEWAY (700-719): Motor commands */
-        else if (i < 720) {
-            n->semantic_hint = 700;  /* Motor gateway range */
-            if (i < 710) {
-                /* Motor input (700-709) - receives motor commands */
-                n->input_propensity = 0.7f;
-                n->output_propensity = 0.3f;
-            } else {
-                /* Motor output (710-719) - sends motor frames */
-                n->input_propensity = 0.3f;
-                n->output_propensity = 0.9f;  /* Very high - produces motor commands */
-            }
-        }
-        /* FILE I/O GATEWAY (720-739): File operations */
-        else if (i < 740) {
-            n->semantic_hint = 720;  /* File I/O gateway range */
-            if (i < 730) {
-                /* File input (720-729) - receives file paths/data */
-                n->input_propensity = 0.7f;
-                n->output_propensity = 0.3f;
-            } else {
-                /* File output (730-739) - produces file data */
-                n->input_propensity = 0.3f;
-                n->output_propensity = 0.8f;  /* High - produces file data */
-            }
-        }
-        /* CODE PATTERN PORTS (740-839): Compiled code patterns (graph learns from machine code) */
-        else if (i < 840) {
-            n->semantic_hint = 740;  /* Code pattern range */
+        /* CODE PATTERN PORTS (700-799): Compiled code patterns (graph learns from machine code) */
+        else if (i < 800) {
+            n->semantic_hint = 700;  /* Code pattern range */
             n->memory_propensity = 0.9f;  /* High retention - code patterns are important */
             n->input_propensity = 0.6f;  /* Receives compiled code */
             n->output_propensity = 0.4f;  /* Can produce code-like patterns */
             
+            /* STT Gateway (300-319): Audio → Text */
+            if (i >= 300 && i < 320) {
+                if (i < 310) {
+                    /* STT input (300-309) */
+                    n->input_propensity = 0.7f;
+                    n->output_propensity = 0.3f;
+                } else {
+                    /* STT output (310-319) */
+                    n->input_propensity = 0.3f;
+                    n->output_propensity = 0.8f;  /* High - produces text output */
+                }
+            }
+            /* Vision Gateway (400-419): Image → Labels */
+            else if (i >= 400 && i < 420) {
+                if (i < 410) {
+                    /* Vision input (400-409) */
+                    n->input_propensity = 0.7f;
+                    n->output_propensity = 0.3f;
+                } else {
+                    /* Vision output (410-419) */
+                    n->input_propensity = 0.3f;
+                    n->output_propensity = 0.8f;  /* High - produces labels */
+                }
+            }
+            /* LLM Gateway (500-519): Text → Text */
+            else if (i >= 500 && i < 520) {
+                if (i < 510) {
+                    /* LLM input (500-509) */
+                    n->input_propensity = 0.7f;
+                    n->output_propensity = 0.3f;
+                } else {
+                    /* LLM output (510-519) */
+                    n->input_propensity = 0.3f;
+                    n->output_propensity = 0.9f;  /* Very high - produces text output */
+                }
+            }
+            /* TTS Gateway (600-619): Text → Audio */
+            else if (i >= 600 && i < 620) {
+                if (i < 610) {
+                    /* TTS input (600-609) */
+                    n->input_propensity = 0.7f;
+                    n->output_propensity = 0.3f;
+                } else {
+                    /* TTS output (610-619) */
+                    n->input_propensity = 0.3f;
+                    n->output_propensity = 0.8f;  /* High - produces audio output */
+                }
+            }
         }
     }
     
@@ -281,31 +292,31 @@ static void create_initial_edge_suggestions(Graph *g, bool is_new_file) {
     if (temporal_medium < 0.015f) temporal_medium = 0.015f;  /* Minimum */
     
     /* 1. Input → Working Memory (ports 0-99 → 200-209) */
-    /* Create edges for ALL input ports - ensure_node will create nodes as needed */
-    for (uint32_t input = 0; input < 100; input++) {
-        for (uint32_t memory = 200; memory < 210; memory++) {
+    /* Create edges for ALL input ports, not just first 10 */
+    for (uint32_t input = 0; input < 100 && input < g->node_count; input++) {
+        for (uint32_t memory = 200; memory < 210 && memory < g->node_count; memory++) {
             if (find_edge(g, input, memory) == UINT32_MAX) {
-                create_edge(g, input, memory, base_weight);  /* ensure_node creates nodes */
+                create_edge(g, input, memory, base_weight);  /* RELATIVE: Weak initial weight */
             }
         }
     }
     
     /* 2. Working Memory → Output (ports 200-209 → 100-199) */
-    /* Create edges for ALL output ports - ensure_node will create nodes as needed */
-    for (uint32_t memory = 200; memory < 210; memory++) {
-        for (uint32_t output = 100; output < 200; output++) {
+    /* Create edges for ALL output ports, not just first 10 */
+    for (uint32_t memory = 200; memory < 210 && memory < g->node_count; memory++) {
+        for (uint32_t output = 100; output < 200 && output < g->node_count; output++) {
             if (find_edge(g, memory, output) == UINT32_MAX) {
-                create_edge(g, memory, output, base_weight);  /* ensure_node creates nodes */
+                create_edge(g, memory, output, base_weight);  /* RELATIVE: Weak initial weight */
             }
         }
     }
     
     /* 3. Output → Feedback (ports 100-199 → 30-33) */
-    /* Create edges for ALL output ports - ensure_node will create nodes as needed */
-    for (uint32_t output = 100; output < 200; output++) {
-        for (uint32_t feedback = 30; feedback < 34; feedback++) {
+    /* Create edges for ALL output ports, not just first 10 */
+    for (uint32_t output = 100; output < 200 && output < g->node_count; output++) {
+        for (uint32_t feedback = 30; feedback < 34 && feedback < g->node_count; feedback++) {
             if (find_edge(g, output, feedback) == UINT32_MAX) {
-                create_edge(g, output, feedback, weak_weight);  /* ensure_node creates nodes */
+                create_edge(g, output, feedback, weak_weight);  /* RELATIVE: Very weak - graph learns correlation */
             }
         }
     }
@@ -314,225 +325,228 @@ static void create_initial_edge_suggestions(Graph *g, bool is_new_file) {
     for (uint32_t i = 0; i < 50; i++) {  /* Increased from 20 to 50 */
         uint32_t mem1 = 200 + (i % 10);
         uint32_t mem2 = 200 + ((i * 7) % 10);  /* Pseudo-random pairing */
-        if (mem1 != mem2) {
+        if (mem1 != mem2 && mem1 < g->node_count && mem2 < g->node_count) {
             if (find_edge(g, mem1, mem2) == UINT32_MAX) {
-                create_edge(g, mem1, mem2, memory_weight);  /* ensure_node creates nodes */
+                create_edge(g, mem1, mem2, memory_weight);  /* RELATIVE: Weak memory connections */
             }
         }
     }
     
     /* 5. Temporal anchor connections */
-    /* "now" (240) → "recent" (241) */
-    if (find_edge(g, 240, 241) == UINT32_MAX) {
-        create_edge(g, 240, 241, temporal_medium);  /* ensure_node creates nodes */
-    }
-    /* "recent" (241) → "memory" (242) */
-    if (find_edge(g, 241, 242) == UINT32_MAX) {
-        create_edge(g, 241, 242, temporal_weak);  /* ensure_node creates nodes */
-    }
-    /* "memory" (242) → "future" (243) */
-    if (find_edge(g, 242, 243) == UINT32_MAX) {
-        create_edge(g, 242, 243, base_weight);  /* ensure_node creates nodes */
+    if (g->node_count > 243) {
+        /* "now" (240) → "recent" (241) */
+        if (find_edge(g, 240, 241) == UINT32_MAX) {
+            create_edge(g, 240, 241, temporal_medium);  /* RELATIVE: Slightly stronger - temporal flow */
+        }
+        /* "recent" (241) → "memory" (242) */
+        if (find_edge(g, 241, 242) == UINT32_MAX) {
+            create_edge(g, 241, 242, temporal_weak);  /* RELATIVE */
+        }
+        /* "memory" (242) → "future" (243) */
+        if (find_edge(g, 242, 243) == UINT32_MAX) {
+            create_edge(g, 242, 243, base_weight);  /* RELATIVE */
+        }
     }
     
     /* 6. Hardware instinct patterns - bootstrap tool connections */
     /* These provide initial routing, graph can strengthen/weaken/rewire */
-    /* ensure_node will create all nodes as needed - no need to check node_count */
     
     /* Mic → Audio Processing → STT Gateway (300-309) */
-    /* Mic port (0) → Working memory (200) */
-    if (find_edge(g, 0, 200) == UINT32_MAX) {
-        create_edge(g, 0, 200, base_weight);  /* ensure_node creates nodes */
-    }
-    /* Working memory → STT gateway input (300) */
-    if (find_edge(g, 200, 300) == UINT32_MAX) {
-        create_edge(g, 200, 300, weak_weight);  /* ensure_node creates nodes */
-    }
-    /* STT gateway output (310) → Working memory */
-    if (find_edge(g, 310, 201) == UINT32_MAX) {
-        create_edge(g, 310, 201, base_weight);  /* ensure_node creates nodes */
-    }
-    /* Working memory → Speaker port (100) */
-    if (find_edge(g, 201, 100) == UINT32_MAX) {
-        create_edge(g, 201, 100, weak_weight);  /* ensure_node creates nodes */
+    if (g->node_count > 300) {
+        /* Mic port (0) → Working memory (200) */
+        if (find_edge(g, 0, 200) == UINT32_MAX) {
+            create_edge(g, 0, 200, base_weight);  /* RELATIVE: Mic → Working memory */
+        }
+        /* Working memory → STT gateway input (300) */
+        if (find_edge(g, 200, 300) == UINT32_MAX) {
+            create_edge(g, 200, 300, weak_weight);  /* RELATIVE: Weak - graph learns when to use STT */
+        }
+        /* STT gateway output (310) → Working memory */
+        if (find_edge(g, 310, 201) == UINT32_MAX) {
+            create_edge(g, 310, 201, base_weight);  /* RELATIVE: STT output → Working memory */
+        }
+        /* Working memory → Speaker port (100) */
+        if (find_edge(g, 201, 100) == UINT32_MAX) {
+            create_edge(g, 201, 100, weak_weight);  /* RELATIVE: Weak - graph learns routing */
+        }
     }
     
     /* Camera → Vision Processing → Vision Gateway (400-409) */
-    /* Camera port (10) → Working memory (201) */
-    if (find_edge(g, 10, 201) == UINT32_MAX) {
-        create_edge(g, 10, 201, base_weight);  /* ensure_node creates nodes */
-    }
-    /* Working memory → Vision gateway input (400) */
-    if (find_edge(g, 201, 400) == UINT32_MAX) {
-        create_edge(g, 201, 400, weak_weight);  /* ensure_node creates nodes */
-    }
-    /* Vision gateway output (410) → Working memory */
-    if (find_edge(g, 410, 202) == UINT32_MAX) {
-        create_edge(g, 410, 202, base_weight);  /* ensure_node creates nodes */
-    }
-    /* Working memory → Display port (110) */
-    if (find_edge(g, 202, 110) == UINT32_MAX) {
-        create_edge(g, 202, 110, weak_weight);  /* ensure_node creates nodes */
+    if (g->node_count > 400) {
+        /* Camera port (10) → Working memory (201) */
+        if (find_edge(g, 10, 201) == UINT32_MAX) {
+            create_edge(g, 10, 201, base_weight);  /* RELATIVE: Camera → Working memory */
+        }
+        /* Working memory → Vision gateway input (400) */
+        if (find_edge(g, 201, 400) == UINT32_MAX) {
+            create_edge(g, 201, 400, weak_weight);  /* RELATIVE: Weak - graph learns when to use vision */
+        }
+        /* Vision gateway output (410) → Working memory */
+        if (find_edge(g, 410, 202) == UINT32_MAX) {
+            create_edge(g, 410, 202, base_weight);  /* RELATIVE: Vision output → Working memory */
+        }
+        /* Working memory → Display port (110) */
+        if (find_edge(g, 202, 110) == UINT32_MAX) {
+            create_edge(g, 202, 110, weak_weight);  /* RELATIVE: Weak - graph learns routing */
+        }
     }
     
     /* Text → LLM Processing → LLM Gateway (500-509) */
-    /* Text input port (20) → Working memory (202) */
-    if (find_edge(g, 20, 202) == UINT32_MAX) {
-        create_edge(g, 20, 202, base_weight);  /* ensure_node creates nodes */
-    }
-    /* Working memory → LLM gateway input (500) */
-    if (find_edge(g, 202, 500) == UINT32_MAX) {
-        create_edge(g, 202, 500, weak_weight);  /* ensure_node creates nodes */
-    }
-    /* LLM gateway output (510) → Working memory */
-    if (find_edge(g, 510, 203) == UINT32_MAX) {
-        create_edge(g, 510, 203, base_weight);  /* ensure_node creates nodes */
-    }
-    /* Working memory → Text output port (100) or TTS gateway (600) */
-    if (find_edge(g, 203, 100) == UINT32_MAX) {
-        create_edge(g, 203, 100, weak_weight);  /* ensure_node creates nodes */
+    if (g->node_count > 500) {
+        /* Text input port (20) → Working memory (202) */
+        if (find_edge(g, 20, 202) == UINT32_MAX) {
+            create_edge(g, 20, 202, base_weight);  /* RELATIVE: Text → Working memory */
+        }
+        /* Working memory → LLM gateway input (500) */
+        if (find_edge(g, 202, 500) == UINT32_MAX) {
+            create_edge(g, 202, 500, weak_weight);  /* RELATIVE: Weak - graph learns when to use LLM */
+        }
+        /* LLM gateway output (510) → Working memory */
+        if (find_edge(g, 510, 203) == UINT32_MAX) {
+            create_edge(g, 510, 203, base_weight);  /* RELATIVE: LLM output → Working memory */
+        }
+        /* Working memory → Text output port (100) or TTS gateway (600) */
+        if (find_edge(g, 203, 100) == UINT32_MAX) {
+            create_edge(g, 203, 100, weak_weight);  /* RELATIVE: Weak - graph learns routing */
+        }
     }
     
     /* TTS Gateway (600-609) */
-    /* Text → TTS gateway input (600) */
-    if (find_edge(g, 203, 600) == UINT32_MAX) {
-        create_edge(g, 203, 600, weak_weight);  /* ensure_node creates nodes */
-    }
-    /* TTS gateway output (610) → Speaker port (100) */
-    if (find_edge(g, 610, 100) == UINT32_MAX) {
-        create_edge(g, 610, 100, base_weight);  /* ensure_node creates nodes */
-    }
-    
-    /* 7. Generic tool gateway internal connections (very weak - graph learns tool behavior) */
-    /* Tool gateways have internal input→output connections (discovered by graph) */
-    for (uint32_t tool_in = 300; tool_in < 700; tool_in += 100) {
-        uint32_t tool_out = tool_in + 10;  /* Output is 10 nodes after input */
-        if (find_edge(g, tool_in, tool_out) == UINT32_MAX) {
-            create_edge(g, tool_in, tool_out, extra_weak_weight);  /* Very weak - graph discovers */
+    if (g->node_count > 600) {
+        /* Text → TTS gateway input (600) */
+        if (find_edge(g, 203, 600) == UINT32_MAX) {
+            create_edge(g, 203, 600, weak_weight);  /* RELATIVE: Weak - graph learns when to use TTS */
+        }
+        /* TTS gateway output (610) → Speaker port (100) */
+        if (find_edge(g, 610, 100) == UINT32_MAX) {
+            create_edge(g, 610, 100, base_weight);  /* RELATIVE: TTS output → Speaker */
         }
     }
     
-    /* 8. Cross-tool connections (very weak - graph learns these patterns) */
+    /* 7. Cross-tool connections (very weak - graph learns these patterns) */
     /* These enable hierarchical pattern building */
-    /* STT ↔ Vision (audio-visual connection) */
-    if (find_edge(g, 310, 410) == UINT32_MAX) {
-        create_edge(g, 310, 410, very_weak_weight);  /* ensure_node creates nodes */
-    }
-    if (find_edge(g, 410, 310) == UINT32_MAX) {
-        create_edge(g, 410, 310, very_weak_weight);  /* ensure_node creates nodes */
+    if (g->node_count > 600) {
+        /* STT ↔ Vision (audio-visual connection) */
+        if (find_edge(g, 310, 410) == UINT32_MAX) {
+            create_edge(g, 310, 410, very_weak_weight);  /* RELATIVE: Very weak - cross-tool pattern */
+        }
+        if (find_edge(g, 410, 310) == UINT32_MAX) {
+            create_edge(g, 410, 310, very_weak_weight);  /* RELATIVE */
+        }
+        
+        /* Vision ↔ LLM (visual-text connection) */
+        if (find_edge(g, 410, 510) == UINT32_MAX) {
+            create_edge(g, 410, 510, very_weak_weight);  /* RELATIVE: Very weak - cross-tool pattern */
+        }
+        if (find_edge(g, 510, 410) == UINT32_MAX) {
+            create_edge(g, 510, 410, very_weak_weight);  /* RELATIVE */
+        }
+        
+        /* LLM ↔ STT (text-audio connection) */
+        if (find_edge(g, 510, 310) == UINT32_MAX) {
+            create_edge(g, 510, 310, very_weak_weight);  /* RELATIVE: Very weak - cross-tool pattern */
+        }
+        if (find_edge(g, 310, 510) == UINT32_MAX) {
+            create_edge(g, 310, 510, very_weak_weight);  /* RELATIVE */
+        }
+        
+        /* LLM ↔ TTS (text generation → speech) */
+        if (find_edge(g, 510, 600) == UINT32_MAX) {
+            create_edge(g, 510, 600, weak_weight);  /* RELATIVE: Slightly stronger - common pattern */
+        }
     }
     
-    /* Vision ↔ LLM (visual-text connection) */
-    if (find_edge(g, 410, 510) == UINT32_MAX) {
-        create_edge(g, 410, 510, very_weak_weight);  /* ensure_node creates nodes */
-    }
-    if (find_edge(g, 510, 410) == UINT32_MAX) {
-        create_edge(g, 510, 410, very_weak_weight);  /* ensure_node creates nodes */
-    }
-    
-    /* LLM ↔ STT (text-audio connection) */
-    if (find_edge(g, 510, 310) == UINT32_MAX) {
-        create_edge(g, 510, 310, very_weak_weight);  /* ensure_node creates nodes */
-    }
-    if (find_edge(g, 310, 510) == UINT32_MAX) {
-        create_edge(g, 310, 510, very_weak_weight);  /* ensure_node creates nodes */
-    }
-    
-    /* LLM ↔ TTS (text generation → speech) */
-    if (find_edge(g, 510, 600) == UINT32_MAX) {
-        create_edge(g, 510, 600, weak_weight);  /* ensure_node creates nodes */
-    }
-    
-    /* 9. ERROR HANDLING PATTERNS (graph learns from failures through UEL) */
+    /* 8. ERROR HANDLING PATTERNS (graph learns from failures through UEL) */
     /* Error detection nodes: 250-259 */
-    /* Generic tool gateway failures → Error detection (250) */
-    for (uint32_t tool_in = 300; tool_in < 700; tool_in += 100) {
-        if (find_edge(g, tool_in, 250) == UINT32_MAX) {
-            create_edge(g, tool_in, 250, base_weight);  /* Tool failures → error detection */
+    if (g->node_count > 259) {
+        /* Tool failures → Error detection (250) */
+        /* STT failure signal */
+        if (find_edge(g, 300, 250) == UINT32_MAX) {
+            create_edge(g, 300, 250, base_weight);  /* RELATIVE: Tool input → Error detection */
         }
-    }
-    
-    /* Error detection → Recovery patterns (251-254) */
-    for (uint32_t recovery = 251; recovery < 255; recovery++) {
-        if (find_edge(g, 250, recovery) == UINT32_MAX) {
-            create_edge(g, 250, recovery, memory_weight);  /* ensure_node creates nodes */
+        /* Vision failure signal */
+        if (find_edge(g, 400, 250) == UINT32_MAX) {
+            create_edge(g, 400, 250, base_weight);  /* RELATIVE */
         }
-        /* Recovery → Retry generic tool gateway (graph discovers which tool) */
-        for (uint32_t tool_in = 300; tool_in < 700; tool_in += 100) {
-            if (find_edge(g, recovery, tool_in) == UINT32_MAX) {
-                create_edge(g, recovery, tool_in, extra_weak_weight);  /* Very weak - graph discovers */
+        /* LLM failure signal */
+        if (find_edge(g, 500, 250) == UINT32_MAX) {
+            create_edge(g, 500, 250, base_weight);  /* RELATIVE */
+        }
+        /* TTS failure signal */
+        if (find_edge(g, 600, 250) == UINT32_MAX) {
+            create_edge(g, 600, 250, base_weight);  /* RELATIVE */
+        }
+        
+        /* Error detection → Recovery patterns (251-254) */
+        for (uint32_t recovery = 251; recovery < 255 && recovery < g->node_count; recovery++) {
+            if (find_edge(g, 250, recovery) == UINT32_MAX) {
+                create_edge(g, 250, recovery, memory_weight);  /* RELATIVE: Error → Recovery */
+            }
+            /* Recovery → Retry tool or fallback */
+            if (recovery == 251 && find_edge(g, 251, 300) == UINT32_MAX) {
+                create_edge(g, 251, 300, weak_weight);  /* RELATIVE: Recovery → Retry STT */
+            }
+            if (recovery == 252 && find_edge(g, 252, 500) == UINT32_MAX) {
+                create_edge(g, 252, 500, weak_weight);  /* RELATIVE: Recovery → Retry LLM */
             }
         }
-    }
-    
-    /* Error → Feedback (graph learns from errors) */
-    if (find_edge(g, 250, 31) == UINT32_MAX) {
-        create_edge(g, 250, 31, base_weight);  /* ensure_node creates nodes */
+        
+        /* Error → Feedback (graph learns from errors) */
+        if (find_edge(g, 250, 31) == UINT32_MAX) {
+            create_edge(g, 250, 31, base_weight);  /* RELATIVE: Error → Negative feedback */
+        }
     }
     
     /* 9. AUTOMATIC TOOL INTEGRATION PATTERNS */
     /* Graph learns when to call tools through pattern recognition */
-    /* Input patterns → Tool gateway activation (graph learns thresholds) */
-    /* Audio input (0) → STT gateway (direct connection for conversation) */
-    if (find_edge(g, 0, 300) == UINT32_MAX) {
-        create_edge(g, 0, 300, weak_weight);  /* Mic → STT Gateway */
-    }
-    /* STT Gateway internal: input (300) → output (310) */
-    if (find_edge(g, 300, 310) == UINT32_MAX) {
-        create_edge(g, 300, 310, medium_weight);  /* STT Gateway internal */
-    }
-    /* LLM Gateway internal: input (500) → output (510) */
-    if (find_edge(g, 500, 510) == UINT32_MAX) {
-        create_edge(g, 500, 510, medium_weight);  /* LLM Gateway internal */
-    }
-    /* TTS Gateway internal: input (600) → output (610) */
-    if (find_edge(g, 600, 610) == UINT32_MAX) {
-        create_edge(g, 600, 610, medium_weight);  /* TTS Gateway internal */
-    }
-    /* Audio input (0) → STT gateway when pattern matches (working memory patterns) */
-    for (uint32_t pattern = 200; pattern < 210; pattern++) {
-        if (find_edge(g, pattern, 300) == UINT32_MAX) {
-            create_edge(g, pattern, 300, extra_weak_weight);  /* ensure_node creates nodes */
+    if (g->node_count > 600) {
+        /* Input patterns → Tool gateway activation (graph learns thresholds) */
+        /* Audio input (0) → STT gateway when pattern matches */
+        for (uint32_t pattern = 200; pattern < 210 && pattern < g->node_count; pattern++) {
+            if (find_edge(g, pattern, 300) == UINT32_MAX) {
+                create_edge(g, pattern, 300, extra_weak_weight);  /* RELATIVE: Very weak - graph learns when */
+            }
         }
-    }
-    
-    /* Text patterns → LLM gateway when needed */
-    for (uint32_t pattern = 201; pattern < 211; pattern++) {
-        if (find_edge(g, pattern, 500) == UINT32_MAX) {
-            create_edge(g, pattern, 500, extra_weak_weight);  /* ensure_node creates nodes */
+        
+        /* Text patterns → LLM gateway when needed */
+        for (uint32_t pattern = 201; pattern < 211 && pattern < g->node_count; pattern++) {
+            if (find_edge(g, pattern, 500) == UINT32_MAX) {
+                create_edge(g, pattern, 500, extra_weak_weight);  /* RELATIVE: Very weak - graph learns when */
+            }
         }
-    }
-    
-    /* Tool outputs → Automatic graph feeding (stronger - these create patterns) */
-    /* STT output → Graph nodes (automatic pattern creation) */
-    for (uint32_t mem = 200; mem < 210; mem++) {
-        if (find_edge(g, 310, mem) == UINT32_MAX) {
-            create_edge(g, 310, mem, medium_weight);  /* ensure_node creates nodes */
+        
+        /* Tool outputs → Automatic graph feeding (stronger - these create patterns) */
+        /* STT output → Graph nodes (automatic pattern creation) */
+        for (uint32_t mem = 200; mem < 210 && mem < g->node_count; mem++) {
+            if (find_edge(g, 310, mem) == UINT32_MAX) {
+                create_edge(g, 310, mem, medium_weight);  /* RELATIVE: Tool output → Graph (creates patterns) */
+            }
         }
-    }
-    
-    /* LLM output → Graph nodes */
-    for (uint32_t mem = 201; mem < 211; mem++) {
+        
+        /* LLM output → Graph nodes */
+        for (uint32_t mem = 201; mem < 211 && mem < g->node_count; mem++) {
             if (find_edge(g, 510, mem) == UINT32_MAX) {
                 create_edge(g, 510, mem, medium_weight);  /* RELATIVE: Tool output → Graph */
             }
         }
         
-    /* Vision output → Graph nodes */
-    for (uint32_t mem = 202; mem < 212; mem++) {
-        if (find_edge(g, 410, mem) == UINT32_MAX) {
-            create_edge(g, 410, mem, medium_weight);  /* ensure_node creates nodes */
+        /* Vision output → Graph nodes */
+        for (uint32_t mem = 202; mem < 212 && mem < g->node_count; mem++) {
+            if (find_edge(g, 410, mem) == UINT32_MAX) {
+                create_edge(g, 410, mem, medium_weight);  /* RELATIVE: Tool output → Graph */
+            }
         }
-    }
-    
-    /* TTS output → Graph nodes (audio patterns) */
-    for (uint32_t mem = 203; mem < 213; mem++) {
-        if (find_edge(g, 610, mem) == UINT32_MAX) {
-            create_edge(g, 610, mem, medium_weight);  /* ensure_node creates nodes */
+        
+        /* TTS output → Graph nodes (audio patterns) */
+        for (uint32_t mem = 203; mem < 213 && mem < g->node_count; mem++) {
+            if (find_edge(g, 610, mem) == UINT32_MAX) {
+                create_edge(g, 610, mem, medium_weight);  /* RELATIVE: Tool output → Graph */
+            }
         }
     }
     
     /* 10. SELF-REGULATION PATTERNS (graph controls its own activity) */
+    if (g->node_count > 260) {
         /* Chaos monitoring → Activity adjustment (255-259) */
         /* High chaos → Reduce activity (255) */
         if (find_edge(g, 242, 255) == UINT32_MAX) {
@@ -551,112 +565,16 @@ static void create_initial_edge_suggestions(Graph *g, bool is_new_file) {
             create_edge(g, 256, 0, weak_weight);  /* RELATIVE: Low chaos → Increase input */
         }
         
-    /* Feedback loops for self-regulation */
-    /* Output activity → Feedback → Activity adjustment */
-    for (uint32_t output = 100; output < 110; output++) {
-        if (find_edge(g, output, 255) == UINT32_MAX) {
-            create_edge(g, output, 255, weak_weight);  /* ensure_node creates nodes */
+        /* Feedback loops for self-regulation */
+        /* Output activity → Feedback → Activity adjustment */
+        for (uint32_t output = 100; output < 110 && output < g->node_count; output++) {
+            if (find_edge(g, output, 255) == UINT32_MAX) {
+                create_edge(g, output, 255, weak_weight);  /* RELATIVE: Output → Chaos monitor */
+            }
         }
     }
     
-    /* 11. MOTOR CONTROL PATTERNS */
-    /* Motor gateway (700-719): Commands → Motor frames */
-    /* Working memory → Motor gateway input (700) */
-    if (find_edge(g, 203, 700) == UINT32_MAX) {
-        create_edge(g, 203, 700, weak_weight);  /* ensure_node creates nodes */
-    }
-    /* Motor gateway output (710) → Motor port (120) */
-    if (find_edge(g, 710, 120) == UINT32_MAX) {
-        create_edge(g, 710, 120, base_weight);  /* ensure_node creates nodes */
-    }
-    /* Code patterns → Motor control (compiled code can control motors) */
-    for (uint32_t code = 740; code < 750; code++) {
-        if (find_edge(g, code, 700) == UINT32_MAX) {
-            create_edge(g, code, 700, medium_weight);  /* ensure_node creates nodes */
-        }
-    }
-    
-    /* 12. FILE I/O PATTERNS */
-    /* File I/O gateway (720-739): File operations */
-    /* Working memory → File read gateway (720) */
-    if (find_edge(g, 202, 720) == UINT32_MAX) {
-        create_edge(g, 202, 720, weak_weight);  /* ensure_node creates nodes */
-    }
-    /* File read output (730) → Working memory */
-    if (find_edge(g, 730, 201) == UINT32_MAX) {
-        create_edge(g, 730, 201, base_weight);  /* ensure_node creates nodes */
-    }
-    /* File read → Compile (C files → compilation) */
-    if (find_edge(g, 730, 740) == UINT32_MAX) {
-        create_edge(g, 730, 740, medium_weight);  /* ensure_node creates nodes - C files → code patterns */
-    }
-    /* Compiled code → Motor control (use compiled code for motors) */
-    for (uint32_t code = 740; code < 750; code++) {
-        if (find_edge(g, code, 700) == UINT32_MAX) {
-            create_edge(g, code, 700, medium_weight);  /* ensure_node creates nodes */
-        }
-    }
-    /* File write gateway (721) - graph can write files */
-    if (find_edge(g, 203, 721) == UINT32_MAX) {
-        create_edge(g, 203, 721, weak_weight);  /* ensure_node creates nodes */
-    }
-    /* File write output (731) → File system */
-    if (find_edge(g, 731, 121) == UINT32_MAX) {
-        create_edge(g, 731, 121, base_weight);  /* ensure_node creates nodes */
-    }
-    
-    /* 13. CONVERSATION DATA PATTERNS */
-    /* Conversation input → STT → LLM → TTS → Conversation output */
-    /* Text input (20) → Conversation memory (204-209) */
-    for (uint32_t conv = 204; conv < 210; conv++) {
-        if (find_edge(g, 20, conv) == UINT32_MAX) {
-            create_edge(g, 20, conv, base_weight);  /* ensure_node creates nodes */
-        }
-        /* Conversation memory → LLM (for responses) */
-        if (find_edge(g, conv, 500) == UINT32_MAX) {
-            create_edge(g, conv, 500, medium_weight);  /* ensure_node creates nodes */
-        }
-        /* LLM output → Conversation memory (responses) */
-        if (find_edge(g, 510, conv) == UINT32_MAX) {
-            create_edge(g, 510, conv, base_weight);  /* ensure_node creates nodes */
-        }
-        /* Conversation memory → TTS (speak responses) */
-        if (find_edge(g, conv, 600) == UINT32_MAX) {
-            create_edge(g, conv, 600, medium_weight);  /* ensure_node creates nodes */
-        }
-        /* Conversation memory → Text output (100) */
-        if (find_edge(g, conv, 100) == UINT32_MAX) {
-            create_edge(g, conv, 100, base_weight);  /* ensure_node creates nodes */
-        }
-    }
-    /* STT → Conversation memory (speech input) */
-    if (find_edge(g, 310, 204) == UINT32_MAX) {
-        create_edge(g, 310, 204, base_weight);  /* ensure_node creates nodes */
-    }
-    
-    /* 14. C FILE PROCESSING WORKFLOW */
-    /* File read (730) → Working memory (202) */
-    if (find_edge(g, 730, 202) == UINT32_MAX) {
-        create_edge(g, 730, 202, base_weight);  /* ensure_node creates nodes */
-    }
-    /* Working memory → Compile (C source → machine code) */
-    if (find_edge(g, 202, 740) == UINT32_MAX) {
-        create_edge(g, 202, 740, medium_weight);  /* ensure_node creates nodes */
-    }
-    /* Compiled code → Motor control (use compiled code) */
-    for (uint32_t code = 740; code < 750; code++) {
-        if (find_edge(g, code, 700) == UINT32_MAX) {
-            create_edge(g, code, 700, medium_weight);  /* ensure_node creates nodes */
-        }
-    }
-    /* Compiled code → Blob execution (graph can run its own code) */
-    for (uint32_t code = 740; code < 750; code++) {
-        if (find_edge(g, code, 243) == UINT32_MAX) {
-            create_edge(g, code, 243, weak_weight);  /* ensure_node creates nodes - code → future/prediction */
-        }
-    }
-    
-    /* 15. TOOL SUCCESS/FAILURE FEEDBACK LOOPS */
+    /* 11. TOOL SUCCESS/FAILURE FEEDBACK LOOPS */
     /* Graph learns which tools are reliable through UEL correlation */
     if (g->node_count > 600) {
         /* Tool success → Positive feedback (30) */
@@ -693,26 +611,6 @@ static Graph* melvin_open_with_cold(const char *path, size_t initial_nodes, size
                                      size_t blob_size, size_t cold_data_size);
 
 Graph* melvin_open(const char *path, size_t initial_nodes, size_t initial_edges, size_t blob_size) {
-    /* Calculate minimum nodes needed:
-     * - 0-255: byte values (256 nodes)
-     * - 100-199: output ports (100 nodes, overlaps with bytes)
-     * - 200-255: working memory/control (overlaps with bytes)
-     * - 300-699: tool gateways (400 nodes)
-     * - 700-719: motor control gateway (20 nodes)
-     * - 720-739: file I/O gateway (20 nodes)
-     * - 740-839: code pattern nodes (100 nodes)
-     * Maximum needed: 840 nodes
-     * 
-     * If initial_nodes is 0 or too small, use minimum + headroom
-     * Otherwise use provided value (for backward compatibility)
-     */
-    size_t min_nodes_needed = 800;  /* Maximum node ID we actually use */
-    size_t headroom = 200;  /* 25% headroom for immediate growth */
-    size_t recommended = min_nodes_needed + headroom;  /* 1000 nodes */
-    
-    if (initial_nodes == 0 || initial_nodes < min_nodes_needed) {
-        initial_nodes = recommended;  /* Start with minimum needed + headroom */
-    }
     return melvin_open_with_cold(path, initial_nodes, initial_edges, blob_size, 0);
 }
 
@@ -2451,8 +2349,7 @@ void melvin_call_entry(Graph *g) {
     
     /* Execute blob code if graph decided to (through activation) */
     /* Graph learns when blob execution is useful through UEL feedback */
-    /* Only execute if main_entry_offset > 0 (blob code has been set) */
-    if (should_execute_blob && g->hdr->main_entry_offset > 0 && 
+    if (should_execute_blob && g->hdr->main_entry_offset >= 0 && 
         g->hdr->main_entry_offset < g->hdr->blob_size) {
         /* Debug: Log blob execution (first few times) */
         static int exec_count = 0;

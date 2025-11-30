@@ -1,0 +1,35 @@
+BASIC COMPUTER CONCEPTS
+
+FILE: A sequence of bytes stored on disk
+- Can be read (bytes → memory)
+- Can be written (memory → bytes)
+- Has a path/name
+
+PROCESS: A running program
+- Has memory space
+- Can read/write files
+- Can make syscalls
+
+SYSCALL: Request to operating system
+- read: get data from file/device
+- write: send data to file/device
+- open: open a file
+- close: close a file
+- exec: run a program
+
+MEMORY: Storage for data
+- malloc: allocate memory
+- free: release memory
+- Stack: automatic variables
+- Heap: dynamic allocation
+
+COMPILE: Convert source code to machine code
+- C source → object file (.o)
+- Object file contains machine code bytes
+- Linker combines object files
+
+MACHINE_CODE: Bytes that CPU executes
+- Each instruction is bytes
+- CPU reads bytes and executes
+- Patterns in bytes = instructions
+
