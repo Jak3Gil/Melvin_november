@@ -1,28 +1,70 @@
-BASIC COMPUTER PATTERNS
+# Pattern Definitions for Melvin
+# Format: TOKEN1 → TOKEN2 → TOKEN3
+# Each token is fed as bytes, creating nodes naturally
+# Edges are created between consecutive tokens
 
-1. INPUT → PROCESS → OUTPUT
-   - Read data
-   - Transform it
-   - Write result
+# ============================================================================
+# BOOTSTRAP PATTERNS (Minimal set for self-compilation)
+# ============================================================================
 
-2. FILE → READ → BYTES → PROCESS → BYTES → WRITE → FILE
-   - Files contain bytes
-   - Read bytes into memory
-   - Process bytes
-   - Write bytes back
+FILE → READ → DATA → COMPILE → MACHINE_CODE → UNDERSTAND
+SOURCE → COMPILE → MACHINE_CODE
+MACHINE_CODE → BYTES → UNDERSTAND
+SYSCALL → CALL → ACTION
 
-3. SOURCE → COMPILE → MACHINE_CODE → EXECUTE
-   - C source code
-   - Compiler produces machine code
-   - CPU executes machine code
+# ============================================================================
+# CORE WORKFLOW PATTERNS
+# ============================================================================
 
-4. SYSCALL → KERNEL → RESULT
-   - User code calls syscall
-   - Kernel handles it
-   - Returns result
+INPUT → PROCESS → OUTPUT
+INPUT → TRANSFORM → RESULT → OUTPUT
 
-5. MEMORY → ALLOCATE → USE → FREE
-   - Request memory
-   - Use it
-   - Release it
+# ============================================================================
+# FILE OPERATIONS
+# ============================================================================
 
+FILE → READ → DATA → PROCESS
+PROCESS → WRITE → FILE → OUTPUT
+FILE → PATH → READ → BYTES
+
+# ============================================================================
+# SYSCALL PATTERNS
+# ============================================================================
+
+SYSCALL → WRITE_TEXT → OUTPUT
+FILE → READ_FILE → DATA → PROCESS
+GPU → COMPUTE → RESULT → OUTPUT
+DATA → GPU → KERNEL → COMPUTE → RESULT
+CPU → EXEC → CALL → ACTION
+OS → SYSCALL → ACTION → RESPONSE
+
+# ============================================================================
+# CONTROL FLOW PATTERNS
+# ============================================================================
+
+IF → THEN → ACTION
+IF → ELSE → ACTION
+LOOP → ACTION → LOOP
+LOOP → PROCESS → COMPLETE → LOOP
+
+# ============================================================================
+# LEARNING PATTERNS
+# ============================================================================
+
+COLD_DATA → COPY → BYTES → READ → LEARN
+LEARN → UNDERSTAND
+CURIOSITY → COLD_DATA
+
+# ============================================================================
+# CROSS-PATTERN CONNECTIONS
+# ============================================================================
+
+READ_FILE → INPUT
+WRITE_TEXT → OUTPUT
+GPU_COMPUTE → PROCESS
+RESULT → OUTPUT
+IF → PROCESS
+LOOP → PROCESS
+ACTION → OUTPUT
+OUTPUT → RESPONSE
+RESPONSE → INPUT

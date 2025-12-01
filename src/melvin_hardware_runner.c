@@ -8,7 +8,11 @@
  */
 
 #include "melvin.h"
-/* Hardware header not needed - using melvin.h directly */
+#include "melvin_hardware.h"
+
+/* Tool layer (built on top of substrate) - NOT part of melvin.c */
+void melvin_tool_layer_invoke(Graph *g);
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -18,6 +22,12 @@
 #include <errno.h>
 #include <math.h>
 #include <stdbool.h>
+#include <setjmp.h>
+
+/* Signal handling for segfault recovery - graph can learn from crashes */
+static Graph *g_global = NULL;
+static jmp_buf segfault_recovery;
+static volatile bool segfault_occurred = false;
 
 static volatile int running = 1;
 
@@ -25,6 +35,30 @@ static void signal_handler(int sig) {
     (void)sig;
     running = 0;
     printf("\nShutting down...\n");
+}
+
+/* Segfault handler - feed error to graph so it can learn */
+static void segfault_handler(int sig, siginfo_t *info, void *context) {
+    (void)sig;
+    (void)info;
+    (void)context;
+    
+    segfault_occurred = true;
+    
+    if (g_global) {
+        /* Feed segfault error to graph via error detection port (250) */
+        /* Graph can learn from crashes and adapt its behavior */
+        printf("[SEGFAULT] Caught segfault - feeding error to graph for learning\n");
+        melvin_feed_byte(g_global, 250, 0xFF, 1.0f);  /* High energy error signal */
+        
+        /* Also feed to negative feedback (31) */
+        melvin_feed_byte(g_global, 31, 0xFF, 0.8f);
+        
+        /* Graph learns: high activation in error nodes → avoid this pattern */
+    }
+    
+    /* Jump back to recovery point */
+    longjmp(segfault_recovery, 1);
 }
 
 static void print_status(Graph *g, int iteration, 
@@ -83,23 +117,79 @@ int main(int argc, char **argv) {
     const char *audio_capture = (argc > 2) ? argv[2] : "default";
     const char *audio_playback = (argc > 3) ? argv[3] : "default";
     
-    /* Collect camera devices */
-    const char *camera_devices[2] = {NULL, NULL};
+    /* Collect camera devices - detect available cameras */
+    /* Initialize all to NULL to prevent segfaults */
+    /* NOT const - we need to assign strdup results */
+    char *camera_devices[2];
+    camera_devices[0] = NULL;
+    camera_devices[1] = NULL;
     int n_cameras = 0;
     if (argc > 4) {
-        camera_devices[0] = argv[4];
+        camera_devices[0] = (char *)argv[4];  /* argv strings are valid for program lifetime */
         n_cameras = 1;
+        if (argc > 5) {
+            camera_devices[1] = (char *)argv[5];
+            n_cameras = 2;
+        }
     } else {
-        camera_devices[0] = "/dev/video0";
-        n_cameras = 1;
-    }
-    if (argc > 5) {
-        camera_devices[1] = argv[5];
-        n_cameras = 2;
+        /* Simple: use /dev/video0 and /dev/video2 (common pattern for 2 USB cameras) */
+        /* Avoid complex bus detection that might cause pointer issues */
+        static char cam0_path[] = "/dev/video0";
+        static char cam2_path[] = "/dev/video2";
+        
+        /* Check which devices exist and are video capture devices */
+        if (access(cam0_path, F_OK) == 0) {
+            char cmd[128];
+            snprintf(cmd, sizeof(cmd), "v4l2-ctl -d %s --info 2>&1 | grep -q 'Video Capture'", cam0_path);
+            if (system(cmd) == 0) {
+                camera_devices[n_cameras] = cam0_path;
+                n_cameras++;
+                printf("Detected camera 0: %s\n", cam0_path);
+            }
+        }
+        
+        if (n_cameras < 2 && access(cam2_path, F_OK) == 0) {
+            char cmd[128];
+            snprintf(cmd, sizeof(cmd), "v4l2-ctl -d %s --info 2>&1 | grep -q 'Video Capture'", cam2_path);
+            if (system(cmd) == 0) {
+                camera_devices[n_cameras] = cam2_path;
+                n_cameras++;
+                printf("Detected camera 1: %s\n", cam2_path);
+            }
+        }
+        
+        /* If still no cameras, try /dev/video1 */
+        if (n_cameras < 2) {
+            static char cam1_path[] = "/dev/video1";
+            if (access(cam1_path, F_OK) == 0) {
+                char cmd[128];
+                snprintf(cmd, sizeof(cmd), "v4l2-ctl -d %s --info 2>&1 | grep -q 'Video Capture'", cam1_path);
+                if (system(cmd) == 0) {
+                    camera_devices[n_cameras] = cam1_path;
+                    n_cameras++;
+                    printf("Detected camera %d: %s\n", n_cameras - 1, cam1_path);
+                }
+            }
+        }
+        
+        /* If no cameras found, default to /dev/video0 (will fail gracefully with proper error) */
+        if (n_cameras == 0) {
+            camera_devices[0] = cam0_path;
+            n_cameras = 1;
+            printf("No cameras auto-detected, trying /dev/video0\n");
+        }
     }
     
     signal(SIGINT, signal_handler);
     signal(SIGTERM, signal_handler);
+    
+    /* Set up segfault handler so graph can learn from crashes */
+    struct sigaction sa;
+    sa.sa_sigaction = segfault_handler;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = SA_SIGINFO;
+    sigaction(SIGSEGV, &sa, NULL);
+    sigaction(SIGBUS, &sa, NULL);  /* Also catch bus errors */
     
     printf("========================================\n");
     printf("Melvin Hardware Runner\n");
@@ -108,18 +198,70 @@ int main(int argc, char **argv) {
     printf("Audio capture: %s\n", audio_capture);
     printf("Audio playback: %s\n", audio_playback);
     printf("Cameras: %d\n", n_cameras);
-    for (int i = 0; i < n_cameras; i++) {
-        printf("  Camera %d: %s\n", i, camera_devices[i]);
+    /* Only print cameras that were successfully detected - use safe printing */
+    /* Don't access camera_devices[i][0] - pointer might be invalid even if not NULL */
+    int valid_cameras = 0;
+    for (int i = 0; i < 2; i++) {
+        if (camera_devices[i] != NULL) {
+            /* Only check if pointer is not NULL - don't dereference yet */
+            /* Use strlen safely or just print the pointer value for debugging */
+            fputs("  Camera ", stdout);
+            char num_str[16];
+            snprintf(num_str, sizeof(num_str), "%d", valid_cameras);
+            fputs(num_str, stdout);
+            fputs(": ", stdout);
+            /* Use fputs which is safer than printf with %s */
+            if (camera_devices[i] != NULL) {
+                fputs(camera_devices[i], stdout);
+            } else {
+                fputs("(null)", stdout);
+            }
+            fputs("\n", stdout);
+            valid_cameras++;
+        }
+    }
+    if (valid_cameras != n_cameras) {
+        printf("  Warning: %d cameras detected but %d valid pointers\n", n_cameras, valid_cameras);
+        n_cameras = valid_cameras;  /* Fix n_cameras to match actual valid cameras */
     }
     printf("Press Ctrl+C to stop\n\n");
     
-    /* Open brain */
-    Graph *g = melvin_open(brain_path, 0, 0, 0);
-    if (!g) {
-        fprintf(stderr, "Failed to open %s\n", brain_path);
-        fprintf(stderr, "Error: %s\n", strerror(errno));
-        perror("melvin_open");
-        return 1;
+    /* Open brain with segfault recovery */
+    g_global = NULL;
+    Graph *g = NULL;
+    
+    if (setjmp(segfault_recovery) == 0) {
+        /* First attempt - normal execution */
+        g = melvin_open(brain_path, 0, 0, 0);
+        if (!g) {
+            fprintf(stderr, "Failed to open %s\n", brain_path);
+            fprintf(stderr, "Error: %s\n", strerror(errno));
+            perror("melvin_open");
+            return 1;
+        }
+        
+        /* Verify critical arrays are allocated */
+        if (!g->nodes || !g->edges || !g->output_propensity || !g->last_activation || !g->last_message) {
+            fprintf(stderr, "Error: Graph arrays not properly allocated\n");
+            fprintf(stderr, "  nodes: %p\n", (void*)g->nodes);
+            fprintf(stderr, "  edges: %p\n", (void*)g->edges);
+            fprintf(stderr, "  output_propensity: %p\n", (void*)g->output_propensity);
+            fprintf(stderr, "  last_activation: %p\n", (void*)g->last_activation);
+            fprintf(stderr, "  last_message: %p\n", (void*)g->last_message);
+            return 1;
+        }
+        
+        g_global = g;  /* Set global for segfault handler */
+    } else {
+        /* Recovery from segfault - graph has been notified */
+        fprintf(stderr, "[RECOVERY] Segfault occurred, graph notified. Attempting to continue...\n");
+        if (g_global) {
+            g = g_global;
+            /* Graph has learned from the error - continue with caution */
+        } else {
+            fprintf(stderr, "[FATAL] Cannot recover - graph not initialized\n");
+            return 1;
+        }
     }
     
     /* Initialize syscalls */
@@ -162,7 +304,11 @@ int main(int argc, char **argv) {
         /* CONTINUOUS PROCESSING: Call melvin_call_entry to run UEL physics */
         /* This ensures the graph processes continuously, even without new hardware input */
         /* Hardware threads also call this when feeding data, but main loop ensures it keeps running */
-        melvin_call_entry(g);
+        melvin_call_entry(g);  /* Pure substrate: UEL physics only */
+        
+        /* Tool layer: invoke tools when graph activates tool gateways */
+        /* This is NOT part of the substrate - it's a layer built on top */
+        melvin_tool_layer_invoke(g);
         
         /* Print status periodically */
         if (now - last_status >= STATUS_INTERVAL) {

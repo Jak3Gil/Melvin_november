@@ -1,0 +1,42 @@
+# PATTERN LEARNING EXAMPLES
+# These teach the graph to learn arithmetic from examples
+
+# Addition examples (for pattern learning)
+2+3=5
+4+1=5
+1+4=5
+10+20=30
+5+5=10
+3+7=10
+20+30=50
+15+35=50
+25+25=50
+100+200=300
+50+50=100
+
+# Subtraction examples
+10-5=5
+8-3=5
+15-10=5
+20-10=10
+30-20=10
+100-50=50
+
+# Multiplication examples
+2*3=6
+3*2=6
+4*5=20
+5*4=20
+10*10=100
+
+# Division examples
+10/2=5
+20/4=5
+100/10=10
+50/5=10
+
+# Pattern: Similar inputs → Similar outputs
+SMALL_NUMBERS → ADD → SMALL_RESULT
+LARGE_NUMBERS → ADD → LARGE_RESULT
+SAME_NUMBERS → ADD → DOUBLE
+

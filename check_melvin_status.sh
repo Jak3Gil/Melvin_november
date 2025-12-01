@@ -25,3 +25,5 @@ echo "Brain File Status:"
 sshpass -p "$JETSON_PASS" ssh -o StrictHostKeyChecking=no "$JETSON_USER@$JETSON_IP" "ls -lh /mnt/melvin_ssd/melvin/brain.m ~/melvin/brain.m 2>/dev/null | head -2 || echo '  Brain file not found'"
 echo ""
 
+
+

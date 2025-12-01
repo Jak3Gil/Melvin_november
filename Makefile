@@ -8,7 +8,7 @@ LDFLAGS = -lm
 TESTS = test_0_0_exec_smoke test_exec_basic test_0_7_multihop_math test_1_0_graph_add32 test_1_1_tool_selection test_master_8_capabilities
 
 # Tools
-TOOLS = melvin_pack_corpus melvin_seed_instincts melvin_feed_instincts melvin_build_learning_env
+TOOLS = melvin_pack_corpus melvin_seed_instincts melvin_seed_patterns melvin_seed_knowledge melvin_seed_arithmetic_exec melvin_feed_instincts melvin_build_learning_env
 
 # Hardware runners (require ALSA and V4L2)
 HARDWARE = melvin_hardware_runner melvin_run_continuous
@@ -45,12 +45,24 @@ melvin_pack_corpus: src/melvin_pack_corpus.c src/melvin.c src/melvin.h
 melvin_seed_instincts: src/melvin_seed_instincts.c src/melvin.c src/melvin.h
 	$(CC) $(CFLAGS) -o melvin_seed_instincts src/melvin_seed_instincts.c src/melvin.c $(LDFLAGS) -pthread
 
+# Pattern seeding tool (data-driven)
+melvin_seed_patterns: src/melvin_seed_patterns.c src/melvin_load_patterns.c src/melvin.c src/melvin.h
+	$(CC) $(CFLAGS) -o melvin_seed_patterns src/melvin_seed_patterns.c src/melvin_load_patterns.c src/melvin.c $(LDFLAGS) -pthread
+
+# Knowledge seeding tool (math, wiki, etc.)
+melvin_seed_knowledge: src/melvin_seed_knowledge.c src/melvin.c src/melvin.h
+	$(CC) $(CFLAGS) -o melvin_seed_knowledge src/melvin_seed_knowledge.c src/melvin.c $(LDFLAGS) -pthread
+
+# Arithmetic EXEC node seeding tool
+melvin_seed_arithmetic_exec: src/melvin_seed_arithmetic_exec.c src/melvin.c src/melvin.h
+	$(CC) $(CFLAGS) -o melvin_seed_arithmetic_exec src/melvin_seed_arithmetic_exec.c src/melvin.c $(LDFLAGS) -pthread
+
 # Machine code feeding tool
 melvin_feed_instincts: src/melvin_feed_instincts.c src/melvin.c src/melvin.h
 	$(CC) $(CFLAGS) -o melvin_feed_instincts src/melvin_feed_instincts.c src/melvin.c $(LDFLAGS) -pthread
 
 # Hardware runner (requires ALSA and V4L2 on Linux)
-melvin_hardware_runner: src/melvin_hardware_runner.c src/melvin_hardware_audio.c src/melvin_hardware_video.c src/melvin.c src/host_syscalls.c src/melvin_tools.c src/melvin.h src/melvin_hardware.h
+melvin_hardware_runner: src/melvin_hardware_runner.c src/melvin_hardware_audio.c src/melvin_hardware_video.c src/melvin.c src/host_syscalls.c src/melvin_tools.c src/melvin_tool_layer.c src/melvin.h src/melvin_hardware.h
 	$(CC) $(CFLAGS) -o melvin_hardware_runner \
 		src/melvin_hardware_runner.c \
 		src/melvin_hardware_audio.c \
@@ -58,6 +70,7 @@ melvin_hardware_runner: src/melvin_hardware_runner.c src/melvin_hardware_audio.c
 		src/melvin.c \
 		src/host_syscalls.c \
 		src/melvin_tools.c \
+		src/melvin_tool_layer.c \
 		$(LDFLAGS) -pthread \
 		$$(pkg-config --cflags --libs alsa 2>/dev/null || echo "-lasound") \
 		$$(pkg-config --cflags --libs libv4l2 2>/dev/null || echo "") \
@@ -68,6 +81,7 @@ melvin_hardware_runner: src/melvin_hardware_runner.c src/melvin_hardware_audio.c
 			src/melvin.c \
 			src/host_syscalls.c \
 			src/melvin_tools.c \
+			src/melvin_tool_layer.c \
 			$(LDFLAGS) -pthread -lasound
 
 # Continuous runner (no hardware dependencies)

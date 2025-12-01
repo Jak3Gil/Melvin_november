@@ -221,14 +221,24 @@ static void *audio_reader_thread(void *arg) {
                 hw->audio_bytes_read++;
             }
             
+            /* Also feed to working memory (200-209) and STT gateway input (300) for tool invocation */
+            if (bytes_read > 0 && hw->g->node_count > 310) {
+                /* Feed samples to working memory (200-209) */
+                for (size_t i = 0; i < bytes_read && i < 10; i++) {
+                    melvin_feed_byte(hw->g, 200 + (i % 10), buffer[i], 0.2f);
+                }
+                /* Activate STT gateway input (300) to trigger tool */
+                melvin_feed_byte(hw->g, 300, buffer[0], 0.4f); /* Higher energy to trigger tool */
+            }
+            
             /* Also seed weak connection to output port to help graph learn routing */
             if (bytes_read > 0) {
                 /* Feed a sample to output port with lower energy to suggest routing */
                 melvin_feed_byte(hw->g, AUDIO_PORT_OUTPUT, buffer[0], 0.1f);
             }
             
-            /* Trigger UEL propagation after feeding audio */
-            melvin_call_entry(hw->g);
+            /* Don't call melvin_call_entry from thread - let main loop handle it */
+            /* This prevents race conditions when multiple threads call it */
         }
     }
 #else
@@ -241,7 +251,7 @@ static void *audio_reader_thread(void *arg) {
             melvin_feed_byte(hw->g, AUDIO_PORT_INPUT, buffer[i], energy);
             hw->audio_bytes_read++;
         }
-        melvin_call_entry(hw->g);
+        /* Don't call melvin_call_entry from thread - let main loop handle it */
         usleep(64000);  /* ~1 second at 16kHz (1024 samples / 16000 samples/sec) */
     }
 #endif
@@ -292,36 +302,23 @@ static void *audio_writer_thread(void *arg) {
                 }
             }
             
-            /* If no graph output, use direct echo from mic input */
+            /* If no graph output, use direct echo from mic input (raw audio passthrough) */
             if (count == 0) {
-                /* Check echo buffer for direct audio passthrough */
+                /* Check echo buffer for direct audio passthrough - use raw bytes, no conversion */
                 pthread_mutex_lock(&hw->echo_mutex);
                 if (hw->echo_buffer_size > 0) {
                     size_t copy_size = (hw->echo_buffer_size < AUDIO_BUFFER_SIZE) ? 
                                        hw->echo_buffer_size : AUDIO_BUFFER_SIZE;
+                    /* Copy raw audio bytes directly - no conversion needed */
                     memcpy(buffer, hw->echo_buffer, copy_size);
                     count = (int)copy_size;
                     /* Don't clear immediately - let it persist for a few cycles for smoother echo */
-                    /* Only clear if buffer is getting too old (handled by reader overwriting) */
                 }
                 pthread_mutex_unlock(&hw->echo_mutex);
             }
             
-            /* Fallback: try graph activation if no direct echo */
-            if (count == 0 && input_activation > 0.2f) {
-                /* Echo input to output - this helps the graph learn the connection */
-                /* Read from input port and write to output */
-                for (int i = AUDIO_PORT_INPUT; i < AUDIO_PORT_INPUT + 10 && count < AUDIO_BUFFER_SIZE; i++) {
-                    float a = melvin_get_activation(hw->g, i);
-                    if (a > 0.1f) {
-                        int16_t sample = (int16_t)(a * 20000.0f);  /* Slightly quieter echo */
-                        if (count + 1 < AUDIO_BUFFER_SIZE) {
-                            buffer[count++] = (uint8_t)(sample & 0xFF);
-                            buffer[count++] = (uint8_t)((sample >> 8) & 0xFF);
-                        }
-                    }
-                }
-            }
+            /* Don't use graph activation for echo - it produces static */
+            /* Only use direct raw audio passthrough from echo buffer */
             
             if (count > 0) {
 #ifdef __linux__

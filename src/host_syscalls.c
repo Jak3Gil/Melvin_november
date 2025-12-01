@@ -15,9 +15,15 @@
 #include <sys/stat.h>
 #include <stddef.h>
 #include <sys/wait.h>
+#ifdef __linux__
+#include <dlfcn.h>  /* For runtime CUDA library loading */
+#endif
 
 /* Forward declare - defined in melvin.c */
 extern Graph* melvin_get_current_graph(void);
+
+/* Forward declarations for static functions */
+static uint32_t host_create_exec_node(uint32_t node_id, uint64_t blob_offset, float threshold_ratio);
 
 /* Write text to stdout */
 static void host_write_text(const uint8_t *bytes, size_t len) {
@@ -87,20 +93,67 @@ static int host_run_cc(const char *src_path, const char *out_path) {
 }
 
 /* GPU compute (host handles driver - CUDA/Metal/OpenCL) */
+/* Uses runtime detection via dlopen to avoid compile-time dependencies */
 static int host_gpu_compute(const GPUComputeRequest *req) {
-    if (!req) return -1;
+    if (!req || !req->input_data || !req->output_data) return -1;
+    if (req->input_data_len > req->output_data_len) return -1;
     
-    /* TODO: Implement based on available GPU API */
-    /* 
-     * Options:
-     * - CUDA: cuModuleLoad, cuLaunchKernel
-     * - Metal: MTLDevice, MTLComputePipelineState
-     * - OpenCL: clCreateProgramWithSource, clEnqueueNDRangeKernel
-     * 
-     * For now, placeholder that copies input to output (CPU fallback)
-     */
+    /* Try CUDA first (Jetson/GPU servers) - runtime detection */
+    #ifdef __linux__
+    {
+        static void *cuda_lib = NULL;
+        static int (*cuda_set_device)(int) = NULL;
+        static int (*cuda_malloc)(void**, size_t) = NULL;
+        static int (*cuda_free)(void*) = NULL;
+        static int (*cuda_memcpy)(void*, const void*, size_t, int) = NULL;
+        static bool cuda_tried = false;
+        
+        if (!cuda_tried) {
+            cuda_tried = true;
+            /* Try to load CUDA library at runtime */
+            cuda_lib = dlopen("libcudart.so", RTLD_LAZY);
+            if (cuda_lib) {
+                cuda_set_device = (int (*)(int))dlsym(cuda_lib, "cudaSetDevice");
+                cuda_malloc = (int (*)(void**, size_t))dlsym(cuda_lib, "cudaMalloc");
+                cuda_free = (int (*)(void*))dlsym(cuda_lib, "cudaFree");
+                cuda_memcpy = (int (*)(void*, const void*, size_t, int))dlsym(cuda_lib, "cudaMemcpy");
+                
+                /* Test if CUDA is available */
+                if (cuda_set_device && cuda_set_device(0) == 0) {
+                    /* CUDA is available - use it */
+                    void *d_input = NULL, *d_output = NULL;
+                    
+                    if (cuda_malloc(&d_input, req->input_data_len) == 0 &&
+                        cuda_malloc(&d_output, req->output_data_len) == 0) {
+                        
+                        /* Copy input to GPU (1 = HostToDevice) */
+                        if (cuda_memcpy(d_input, req->input_data, req->input_data_len, 1) == 0) {
+                            /* For now, simple copy (in production, launch kernel from req->kernel_code) */
+                            /* Copy device to device (2 = DeviceToDevice) */
+                            if (cuda_memcpy(d_output, d_input, req->input_data_len, 2) == 0) {
+                                /* Copy output back (0 = DeviceToHost) */
+                                if (cuda_memcpy(req->output_data, d_output, req->output_data_len, 0) == 0) {
+                                    cuda_free(d_input);
+                                    cuda_free(d_output);
+                                    return 0;  /* CUDA success */
+                                }
+                            }
+                        }
+                        
+                        cuda_free(d_input);
+                        cuda_free(d_output);
+                    }
+                }
+            }
+        }
+    }
+    #endif
+    
+    /* CPU fallback: simple memcpy (works on all platforms) */
+    /* This provides basic functionality even without GPU libraries */
     if (req->input_data && req->output_data && req->input_data_len <= req->output_data_len) {
         memcpy(req->output_data, req->input_data, req->input_data_len);
+        /* Note: This is CPU fallback - GPU acceleration requires GPU libraries */
         return 0;
     }
     
@@ -401,5 +454,16 @@ void melvin_init_host_syscalls(MelvinSyscalls *syscalls) {
     syscalls->sys_audio_stt = host_audio_stt;
     syscalls->sys_audio_tts = host_audio_tts;
     syscalls->sys_compile_c = host_compile_c;
+    
+    /* EXEC node creation */
+    syscalls->sys_create_exec_node = host_create_exec_node;
+}
+
+/* Create EXEC node: makes a node executable by pointing it to blob code */
+static uint32_t host_create_exec_node(uint32_t node_id, uint64_t blob_offset, float threshold_ratio) {
+    Graph *g = melvin_get_current_graph();
+    if (!g) return UINT32_MAX;
+    
+    return melvin_create_exec_node(g, node_id, blob_offset, threshold_ratio);
 }
 

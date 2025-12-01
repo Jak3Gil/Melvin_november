@@ -109,11 +109,13 @@ int melvin_tool_llm_generate(const uint8_t *prompt, size_t prompt_len,
     }
     escaped[escaped_len] = '\0';
     
-    /* Call Ollama API */
-    char cmd[4096];
+    /* Call Ollama API - try CodeLlama first, fallback to llama3.2:1b */
+    char cmd[8192];
+    /* Try codellama:7b or codellama:13b, fallback to llama3.2:1b */
+    /* Use shell fallback chain: try each model until one works */
     snprintf(cmd, sizeof(cmd),
-             "curl -s -m 30 http://localhost:11434/api/generate -d '{\"model\":\"llama3.2:1b\",\"prompt\":\"%s\",\"stream\":false}' 2>/dev/null | jq -r '.response' 2>/dev/null || echo ''",
-             escaped);
+             "(curl -s -m 30 http://localhost:11434/api/generate -d '{\"model\":\"codellama:7b\",\"prompt\":\"%s\",\"stream\":false}' 2>/dev/null | jq -r '.response' 2>/dev/null) || (curl -s -m 30 http://localhost:11434/api/generate -d '{\"model\":\"codellama:13b\",\"prompt\":\"%s\",\"stream\":false}' 2>/dev/null | jq -r '.response' 2>/dev/null) || (curl -s -m 30 http://localhost:11434/api/generate -d '{\"model\":\"llama3.2:1b\",\"prompt\":\"%s\",\"stream\":false}' 2>/dev/null | jq -r '.response' 2>/dev/null) || echo ''",
+             escaped, escaped, escaped);
     
     FILE *fp = popen(cmd, "r");
     if (!fp) {

@@ -53,6 +53,14 @@ typedef struct {
     float    output_propensity;  /* 0.0-1.0: tendency to produce external output */
     float    memory_propensity;  /* 0.0-1.0: tendency to retain state (slow decay) */
     uint32_t semantic_hint;      /* Port range hint (0-99=input, 100-199=output, 200-255=control) */
+    /* Pattern node support */
+    uint64_t pattern_data_offset; /* If > 0: blob offset to PatternData structure (pattern node) */
+    uint64_t pattern_value_offset; /* If > 0: blob offset to PatternValue (learned value extraction) */
+    /* EXEC node support */
+    uint64_t payload_offset;      /* If > 0: blob offset to machine code (EXEC node) */
+    float    exec_threshold_ratio; /* Threshold as ratio of avg_activation (default 1.0 = 100%) */
+    uint32_t exec_count;          /* Number of times this EXEC node has executed */
+    float    exec_success_rate;   /* Success rate of executions (0.0-1.0, updated by feedback) */
 } Node;
 
 /* Binary edge layout */
@@ -63,6 +71,45 @@ typedef struct {
     uint32_t next_in;
     uint32_t next_out;
 } Edge;
+
+/* ========================================================================
+ * PATTERN SYSTEM - Global Law: Patterns form from repeated sequences
+ * ======================================================================== */
+
+/* Pattern element: either a data node ID or a blank position */
+typedef struct {
+    uint8_t is_blank;      /* 0 = data node, 1 = blank */
+    uint32_t value;        /* If is_blank=0: node ID, if is_blank=1: blank position (pos0, pos1, etc.) */
+} PatternElement;
+
+/* Pattern structure (stored in blob, variable size) */
+typedef struct {
+    uint32_t magic;                    /* Pattern magic: "PATN" */
+    uint32_t element_count;            /* Number of elements in pattern */
+    uint32_t instance_count;           /* Number of instances that match this pattern */
+    float frequency;                   /* How often this pattern occurs */
+    float strength;                    /* Pattern strength (from edge weights/usage) */
+    uint64_t first_instance_offset;    /* Offset to first instance (or 0 if none) */
+    PatternElement elements[];         /* Variable length: pattern elements */
+} PatternData;
+
+/* Pattern instance (links pattern to actual sequence) */
+typedef struct {
+    uint32_t next_instance_offset;     /* Next instance in linked list (0 = end) */
+    uint32_t sequence_length;          /* Length of actual sequence */
+    uint32_t sequence_nodes[];         /* Variable length: node IDs of actual sequence */
+} PatternInstance;
+
+/* Blank node ID: special value indicating a blank in pattern (0xFFFFFFFF) */
+#define PATTERN_BLANK_NODE 0xFFFFFFFF
+
+/* Pattern value - general mechanism for extracting values from patterns */
+/* Graph learns which patterns extract which values through examples */
+typedef struct {
+    uint32_t value_type;       /* Graph learns: 0=number, 1=string, 2=concept, etc. */
+    uint64_t value_data;       /* The actual value (interpreted by type) */
+    float confidence;          /* How confident is this value extraction? (0.0-1.0) */
+} PatternValue;
 
 /* In-memory overlay (ONLY loader state, NO physics state) */
 typedef struct {
@@ -90,6 +137,7 @@ typedef struct {
     float        *output_propensity;  /* Output propensity per node (exploration tracking) */
     float        *feedback_correlation; /* Correlation: output → input → chaos reduction */
     float        *prediction_accuracy;  /* Prediction accuracy per node/pattern */
+    float        *stored_energy_capacity; /* Accumulated stored energy (importance/capacity - persists) */
     float        avg_output_activity;   /* Running average of output node activity */
     float        avg_feedback_correlation; /* Running average of feedback success */
     float        avg_prediction_accuracy;  /* Running average of prediction accuracy */
@@ -100,6 +148,17 @@ typedef struct {
     _Atomic uint32_t prop_queue_head;  /* Queue head (atomic) */
     _Atomic uint32_t prop_queue_tail;  /* Queue tail (atomic) */
     _Atomic uint8_t  *prop_queued;     /* Bitmap: node queued? (atomic array) */
+    
+    /* Pattern system: sequence tracking and pattern discovery */
+    uint32_t     *sequence_buffer;     /* Rolling buffer for recent byte sequence */
+    uint64_t     sequence_buffer_size; /* Size of sequence buffer */
+    uint64_t     sequence_buffer_pos;  /* Current position in buffer */
+    uint64_t     sequence_buffer_full; /* Flag: buffer is full (wraps) */
+    uint32_t     *sequence_hash_table; /* Hash table: [hash, count, first_occurrence_offset, ...] */
+    uint32_t     *sequence_storage;     /* Storage for first occurrence sequences */
+    uint64_t     sequence_hash_size;   /* Size of hash table */
+    uint64_t     sequence_storage_size; /* Size of sequence storage */
+    uint64_t     sequence_storage_pos;  /* Current position in sequence storage */
 } Graph;
 
 /* ========================================================================
@@ -147,6 +206,10 @@ typedef struct {
     /* Compiles C source to machine code, stores in blob, returns entry offset */
     int (*sys_compile_c)(const uint8_t *c_source, size_t source_len,
                          uint64_t *blob_offset, uint64_t *code_size);
+    /* Create EXEC node: makes a node executable by pointing it to blob code */
+    /* threshold_ratio: relative to avg_activation (1.0 = 100%, 0.5 = 50%, 2.0 = 200%) */
+    /* Returns node_id on success, UINT32_MAX on error */
+    uint32_t (*sys_create_exec_node)(uint32_t node_id, uint64_t blob_offset, float threshold_ratio);
 } MelvinSyscalls;
 
 /* Helper for blob code to get syscalls pointer */
@@ -174,6 +237,9 @@ void melvin_set_syscalls(Graph *g, MelvinSyscalls *syscalls);
 /* Feed byte into graph (ONLY writes to mapped .m, NO physics) */
 void melvin_feed_byte(Graph *g, uint32_t port_node_id, uint8_t b, float energy);
 
+/* Load patterns from file (data-driven seeding) */
+void melvin_load_patterns(Graph *g, const char *pattern_file, float strength);
+
 /* Jump into .m blob at main entrypoint (ONLY way to "run" - blob does everything) */
 void melvin_call_entry(Graph *g);
 
@@ -182,6 +248,15 @@ float melvin_get_activation(Graph *g, uint32_t node_id);
 
 /* Cold data access - graph can copy from cold to hot blob */
 void melvin_copy_from_cold(Graph *g, uint64_t cold_offset, uint64_t length, uint64_t blob_target_offset);
+
+/* Create EXEC node: set payload_offset and threshold ratio for a node */
+/* threshold_ratio: relative to avg_activation (1.0 = 100%, 0.5 = 50%, 2.0 = 200%) */
+/* Returns node_id on success, UINT32_MAX on error */
+uint32_t melvin_create_exec_node(Graph *g, uint32_t node_id, uint64_t blob_offset, float threshold_ratio);
+
+/* Progress indicators */
+void melvin_set_progress_callback(void (*callback)(const char *message, float percent));
+void melvin_progress(const char *message, float percent);
 
 /* Create a new v2 .m file with hot + cold layout (for corpus packing) */
 /* Returns 0 on success, -1 on error */
