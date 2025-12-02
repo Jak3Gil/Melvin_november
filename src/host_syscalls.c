@@ -14,6 +14,7 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <stddef.h>
+#include <stdbool.h>
 #include <sys/wait.h>
 #ifdef __linux__
 #include <dlfcn.h>  /* For runtime CUDA library loading */

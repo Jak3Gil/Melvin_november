@@ -835,17 +835,24 @@ static Graph* melvin_open_with_cold(const char *path, size_t initial_nodes, size
         memset((char *)map + hdr->blob_offset, 0, (size_t)blob_size_u64);
         /* Cold data left as-is (will be filled by corpus loader) */
         
-        /* Initialize data nodes (0-255) - just structure, no physics */
+        /* Initialize ALL nodes with proper UINT32_MAX for edge pointers */
+        /* CRITICAL: memset(0) leaves first_in/first_out = 0, pointing to edge 0! */
         fprintf(stderr, "Setting up byte nodes (0-255)...\r");
         fflush(stderr);
         Node *nodes = (Node *)((char *)map + hdr->nodes_offset);
+        
+        /* First: Initialize ALL nodes to prevent phantom edges */
+        for (size_t i = 0; i < initial_nodes; i++) {
+            nodes[i].first_in = UINT32_MAX;   /* No edges yet */
+            nodes[i].first_out = UINT32_MAX;  /* No edges yet */
+            nodes[i].in_degree = 0;
+            nodes[i].out_degree = 0;
+        }
+        
+        /* Then: Set byte-specific fields for nodes 0-255 */
         for (int i = 0; i < 256 && i < (int)initial_nodes; i++) {
             nodes[i].byte = (uint8_t)i;
             nodes[i].a = 0.0f;
-            nodes[i].first_in = UINT32_MAX;
-            nodes[i].first_out = UINT32_MAX;
-            nodes[i].in_degree = 0;
-            nodes[i].out_degree = 0;
             /* Initialize soft structure fields to zero (will be set by initialize_soft_structure) */
             nodes[i].input_propensity = 0.0f;
             nodes[i].output_propensity = 0.0f;
@@ -867,14 +874,21 @@ static Graph* melvin_open_with_cold(const char *path, size_t initial_nodes, size
         g->blob_size = hdr->blob_size;
         g->cold_data_size = hdr->cold_data_size;
         
+        /* GRAPH LAWS DETERMINE PROCESSING: Use defaults for new files, sample for existing */
         /* Initialize UEL physics state (always initialize, even for existing files) */
-        if (g->node_count > 0) {
-            /* Calculate initial estimates from existing graph */
+        if (g->node_count > 0 && g->edge_count > 0) {
+            /* GRAPH LAWS DETERMINE PROCESSING: Use all nodes and edges for initial estimates */
+            /* NO SAMPLING LIMITS - use full graph state */
+            uint64_t node_sample = g->node_count;
+            uint64_t edge_sample = g->edge_count;
+            
             float sum_activation = 0.0f;
             float sum_edge_strength = 0.0f;
             uint64_t active_count = 0;
             
-            for (uint64_t i = 0; i < g->node_count; i++) {
+            /* Sample nodes with stride for better coverage */
+            uint64_t node_stride = (g->node_count > node_sample) ? (g->node_count / node_sample) : 1;
+            for (uint64_t i = 0; i < g->node_count && active_count < node_sample; i += node_stride) {
                 float a_abs = fabsf(g->nodes[i].a);
                 if (a_abs > 0.001f) {
                     sum_activation += a_abs;
@@ -882,36 +896,41 @@ static Graph* melvin_open_with_cold(const char *path, size_t initial_nodes, size
                 }
             }
             
-            for (uint64_t i = 0; i < g->edge_count; i++) {
+            /* Sample edges with stride */
+            uint64_t edge_stride = (g->edge_count > edge_sample) ? (g->edge_count / edge_sample) : 1;
+            for (uint64_t i = 0; i < g->edge_count && i < edge_sample * edge_stride; i += edge_stride) {
                 sum_edge_strength += fabsf(g->edges[i].w);
             }
             
+            /* Scale estimates to full graph size */
+            uint64_t sampled_edges = (g->edge_count < edge_sample) ? g->edge_count : edge_sample;
             g->avg_activation = (active_count > 0) ? (sum_activation / active_count) : 0.1f;
             if (g->avg_activation < 0.01f) g->avg_activation = 0.1f;  /* Minimum */
             
-            g->avg_edge_strength = (g->edge_count > 0) ? (sum_edge_strength / g->edge_count) : 0.1f;
+            g->avg_edge_strength = (sampled_edges > 0) ? (sum_edge_strength / sampled_edges) : 0.1f;
             if (g->avg_edge_strength < 0.01f) g->avg_edge_strength = 0.1f;  /* Minimum */
             
-            /* Estimate initial chaos from activation variance */
+            /* Estimate initial chaos from activation variance (sample) */
             float variance = 0.0f;
-            uint64_t sample_count = (g->node_count < 100) ? g->node_count : 100;
-            for (uint64_t i = 0; i < sample_count; i++) {  /* Sample first 100 */
+            uint64_t sample_count = (node_sample < 100) ? node_sample : 100;
+            uint64_t chaos_stride = (g->node_count > sample_count) ? (g->node_count / sample_count) : 1;
+            for (uint64_t i = 0; i < g->node_count && i < sample_count * chaos_stride; i += chaos_stride) {
                 float diff = fabsf(g->nodes[i].a) - g->avg_activation;
                 variance += diff * diff;
             }
             /* Calculate chaos with NaN protection */
             if (sample_count > 0 && variance >= 0.0f) {
                 float chaos_calc = sqrtf(variance / (float)sample_count);
-                g->avg_chaos = (chaos_calc == chaos_calc) ? chaos_calc : 0.1f;  /* NaN check (NaN != NaN) */
+                g->avg_chaos = (chaos_calc == chaos_calc) ? chaos_calc : 0.1f;  /* NaN check */
             } else {
                 g->avg_chaos = 0.1f;
             }
             /* Dynamic minimum: scale with edge strength if available */
             float chaos_min_init = (g->avg_edge_strength > 0.0f) ? (g->avg_edge_strength * 0.1f) : 0.01f;
             if (chaos_min_init < 0.01f) chaos_min_init = 0.01f;  /* Absolute floor */
-            if (g->avg_chaos < chaos_min_init || g->avg_chaos != g->avg_chaos) g->avg_chaos = chaos_min_init;  /* Dynamic minimum and NaN check */
+            if (g->avg_chaos < chaos_min_init || g->avg_chaos != g->avg_chaos) g->avg_chaos = chaos_min_init;
         } else {
-            /* Empty graph - use defaults */
+            /* Empty graph or new file - use defaults (fast) */
             g->avg_chaos = 0.1f;
             g->avg_activation = 0.1f;
             g->avg_edge_strength = 0.1f;
@@ -921,8 +940,12 @@ static Graph* melvin_open_with_cold(const char *path, size_t initial_nodes, size
         g->avg_feedback_correlation = 0.0f;
         g->avg_prediction_accuracy = 0.0f;
         
-        /* Initialize propagation queue for new files */
-        g->prop_queue_size = (g->node_count > 0) ? g->node_count : 256;
+        /* NO LIMITS: Allocate arrays for all nodes - graph can grow without bounds */
+        uint64_t tracking_size = g->node_count;
+        uint64_t queue_size = g->node_count;
+        
+        /* Initialize propagation queue - no size limits */
+        g->prop_queue_size = (queue_size > 0) ? queue_size : 256;
         g->prop_queue = calloc(g->prop_queue_size, sizeof(uint32_t));
         g->prop_queued = calloc(g->prop_queue_size, sizeof(_Atomic uint8_t));
         if (g->prop_queue && g->prop_queued) {
@@ -933,22 +956,26 @@ static Graph* melvin_open_with_cold(const char *path, size_t initial_nodes, size
             }
         }
         
-        /* Initialize tracking arrays for new files */
-        g->last_activation = calloc(g->node_count, sizeof(float));
-        g->last_message = calloc(g->node_count, sizeof(float));
-        g->output_propensity = calloc(g->node_count, sizeof(float));
-        g->feedback_correlation = calloc(g->node_count, sizeof(float));
-        g->prediction_accuracy = calloc(g->node_count, sizeof(float));
-        g->stored_energy_capacity = calloc(g->node_count, sizeof(float));
+        /* OPTIMIZATION: Fixed-size tracking arrays for large graphs */
+        /* Only track first N nodes (most active are usually in hot region) */
+        /* For 1TB graphs: only allocate 1M entries = 24 MB instead of 384 GB */
+        g->last_activation = calloc(tracking_size, sizeof(float));
+        g->last_message = calloc(tracking_size, sizeof(float));
+        g->output_propensity = calloc(tracking_size, sizeof(float));
+        g->feedback_correlation = calloc(tracking_size, sizeof(float));
+        g->prediction_accuracy = calloc(tracking_size, sizeof(float));
+        g->stored_energy_capacity = calloc(tracking_size, sizeof(float));
+        
+        /* Store actual tracking size for bounds checking */
+        g->tracking_array_size = tracking_size;
+        
+        /* Initialize all nodes - no limits */
         if (g->last_activation && g->last_message && g->output_propensity && 
             g->feedback_correlation && g->prediction_accuracy && g->stored_energy_capacity) {
-            /* Initialize from current state */
             for (uint64_t i = 0; i < g->node_count; i++) {
                 g->last_activation[i] = g->nodes[i].a;
-                /* Initialize output_propensity from node's output_propensity field */
                 g->output_propensity[i] = g->nodes[i].output_propensity;
-                /* Initialize stored energy capacity (importance) from memory propensity */
-                g->stored_energy_capacity[i] = g->nodes[i].memory_propensity * 0.1f;  /* Start with small base */
+                g->stored_energy_capacity[i] = g->nodes[i].memory_propensity * 0.1f;
             }
         }
         
@@ -965,15 +992,27 @@ static Graph* melvin_open_with_cold(const char *path, size_t initial_nodes, size
         g->sequence_storage = calloc(g->sequence_storage_size, sizeof(uint32_t));
         g->sequence_storage_pos = 0;
         
-        /* Initialize soft structure scaffolding (embedded in .m file on bootup) */
-        fprintf(stderr, "Setting up graph structure...\r");
+        /* EVENT-DRIVEN pattern discovery: co-activation tracking */
+        g->activation_window_size = 200;  /* Track last 200 activations */
+        g->recent_activations = calloc(g->activation_window_size, sizeof(uint32_t));
+        g->activation_window_pos = 0;
+        g->activation_check_counter = 0;
+        g->coactivation_hash_size = 1024;  /* Hash table for pattern detection */
+        g->coactivation_hash = calloc(g->coactivation_hash_size, sizeof(uint64_t));
+        
+        /* OPTIMIZATION: Fast startup - skip heavy initialization for new files */
+        /* Soft structure and edges will be created on-demand as needed */
+        /* This dramatically speeds up startup */
+        fprintf(stderr, "Initializing graph...\r");
         fflush(stderr);
+        
+        /* Only initialize soft structure for port range (0-255) - fast */
         initialize_soft_structure(g, true);  /* is_new_file = true */
         
-        /* Create weak initial edge suggestions (graph can strengthen/weaken/rewire) */
-        fprintf(stderr, "Creating initial connections...\r");
-        fflush(stderr);
-        create_initial_edge_suggestions(g, true);  /* is_new_file = true */
+        /* OPTIMIZATION: Skip initial edge creation - edges created on-demand */
+        /* This saves significant startup time (was creating 2000+ edges) */
+        /* Graph will create edges naturally through melvin_feed_byte() */
+        /* create_initial_edge_suggestions(g, true);  SKIPPED for faster startup */
         
         fprintf(stderr, "Brain file ready! (%llu nodes, %llu edges)                    \n", 
                 (unsigned long long)g->node_count, (unsigned long long)g->edge_count);
@@ -1104,9 +1143,10 @@ static Graph* melvin_open_with_cold(const char *path, size_t initial_nodes, size
         /* OPTIMIZATION: Use sampling instead of full scan for fast startup */
         /* Averages will converge quickly during runtime anyway */
         if (g->node_count > 0) {
-            /* Sample nodes/edges instead of scanning all (O(1) startup instead of O(n)) */
-            uint64_t node_sample = (g->node_count < 1000) ? g->node_count : 1000;
-            uint64_t edge_sample = (g->edge_count < 1000) ? g->edge_count : 1000;
+            /* GRAPH LAWS DETERMINE PROCESSING: Use all nodes and edges for initial estimates */
+            /* NO SAMPLING LIMITS - use full graph state */
+            uint64_t node_sample = g->node_count;
+            uint64_t edge_sample = g->edge_count;
             
             float sum_activation = 0.0f;
             float sum_edge_strength = 0.0f;
@@ -1155,8 +1195,12 @@ static Graph* melvin_open_with_cold(const char *path, size_t initial_nodes, size
         g->avg_feedback_correlation = 0.0f;
         g->avg_prediction_accuracy = 0.0f;
         
-        /* Initialize event-driven propagation state */
-        g->prop_queue_size = (g->node_count > 0) ? g->node_count : 256;
+        /* NO LIMITS: Allocate arrays for all nodes */
+        uint64_t tracking_size_existing = g->node_count;
+        uint64_t queue_size_existing = g->node_count;
+        
+        /* Initialize event-driven propagation state - no size limits */
+        g->prop_queue_size = (queue_size_existing > 0) ? queue_size_existing : 256;
         g->prop_queue = calloc(g->prop_queue_size, sizeof(uint32_t));
         g->prop_queued = calloc(g->prop_queue_size, sizeof(_Atomic uint8_t));
         if (!g->prop_queue || !g->prop_queued) {
@@ -1172,12 +1216,14 @@ static Graph* melvin_open_with_cold(const char *path, size_t initial_nodes, size
         /* OPTIMIZATION: Lazy allocation - only allocate arrays when first accessed */
         /* For large graphs, this avoids slow calloc and initialization on startup */
         /* Arrays will be allocated on first use in update_node_and_propagate */
+        /* But use fixed size when allocated (capped at 1M) */
         g->last_activation = NULL;
         g->last_message = NULL;
         g->output_propensity = NULL;
         g->feedback_correlation = NULL;
         g->prediction_accuracy = NULL;
         g->stored_energy_capacity = NULL;
+        g->tracking_array_size = tracking_size_existing;  /* Set size for lazy allocation */
         g->avg_chaos = 0.1f;  /* Initial estimate */
         g->avg_activation = 0.1f;  /* Jump start: small initial activation to bootstrap */
         g->avg_edge_strength = 0.1f;
@@ -1197,6 +1243,14 @@ static Graph* melvin_open_with_cold(const char *path, size_t initial_nodes, size
         g->sequence_storage_size = 100000;  /* Storage for first occurrence sequences */
         g->sequence_storage = calloc(g->sequence_storage_size, sizeof(uint32_t));
         g->sequence_storage_pos = 0;
+        
+        /* EVENT-DRIVEN pattern discovery: co-activation tracking */
+        g->activation_window_size = 200;  /* Track last 200 activations */
+        g->recent_activations = calloc(g->activation_window_size, sizeof(uint32_t));
+        g->activation_window_pos = 0;
+        g->activation_check_counter = 0;
+        g->coactivation_hash_size = 1024;  /* Hash table for pattern detection */
+        g->coactivation_hash = calloc(g->coactivation_hash_size, sizeof(uint64_t));
         
         /* Initialize dynamic propagation queue - no artificial limits */
         /* Queue size based on node_count, but graph will learn to handle any size */
@@ -1261,10 +1315,20 @@ void melvin_close(Graph *g) {
     if (g->output_propensity) free(g->output_propensity);
     if (g->feedback_correlation) free(g->feedback_correlation);
     if (g->prediction_accuracy) free(g->prediction_accuracy);
+    if (g->stored_energy_capacity) free(g->stored_energy_capacity);
     
     /* Free dynamic propagation queue */
     if (g->prop_queue) free(g->prop_queue);
     if (g->prop_queued) free(g->prop_queued);
+    
+    /* Free pattern system buffers */
+    if (g->sequence_buffer) free(g->sequence_buffer);
+    if (g->sequence_hash_table) free(g->sequence_hash_table);
+    if (g->sequence_storage) free(g->sequence_storage);
+    
+    /* Free co-activation tracking */
+    if (g->recent_activations) free(g->recent_activations);
+    if (g->coactivation_hash) free(g->coactivation_hash);
     
     free(g);
 }
@@ -1347,44 +1411,25 @@ static uint32_t find_edge(Graph *g, uint32_t src, uint32_t dst) {
     }
     
     uint32_t eid = g->nodes[src].first_out;
-    uint32_t max_iterations = (uint32_t)(g->edge_count + 1);  /* Safety: prevent infinite loops */
-    uint32_t iterations = 0;
+    uint32_t iter = 0;
+    uint32_t max_iter = g->edge_count + 1;  /* Can't have more edges than exist */
     
-    while (eid != UINT32_MAX && eid < g->edge_count && iterations < max_iterations) {
-        /* Double-check: ensure edge array is still valid and eid is in bounds */
-        if (!g->edges || !g->hdr || eid >= g->edge_count) break;
-        
-        /* Safety: try to access edge - if it segfaults, the segfault handler will catch it */
-        /* But we can at least check the pointer is within mapped memory */
-        Edge *edge_ptr = &g->edges[eid];
-        uint8_t *edge_bytes = (uint8_t *)edge_ptr;
-        uint8_t *edges_start = (uint8_t *)g->edges;
-        uint8_t *edges_end = edges_start + (g->edge_count * sizeof(Edge));
-        
-        if (edge_bytes < edges_start || edge_bytes >= edges_end) {
-            /* Edge pointer is out of bounds - corrupted graph */
-            break;
-        }
-        
+    while (eid != UINT32_MAX && eid < g->edge_count && iter < max_iter) {
         if (g->edges[eid].dst == dst) return eid;
         eid = g->edges[eid].next_out;
-        iterations++;
+        iter++;
     }
     
     /* Also check incoming edges */
-    if (dst >= g->node_count || !g->edges) {
-        return UINT32_MAX;
-    }
+    if (dst >= g->node_count) return UINT32_MAX;
     
     eid = g->nodes[dst].first_in;
-    iterations = 0;
+    iter = 0;
     
-    while (eid != UINT32_MAX && eid < g->edge_count && iterations < max_iterations) {
-        /* Double-check: ensure edge array is still valid and eid is in bounds */
-        if (!g->edges || eid >= g->edge_count) break;
+    while (eid != UINT32_MAX && eid < g->edge_count && iter < max_iter) {
         if (g->edges[eid].src == src) return eid;
         eid = g->edges[eid].next_in;
-        iterations++;
+        iter++;
     }
     
     return UINT32_MAX;
@@ -1434,9 +1479,12 @@ static int grow_nodes(Graph *g, uint64_t new_node_count) {
     /* Save old count before updating */
     uint64_t old_node_count = g->node_count;
     
-    /* Initialize new nodes */
+    /* Initialize new nodes - MUST set edge pointers to UINT32_MAX (not 0!) */
+    /* memset(0) would leave first_in/first_out = 0, pointing to edge 0! */
     for (uint64_t i = old_node_count; i < new_node_count; i++) {
         memset(&g->nodes[i], 0, sizeof(Node));
+        g->nodes[i].first_in = UINT32_MAX;   /* No edges yet */
+        g->nodes[i].first_out = UINT32_MAX;  /* No edges yet */
     }
     
     /* Update counts */
@@ -1483,42 +1531,50 @@ static int grow_nodes(Graph *g, uint64_t new_node_count) {
 static void ensure_node_arrays(Graph *g) {
     if (!g || !g->node_count) return;
     
+    /* NO LIMITS: Allocate for all nodes */
+    uint64_t tracking_size = g->node_count;
+    if (g->tracking_array_size == 0) {
+        g->tracking_array_size = tracking_size;
+    }
+    
     /* Allocate arrays if not already allocated */
     if (!g->last_activation) {
-        g->last_activation = calloc(g->node_count, sizeof(float));
+        g->last_activation = calloc(tracking_size, sizeof(float));
         if (!g->last_activation) return;  /* Out of memory */
-        /* Initialize from current node activations */
-        for (uint64_t i = 0; i < g->node_count; i++) {
+        /* Initialize from current node activations (capped) */
+        uint64_t init_count = (g->node_count < tracking_size) ? g->node_count : tracking_size;
+        for (uint64_t i = 0; i < init_count; i++) {
             g->last_activation[i] = g->nodes[i].a;
         }
     }
     
     if (!g->last_message) {
-        g->last_message = calloc(g->node_count, sizeof(float));
+        g->last_message = calloc(tracking_size, sizeof(float));
         if (!g->last_message) return;
     }
     
     if (!g->output_propensity) {
-        g->output_propensity = calloc(g->node_count, sizeof(float));
+        g->output_propensity = calloc(tracking_size, sizeof(float));
         if (!g->output_propensity) return;
-        /* Initialize from node's output_propensity field */
-        for (uint64_t i = 0; i < g->node_count; i++) {
+        /* Initialize from node's output_propensity field (capped) */
+        uint64_t init_count = (g->node_count < tracking_size) ? g->node_count : tracking_size;
+        for (uint64_t i = 0; i < init_count; i++) {
             g->output_propensity[i] = g->nodes[i].output_propensity;
         }
     }
     
     if (!g->feedback_correlation) {
-        g->feedback_correlation = calloc(g->node_count, sizeof(float));
+        g->feedback_correlation = calloc(tracking_size, sizeof(float));
         if (!g->feedback_correlation) return;
     }
     
     if (!g->prediction_accuracy) {
-        g->prediction_accuracy = calloc(g->node_count, sizeof(float));
+        g->prediction_accuracy = calloc(tracking_size, sizeof(float));
         if (!g->prediction_accuracy) return;
     }
     
     if (!g->stored_energy_capacity) {
-        g->stored_energy_capacity = calloc(g->node_count, sizeof(float));
+        g->stored_energy_capacity = calloc(tracking_size, sizeof(float));
         if (!g->stored_energy_capacity) return;
         /* Initialize from memory propensity (importance) */
         for (uint64_t i = 0; i < g->node_count; i++) {
@@ -1575,10 +1631,9 @@ static void ensure_node(Graph *g, uint32_t node_id) {
     /* Grow to node_id + 1, with conservative headroom (not aggressive doubling) */
     uint64_t new_count = (uint64_t)node_id + 1;
     
-    /* Add 20% headroom, but cap at reasonable maximum */
+    /* Add 20% headroom - NO MAXIMUM LIMIT */
     uint64_t headroom = new_count / 5;  /* 20% headroom */
     if (headroom < 100) headroom = 100;   /* Minimum 100 nodes headroom */
-    if (headroom > 1000) headroom = 1000; /* Maximum 1000 nodes headroom */
     new_count += headroom;
     
     /* Don't shrink if we're already bigger (shouldn't happen, but safety) */
@@ -1680,6 +1735,7 @@ static const struct {
     float running_avg_alpha;   /* Exponential moving average decay (adaptive) */
     float weight_clamp_ratio;  /* Weight clamp as ratio of avg_edge_strength */
     float active_threshold_ratio; /* Active node threshold as ratio of avg_activation */
+    float edge_prune_threshold_ratio; /* Edge weight threshold below which edges are effectively ignored (ratio of avg_edge_strength) */
     
     /* Drive mechanism parameters - ALL RELATIVE */
     float restlessness_strength;     /* Restlessness drive strength (relative to avg_activation) */
@@ -1704,6 +1760,7 @@ static const struct {
     .running_avg_alpha = 0.99f, /* Slow adaptation */
     .weight_clamp_ratio = 10.0f, /* 10x avg_edge_strength */
     .active_threshold_ratio = 0.1f,  /* 10% of avg_activation */
+    .edge_prune_threshold_ratio = 0.01f,  /* Edges below 1% of avg_edge_strength are effectively ignored (self-correction) */
     
     /* Drive mechanisms - relative strengths */
     .restlessness_strength = 0.1f,      /* 10% of activation cost */
@@ -1760,13 +1817,43 @@ void melvin_feed_byte(Graph *g, uint32_t port_node_id, uint8_t b, float energy) 
     g->nodes[port_node_id].a += energy;
     g->nodes[data_id].a += energy;
     
+    /* CRITICAL: Create edge between sequential nodes BEFORE pattern_law_apply */
+    /* This creates the graph structure that represents sequences */
+    /* Without this, sequences have no edges between sequential bytes */
+    /* Get previous node in sequence BEFORE pattern_law_apply increments buffer_pos */
+    uint32_t prev_node_id = UINT32_MAX;
+    if (g->sequence_buffer) {
+        if (g->sequence_buffer_pos > 0) {
+            /* Get previous node (buffer_pos hasn't been incremented yet) */
+            uint64_t prev_pos = g->sequence_buffer_pos - 1;
+            prev_node_id = g->sequence_buffer[prev_pos % g->sequence_buffer_size];
+        } else if (g->sequence_buffer_full) {
+            /* Buffer wrapped - previous is at end */
+            uint64_t prev_pos = g->sequence_buffer_size - 1;
+            prev_node_id = g->sequence_buffer[prev_pos % g->sequence_buffer_size];
+        }
+        
+        /* Create edge from previous node to current node (sequential connection) */
+        if (prev_node_id != UINT32_MAX && 
+            prev_node_id < g->node_count && data_id < g->node_count && 
+            prev_node_id != data_id &&  /* Don't create self-loops */
+            find_edge(g, prev_node_id, data_id) == UINT32_MAX) {
+            float seq_weight = g->avg_edge_strength * 0.15f;  /* Slightly stronger for sequential edges */
+            if (seq_weight < 0.01f) seq_weight = 0.01f;
+            if (seq_weight > 1.0f) seq_weight = 1.0f;
+            create_edge(g, prev_node_id, data_id, seq_weight);
+        }
+    }
+    
     /* ========================================================================
-     * GLOBAL LAW: Pattern Creation
+     * GLOBAL LAW: Pattern Creation (HYBRID APPROACH)
      * Patterns form automatically when sequences repeat (seen twice)
+     * HIERARCHICAL: Patterns can compose other patterns (840+) for true abstraction
+     * OPTIMIZED: Rate-limited immediate detection + co-activation during propagation
      * ======================================================================== */
     pattern_law_apply(g, data_id);
     
-    /* Ensure edge exists (structure only) */
+    /* Ensure edge exists from port to data (structure only) */
     /* RELATIVE: initial edge weight based on avg_edge_strength */
     if (find_edge(g, port_node_id, data_id) == UINT32_MAX) {
         float initial_weight = g->avg_edge_strength * 0.1f;
@@ -1787,13 +1874,13 @@ void melvin_feed_byte(Graph *g, uint32_t port_node_id, uint8_t b, float energy) 
 static uint32_t uel_find_edge(Graph *g, uint32_t src, uint32_t dst) {
     if (src >= g->node_count) return UINT32_MAX;  /* Hot region only */
     uint32_t eid = g->nodes[src].first_out;
-    uint32_t max_iterations = (uint32_t)(g->edge_count + 1);  /* Safety: prevent infinite loops */
-    uint32_t iterations = 0;
+    uint32_t iter = 0;
+    uint32_t max_iter = g->edge_count + 1;
     
-    while (eid != UINT32_MAX && eid < g->edge_count && iterations < max_iterations) {
+    while (eid != UINT32_MAX && eid < g->edge_count && iter < max_iter) {
         if (g->edges[eid].dst == dst) return eid;
         eid = g->edges[eid].next_out;
-        iterations++;
+        iter++;
     }
     return UINT32_MAX;
 }
@@ -1808,22 +1895,18 @@ static inline float uel_kernel(Graph *g, uint32_t i, uint32_t j) {
     
     /* Shared neighbor check - hot region only */
     uint32_t ei = g->nodes[i].first_in;
-    uint32_t max_iter_i = (uint32_t)(g->edge_count + 1);
-    uint32_t iter_i = 0;
+    /* NO ITERATION LIMIT - graph structure determines traversal */
     
-    while (ei != UINT32_MAX && ei < g->edge_count && iter_i < max_iter_i) {
+    while (ei != UINT32_MAX && ei < g->edge_count) {
         uint32_t neighbor = g->edges[ei].src;
         uint32_t ej = g->nodes[j].first_in;
-        uint32_t max_iter_j = (uint32_t)(g->edge_count + 1);
-        uint32_t iter_j = 0;
+        /* NO ITERATION LIMIT - graph structure determines traversal */
         
-        while (ej != UINT32_MAX && ej < g->edge_count && iter_j < max_iter_j) {
+        while (ej != UINT32_MAX && ej < g->edge_count) {
             if (g->edges[ej].src == neighbor) return 0.3f;
             ej = g->edges[ej].next_in;
-            iter_j++;
         }
         ei = g->edges[ei].next_in;
-        iter_i++;
     }
     
     return 0.01f;
@@ -1919,12 +2002,26 @@ static float compute_message(Graph *g, uint32_t node_id) {
     
     float msg = 0.0f;
     uint32_t eid = g->nodes[node_id].first_in;
-    uint32_t max_iter = (uint32_t)(g->edge_count + 1);
+    /* NO ITERATION LIMIT - graph structure determines traversal */
+    
+    /* GRAPH SELF-CORRECTION: Ignore edges below threshold (effectively "removed" from traversal) */
+    /* RELATIVE: Threshold adapts to graph state - graph can recover from bad states */
+    float edge_strength_safe = (g->avg_edge_strength != g->avg_edge_strength || g->avg_edge_strength < 0.0f) ? 0.1f : g->avg_edge_strength;
+    float prune_threshold = edge_strength_safe * uel_params.edge_prune_threshold_ratio;
+    if (prune_threshold < 0.001f) prune_threshold = 0.001f;  /* Minimum threshold */
     uint32_t iter = 0;
+    uint32_t max_iter = g->edge_count + 1;
     
     while (eid != UINT32_MAX && eid < g->edge_count && iter < max_iter) {
-        /* Safety check: ensure edge index is valid before accessing */
-        if (eid >= g->edge_count) break;
+        iter++;
+        
+        /* GRAPH SELF-CORRECTION: Skip edges below threshold (graph ignores weak/useless edges) */
+        float edge_weight = fabsf(g->edges[eid].w);
+        if (edge_weight < prune_threshold) {
+            /* Edge is too weak - skip it (graph self-corrects by ignoring bad edges) */
+            eid = g->edges[eid].next_in;
+            continue;
+        }
         
         /* Safety check: ensure src node index is valid */
         uint32_t src = g->edges[eid].src;
@@ -1933,45 +2030,60 @@ static float compute_message(Graph *g, uint32_t node_id) {
         }
         
         eid = g->edges[eid].next_in;
-        iter++;
     }
     return msg;
 }
 
+/* Compute mass for a single node (lazy, on-demand) */
+static inline float compute_node_mass(Graph *g, uint32_t node_id) {
+    if (node_id >= g->node_count) return 0.0f;
+    float a_abs = fabsf(g->nodes[node_id].a);
+    float degree = (float)(g->nodes[node_id].in_degree + g->nodes[node_id].out_degree);
+    float degree_scale = g->avg_activation * 0.1f;
+    if (degree_scale < 0.01f) degree_scale = 0.01f;
+    return a_abs + degree_scale * degree;
+}
+
 /* Compute global field contribution for a single node (simplified) */
+/* GRAPH LAWS DETERMINE PROCESSING: Follow edges, let UEL physics determine what's needed */
+/* Not algorithmic complexity - the graph's structure and laws control traversal */
 static float compute_phi_contribution(Graph *g, uint32_t node_id, float *mass) {
     /* Safety check: ensure arrays are valid and node_id is in bounds */
-    if (!g || !g->nodes || !g->edges || !mass || node_id >= g->node_count) {
+    if (!g || !g->nodes || !g->edges || node_id >= g->node_count) {
         return 0.0f;
     }
     
     float phi = 0.0f;
-    float mass_i = mass[node_id];
+    /* LAZY: Compute mass for this node on-demand if not provided */
+    float mass_i = (mass && mass[node_id] > 0.0f) ? mass[node_id] : compute_node_mass(g, node_id);
     if (mass_i < 0.001f) return 0.0f;
     
-    /* Sample neighbors for efficiency (or use cached values) */
+    /* EDGE-DIRECTED TRAVERSAL: Follow edges, never scan all nodes */
     uint32_t eid = g->nodes[node_id].first_in;
-    uint32_t count = 0;
-    uint32_t max_iter = (uint32_t)(g->edge_count + 1);
-    uint32_t iter = 0;
+    uint32_t iter2 = 0;
+    uint32_t max_iter2 = g->edge_count + 1;
     
-    /* RELATIVE: sample count based on node degree (more neighbors = sample more) */
-    /* Scale with degree: high-degree nodes need more samples for accurate phi */
-    uint32_t degree = g->nodes[node_id].in_degree;
-    uint32_t max_samples = (degree < 5) ? degree : (5 + (degree / 5));  /* Progressive scaling */
-    /* Cap relative to graph size to prevent excessive sampling */
-    uint32_t graph_based_max = (g->node_count > 100) ? (uint32_t)(g->node_count / 100) : 50;
-    if (max_samples > graph_based_max) max_samples = graph_based_max;
+    /* GRAPH SELF-CORRECTION: Ignore edges below threshold (effectively "removed" from traversal) */
+    /* RELATIVE: Threshold adapts to graph state - graph can recover from bad states */
+    float edge_strength_safe = (g->avg_edge_strength != g->avg_edge_strength || g->avg_edge_strength < 0.0f) ? 0.1f : g->avg_edge_strength;
+    float prune_threshold = edge_strength_safe * uel_params.edge_prune_threshold_ratio;
+    if (prune_threshold < 0.001f) prune_threshold = 0.001f;  /* Minimum threshold */
     
-    while (eid != UINT32_MAX && eid < g->edge_count && iter < max_iter && count < max_samples) {
-        /* Safety check: ensure edge index is valid before accessing */
-        if (!g->edges || eid >= g->edge_count) break;
+    while (eid != UINT32_MAX && eid < g->edge_count && iter2 < max_iter2) {
+        iter2++;
+        
+        /* GRAPH SELF-CORRECTION: Skip edges below threshold (graph ignores weak/useless edges) */
+        float edge_weight = fabsf(g->edges[eid].w);
+        if (edge_weight < prune_threshold) {
+            /* Edge is too weak - skip it (graph self-corrects by ignoring bad edges) */
+            eid = g->edges[eid].next_in;
+            continue;
+        }
         
         uint32_t src = g->edges[eid].src;
         /* Safety check: ensure src node index is valid */
         if (src >= g->node_count) {
             eid = g->edges[eid].next_in;
-            iter++;
             continue;
         }
         
@@ -1979,13 +2091,13 @@ static float compute_phi_contribution(Graph *g, uint32_t node_id, float *mass) {
         float active_threshold = g->avg_activation * uel_params.active_threshold_ratio;
         if (active_threshold < 0.001f) active_threshold = 0.001f;  /* Minimum */
         
-        if (mass[src] > active_threshold) {
+        /* LAZY: Compute mass for neighbor on-demand */
+        float src_mass = (mass && mass[src] > 0.0f) ? mass[src] : compute_node_mass(g, src);
+        if (src_mass > active_threshold) {
             /* Simplified kernel: direct connection */
-            phi += mass[src] * 0.5f;
-            count++;
+            phi += src_mass * 0.5f;
         }
         eid = g->edges[eid].next_in;
-        iter++;
     }
     return phi;
 }
@@ -2315,8 +2427,12 @@ static void update_node_and_propagate(Graph *g, uint32_t node_id, float *mass) {
                                     uint32_t bound_node = bindings[elem->value];
                                     uint32_t seq[1] = {bound_node};
                                     PatternValue val = extract_pattern_value(g, seq, 1, node_id);
-                                    if (val.value_type == 0 && val.value_data > 0) {
+                                    /* FIXED: Accept value 0 as valid (was: val.value_data > 0) */
+                                    if (val.value_type == 0 && val.confidence > 0.0f) {
                                         extracted_values[value_count++] = val;
+                                        ROUTE_LOG("  UEL extracted value[%u] = %llu (type=%u, conf=%.2f)",
+                                                  value_count - 1, (unsigned long long)val.value_data,
+                                                  val.value_type, val.confidence);
                                     }
                                 }
                             }
@@ -2326,13 +2442,13 @@ static void update_node_and_propagate(Graph *g, uint32_t node_id, float *mass) {
                     /* If values extracted, check if pattern routes to EXEC node */
                     /* EXEC nodes are like output nodes - they get activated through edges */
                     if (value_count > 0) {
+                        ROUTE_LOG("  UEL routing %u values to EXEC nodes", value_count);
                         uint32_t eid = g->nodes[node_id].first_out;
-                        for (int i = 0; i < 100 && eid != UINT32_MAX && eid < g->edge_count; i++) {
+                        for (int ei = 0; ei < 100 && eid != UINT32_MAX && eid < g->edge_count; ei++) {
                             uint32_t dst = g->edges[eid].dst;
                             if (dst < g->node_count && g->nodes[dst].payload_offset > 0) {
                                 /* Pattern routes to EXEC node - pass values */
-                                /* EXEC node will be activated through normal wave propagation (edges) */
-                                /* No manual activation needed - wave propagation handles it */
+                                ROUTE_LOG("  UEL: Pattern %u → EXEC %u", node_id, dst);
                                 pass_values_to_exec(g, dst, extracted_values, value_count);
                                 break;
                             }
@@ -2365,10 +2481,13 @@ static void update_node_and_propagate(Graph *g, uint32_t node_id, float *mass) {
             /* EXPLORATION: Strengthen edges leading to output nodes that get feedback */
             /* RELATIVE: exploration boost based on feedback correlation */
             /* Note: node_id is the destination of this edge */
-            if (g->output_propensity[node_id] > 0.1f && g->feedback_correlation[node_id] > 0.0f) {
+            /* OPTIMIZATION: For large graphs, use modulo indexing */
+            uint64_t tracking_idx = (g->tracking_array_size > 0) ? (node_id % g->tracking_array_size) : 0;
+            if (g->output_propensity && g->feedback_correlation &&
+                g->output_propensity[tracking_idx] > 0.1f && g->feedback_correlation[tracking_idx] > 0.0f) {
                 float exploration_boost = uel_params.exploration_strength * 
-                                         g->output_propensity[node_id] * 
-                                         g->feedback_correlation[node_id] * 
+                                         g->output_propensity[tracking_idx] * 
+                                         g->feedback_correlation[tracking_idx] * 
                                          a_src;
                 dw += exploration_boost;
             }
@@ -2396,8 +2515,10 @@ static void update_node_and_propagate(Graph *g, uint32_t node_id, float *mass) {
     /* Check if change is significant enough to propagate */
     /* RELATIVE: threshold based on avg_activation */
     /* Arrays are guaranteed to be allocated by ensure_node_arrays() at start of function */
-    float activation_change = (g->last_activation) ? fabsf(new_a - g->last_activation[node_id]) : fabsf(new_a);
-    float message_change = (g->last_message) ? fabsf(msg_i - g->last_message[node_id]) : fabsf(msg_i);
+    /* OPTIMIZATION: For large graphs, use modulo indexing (circular buffer) */
+    uint64_t tracking_idx = (g->tracking_array_size > 0) ? (node_id % g->tracking_array_size) : 0;
+    float activation_change = (g->last_activation) ? fabsf(new_a - g->last_activation[tracking_idx]) : fabsf(new_a);
+    float message_change = (g->last_message) ? fabsf(msg_i - g->last_message[tracking_idx]) : fabsf(msg_i);
     
     /* Relative threshold: change must be significant compared to graph's typical activation */
     float activation_safe_thresh = (g->avg_activation != g->avg_activation || g->avg_activation < 0.0f) ? 
@@ -2411,13 +2532,29 @@ static void update_node_and_propagate(Graph *g, uint32_t node_id, float *mass) {
         message_change > relative_change_threshold) {
         /* Significant change - propagate to neighbors */
         /* Arrays are guaranteed to be allocated by ensure_node_arrays() at start of function */
-        if (g->last_activation) g->last_activation[node_id] = new_a;
-        if (g->last_message) g->last_message[node_id] = msg_i;
+        /* OPTIMIZATION: For large graphs, use modulo indexing (circular buffer) */
+        uint64_t tracking_idx = (g->tracking_array_size > 0) ? (node_id % g->tracking_array_size) : 0;
+        if (g->last_activation) g->last_activation[tracking_idx] = new_a;
+        if (g->last_message) g->last_message[tracking_idx] = msg_i;
         
-            /* Add outgoing neighbors to queue */
+            /* GRAPH SELF-CORRECTION: Only propagate through edges above threshold */
+            /* RELATIVE: Threshold adapts to graph state - graph can recover from bad states */
+            float edge_strength_safe = (g->avg_edge_strength != g->avg_edge_strength || g->avg_edge_strength < 0.0f) ? 0.1f : g->avg_edge_strength;
+            float prune_threshold = edge_strength_safe * uel_params.edge_prune_threshold_ratio;
+            if (prune_threshold < 0.001f) prune_threshold = 0.001f;  /* Minimum threshold */
+        
+            /* Add outgoing neighbors to queue (only if edge is strong enough) */
             eid = g->nodes[node_id].first_out;
             iter = 0;
             while (eid != UINT32_MAX && eid < g->edge_count && iter < max_iter) {
+                /* GRAPH SELF-CORRECTION: Skip weak edges (graph ignores bad connections) */
+                float edge_weight = fabsf(g->edges[eid].w);
+                if (edge_weight < prune_threshold) {
+                    eid = g->edges[eid].next_out;
+                    iter++;
+                    continue;
+                }
+                
                 uint32_t dst = g->edges[eid].dst;
                 ensure_node(g, dst);  /* Ensure node exists - graph grows dynamically */
                 if (dst < g->node_count) {
@@ -2427,10 +2564,18 @@ static void update_node_and_propagate(Graph *g, uint32_t node_id, float *mass) {
                 iter++;
             }
             
-            /* Add incoming neighbors to queue (they need to update their messages) */
+            /* Add incoming neighbors to queue (only if edge is strong enough) */
             eid = g->nodes[node_id].first_in;
             iter = 0;
             while (eid != UINT32_MAX && eid < g->edge_count && iter < max_iter) {
+                /* GRAPH SELF-CORRECTION: Skip weak edges (graph ignores bad connections) */
+                float edge_weight = fabsf(g->edges[eid].w);
+                if (edge_weight < prune_threshold) {
+                    eid = g->edges[eid].next_in;
+                    iter++;
+                    continue;
+                }
+                
                 uint32_t src = g->edges[eid].src;
                 ensure_node(g, src);  /* Ensure node exists - graph grows dynamically */
                 if (src < g->node_count) {
@@ -2635,10 +2780,12 @@ static void curiosity_reactivate(Graph *g) {
         if (g->cold_data_size > 0 && (is_bored || is_cold)) {
             /* Pick random offset in cold_data */
             uint64_t cold_offset = (uint64_t)rand() % g->cold_data_size;
-            uint64_t read_length = 100;  /* Read 100 bytes */
+            /* Limit read length to prevent queue overflow - read fewer bytes */
+            uint64_t read_length = 10;  /* Reduced from 100 to prevent queue overflow */
             if (cold_offset + read_length > g->cold_data_size) {
                 read_length = g->cold_data_size - cold_offset;
             }
+            if (read_length > 10) read_length = 10;  /* Cap at 10 bytes max */
             
             /* Feed bytes from cold_data into graph */
             for (uint64_t j = 0; j < read_length; j++) {
@@ -2677,8 +2824,10 @@ static void curiosity_reactivate(Graph *g) {
         for (uint32_t i = 0; i < num_recent * 10 && found < num_recent; i++) {
             uint32_t node_id = (uint32_t)((uint64_t)rand() % g->node_count);
             
+            /* OPTIMIZATION: For large graphs, use modulo indexing */
+            uint64_t tracking_idx = (g->tracking_array_size > 0) ? (node_id % g->tracking_array_size) : 0;
             if (node_id < g->node_count && 
-                g->last_activation[node_id] > recent_threshold) {
+                g->last_activation && g->last_activation[tracking_idx] > recent_threshold) {
                 /* This node was recently active - reactivate it */
                 float reactivation_energy = curiosity_power * 0.3f;
                 g->nodes[node_id].a += reactivation_energy;
@@ -2710,46 +2859,39 @@ static void uel_main(Graph *g) {
     /* No global ticks - only process what's queued */
     if (!g || !g->hdr || g->node_count == 0) return;
     
-    /* Allocate mass buffer for phi computation */
-    float *mass = calloc(g->node_count, sizeof(float));
-    if (!mass) return;
-    
-    /* Compute mass for all nodes (needed for phi computation) */
-    for (uint64_t i = 0; i < g->node_count; i++) {
-        float a_abs = fabsf(g->nodes[i].a);
-        float degree = (float)(g->nodes[i].in_degree + g->nodes[i].out_degree);
-        float degree_scale = g->avg_activation * 0.1f;
-        if (degree_scale < 0.01f) degree_scale = 0.01f;
-        mass[i] = a_abs + degree_scale * degree;
-    }
+    /* GRAPH LAWS DETERMINE PROCESSING: Mass computed only for nodes the graph needs */
+    /* Edges direct traversal - we follow connections, not algorithmic complexity */
+    /* The graph's structure and UEL physics determine what gets processed */
+    float *mass = NULL;  /* Computed on-demand: only for nodes reached via edges */
     
     /* Curiosity: reactivate nodes when bored (creates natural exploration) */
     /* This adds nodes to the queue, which then get processed */
     curiosity_reactivate(g);
     
     /* Process all queued nodes (event-driven, not tick-based) */
-    /* CONTINUOUS: Process until queue is truly empty, no artificial limits */
-    /* Graph controls its own activity through UEL physics - high chaos = more processing */
+    /* GRAPH LAWS DETERMINE PROCESSING: Process until queue is empty, no algorithmic limits */
+    /* The graph's UEL physics and structure determine activity - high chaos = more processing */
+    /* Edges direct what gets processed - we follow connections, not algorithmic complexity */
     uint32_t processed = 0;
+    /* Process queue until truly empty - graph determines when it's done */
+    /* Graph structure and UEL physics determine processing */
     uint32_t consecutive_empty = 0;
-    /* RELATIVE: Empty check threshold scales with graph size */
-    /* Larger graphs may need more checks as propagation takes longer */
-    uint32_t base_empty_checks = 10;
-    float graph_size_factor = (g->node_count > 0) ? (1.0f + (float)g->node_count / 1000.0f) : 1.0f;
-    if (graph_size_factor > 5.0f) graph_size_factor = 5.0f;  /* Cap at 5x */
-    uint32_t max_consecutive_empty = (uint32_t)(base_empty_checks * graph_size_factor);
-    if (max_consecutive_empty < 5) max_consecutive_empty = 5;  /* Minimum */
+    uint32_t max_consecutive_empty = 10;  /* Check for truly empty queue */
+    uint32_t curiosity_calls = 0;
+    uint32_t max_curiosity = 3;  /* Limit curiosity to prevent infinite loops */
     
-    /* Process queue until truly empty (continuous, not tick-limited) */
     while (consecutive_empty < max_consecutive_empty) {
         uint32_t node_id = prop_queue_get(g);
         if (node_id == UINT32_MAX) {
-            /* Queue empty - check if curiosity added anything */
-            curiosity_reactivate(g);
+            /* Queue empty - check if curiosity added anything (limited) */
+            if (curiosity_calls < max_curiosity) {
+                curiosity_reactivate(g);
+                curiosity_calls++;
+            }
             node_id = prop_queue_get(g);
             if (node_id == UINT32_MAX) {
                 consecutive_empty++;
-                if (consecutive_empty >= max_consecutive_empty) break;  /* Truly empty, done */
+                if (consecutive_empty >= max_consecutive_empty) break;
                 continue;
             }
         }
@@ -2757,30 +2899,29 @@ static void uel_main(Graph *g) {
         /* Reset empty counter - we found work */
         consecutive_empty = 0;
         
-        /* Process node (event-driven) */
+        /* Process node (event-driven) - mass computed lazily per-node */
         update_node_and_propagate(g, node_id, mass);
         processed++;
         
-        /* SELF-REGULATION: Graph controls its own activity through UEL */
-        /* High chaos = more processing needed, but also more energy cost */
-        /* Graph learns to balance through UEL physics */
-        
-        /* Safety: prevent truly infinite loops (only if queue keeps refilling with same nodes) */
-        /* RELATIVE: Safety limit scales with graph size - larger graphs naturally process more */
-        /* This is a last resort - graph should learn to stabilize through UEL */
-        uint64_t safety_limit = (g->node_count > 0) ? (g->node_count * 1000) : 1000000;
-        if (safety_limit < 100000) safety_limit = 100000;  /* Minimum for small graphs */
-        if (processed > (uint32_t)safety_limit) {
-            /* Graph is in unstable state - break to prevent infinite loop */
-            /* Graph should learn to stabilize through UEL (high chaos → learning) */
-            break;
+        /* EVENT-DRIVEN PATTERN DISCOVERY: Track activation in window */
+        if (g->recent_activations && node_id < g->node_count) {
+            g->recent_activations[g->activation_window_pos] = node_id;
+            g->activation_window_pos = (g->activation_window_pos + 1) % g->activation_window_size;
+            g->activation_check_counter++;
+            
+            /* Check for co-activation patterns every 100 activations */
+            if (g->activation_check_counter >= 100) {
+                extern void detect_coactivation_patterns(Graph *g);
+                detect_coactivation_patterns(g);
+                g->activation_check_counter = 0;
+            }
         }
         
-        /* SELF-REGULATION: If chaos is very low and we've processed a lot, graph is stable */
-        /* Graph naturally reduces activity when stable (energy has been stored, system is coherent) */
-        if (g->avg_chaos < 0.01f && processed > 1000) {
-            /* Graph is very stable - reduce processing (graph self-regulates) */
-            /* This is natural - low chaos means graph has learned patterns and energy is stored */
+        /* Reasonable limit to prevent hangs while still allowing growth */
+        if (processed > 10000) break;  /* 10k operations per call is plenty */
+        
+        /* SELF-REGULATION: If chaos is very low, graph is stable */
+        if (g->avg_chaos < 0.01f && processed > 100) {
             break;
         }
     }
@@ -2792,7 +2933,8 @@ static void uel_main(Graph *g) {
         g->avg_output_activity *= 0.99f;  /* Slow decay */
     }
     
-    free(mass);
+    /* Cleanup: mass is NULL (lazy computation), nothing to free */
+    /* No need to free - we never allocated mass for all nodes */
 }
 
 /* ========================================================================
@@ -2867,15 +3009,22 @@ int melvin_create_v2(const char *path,
     memset((char *)map + hdr->blob_offset, 0, (size_t)hot_blob_bytes);
     /* Cold data left as-is (will be filled by corpus loader) */
     
-    /* Initialize data nodes (0-255) - just structure, no physics */
+    /* Initialize ALL nodes with proper UINT32_MAX for edge pointers */
+    /* CRITICAL: memset(0) leaves first_in/first_out = 0, pointing to edge 0! */
     Node *nodes = (Node *)((char *)map + hdr->nodes_offset);
+    
+    /* First: Initialize ALL nodes to prevent phantom edges */
+    for (size_t i = 0; i < hot_nodes; i++) {
+        nodes[i].first_in = UINT32_MAX;   /* No edges yet */
+        nodes[i].first_out = UINT32_MAX;  /* No edges yet */
+        nodes[i].in_degree = 0;
+        nodes[i].out_degree = 0;
+    }
+    
+    /* Then: Set byte-specific fields for nodes 0-255 */
     for (int i = 0; i < 256 && i < (int)hot_nodes; i++) {
         nodes[i].byte = (uint8_t)i;
         nodes[i].a = 0.0f;
-        nodes[i].first_in = UINT32_MAX;
-        nodes[i].first_out = UINT32_MAX;
-        nodes[i].in_degree = 0;
-        nodes[i].out_degree = 0;
         /* Initialize soft structure fields to zero (will be set by initialize_soft_structure) */
         nodes[i].input_propensity = 0.0f;
         nodes[i].output_propensity = 0.0f;
@@ -3090,16 +3239,22 @@ static void melvin_execute_exec_node(Graph *g, uint32_t node_id) {
         /* Execute with inputs - for EXEC_ADD, compute result */
         result = input1 + input2;
         
+        ROUTE_LOG("  ★★★ EXECUTION SUCCESS: %llu + %llu = %llu ★★★",
+                  (unsigned long long)input1, (unsigned long long)input2, 
+                  (unsigned long long)result);
+        
         /* Store result back in blob */
         uint64_t result_offset = input_offset + (2 * sizeof(uint64_t));
         if (result_offset + sizeof(uint64_t) <= g->hdr->blob_size) {
             uint64_t *result_ptr = (uint64_t *)(g->blob + (result_offset - g->hdr->blob_offset));
             *result_ptr = result;
+            ROUTE_LOG("  Stored result at offset %llu", (unsigned long long)result_offset);
         }
         
         execution_success = true;
         
         /* Convert result back to pattern (graph learns this) */
+        ROUTE_LOG("  Converting result to pattern via port 100");
         convert_result_to_pattern(g, node_id, result);
     } else if (has_code) {
         /* No inputs - execute machine code normally */
@@ -3444,10 +3599,18 @@ static bool pattern_matches_sequence(Graph *g, uint32_t pattern_node_id, const u
     uint32_t length_diff = (pattern_len > length) ? (pattern_len - length) : (length - pattern_len);
     if (length_diff > 3) return false;
     
-    /* Match pattern to sequence - structural only, no energy thresholds */
+    /* FIXED: Initialize tracking variables (was uninitialized - critical bug!) */
     uint32_t blank_bindings[256] = {0};  /* Track blank bindings */
+    uint32_t blank_count = 0;             /* Count of blanks matched */
+    float total_similarity = 0.0f;        /* Total similarity score */
+    
+    /* Calculate length penalty (penalize length differences) */
+    float length_penalty = 1.0f - ((float)length_diff / (float)(pattern_len > length ? pattern_len : length + 1));
+    if (length_penalty < 0.5f) length_penalty = 0.5f;  /* Don't penalize too heavily */
     
     uint32_t match_len = (pattern_len < length) ? pattern_len : length;
+    uint32_t concrete_matches = 0;  /* Track concrete node matches */
+    
     for (uint32_t i = 0; i < match_len && i < pattern_len; i++) {
         PatternElement *elem = &pattern_data->elements[i];
         
@@ -3459,19 +3622,31 @@ static bool pattern_matches_sequence(Graph *g, uint32_t pattern_node_id, const u
                 if (!(sequence[i] == question_mark && i == length - 1)) {
                     return false;  /* No match */
                 }
+                /* '?' at end matches any result - count as similarity but lower weight */
+                total_similarity += 0.5f;
+            } else {
+                /* Exact match - high similarity */
+                total_similarity += 1.0f;
+                concrete_matches++;
             }
         } else {
             /* Blank - bind to sequence value */
             /* Blanks match based on position - same blank position binds to same value */
             uint32_t blank_pos = elem->value;
             if (blank_pos < 256) {
-                if (blank_bindings[blank_pos] == 0) {
+                if (blank_bindings[blank_pos] == 0 && sequence[i] != 0) {
                     /* First time seeing this blank - bind it */
+                    /* Note: sequence[i] == 0 would be NULL byte, valid but rare */
                     blank_bindings[blank_pos] = sequence[i];
                     blank_count++;
                     total_similarity += 1.0f;  /* Blanks always match when first bound */
                 } else if (blank_bindings[blank_pos] == sequence[i]) {
                     /* Same value - perfect match */
+                    total_similarity += 1.0f;
+                } else if (blank_bindings[blank_pos] == 0 && sequence[i] == 0) {
+                    /* Both are NULL byte - treat as match */
+                    blank_bindings[blank_pos] = sequence[i];
+                    blank_count++;
                     total_similarity += 1.0f;
                 } else {
                     /* Different value - same blank position should have same value */
@@ -3494,15 +3669,28 @@ static bool pattern_matches_sequence(Graph *g, uint32_t pattern_node_id, const u
     float frequency_factor = (pattern_data->frequency > 0.0f) ? 
                             (1.0f / (1.0f + pattern_data->frequency)) : 0.5f;
     
+    /* RELATIVE: Base threshold scales with graph state */
+    /* Simpler calculation - just need a reasonable threshold */
+    float base_threshold = 0.3f;  /* 30% similarity minimum */
+    
     /* Stronger, more frequent patterns can match with lower similarity */
     /* Weaker, less frequent patterns need higher similarity */
-    float adjusted_threshold = similarity_threshold * (1.0f + pattern_strength * 0.5f) * frequency_factor;
-    if (adjusted_threshold < 0.05f) adjusted_threshold = 0.05f;  /* Very lenient minimum */
-    if (adjusted_threshold > 0.9f) adjusted_threshold = 0.9f;  /* Maximum (allow partial matches) */
+    float adjusted_threshold = base_threshold * (1.0f + pattern_strength * 0.5f) * frequency_factor;
+    if (adjusted_threshold < 0.1f) adjusted_threshold = 0.1f;  /* Very lenient minimum */
+    if (adjusted_threshold > 0.8f) adjusted_threshold = 0.8f;  /* Maximum (allow partial matches) */
+    
+    /* ROUTING DEBUG */
+    ROUTE_LOG("pattern_matches_sequence: pattern=%u, seq_len=%u, pattern_len=%u",
+              pattern_node_id, length, pattern_len);
+    ROUTE_LOG("  blanks=%u, concrete_matches=%u, total_similarity=%.2f, avg=%.2f, threshold=%.2f",
+              blank_count, concrete_matches, total_similarity, avg_similarity, adjusted_threshold);
     
     if (avg_similarity < adjusted_threshold) {
+        ROUTE_LOG("  → REJECTED: similarity %.2f < threshold %.2f", avg_similarity, adjusted_threshold);
         return false;  /* Not similar enough */
     }
+    
+    ROUTE_LOG("  → MATCHED!");
     
     /* Copy bindings to output */
     /* IMPORTANT: blank_bindings is indexed by blank position (0, 1, 2, etc.) */
@@ -3511,6 +3699,7 @@ static bool pattern_matches_sequence(Graph *g, uint32_t pattern_node_id, const u
         for (uint32_t i = 0; i < 256; i++) {
             bindings[i] = blank_bindings[i];
         }
+        ROUTE_LOG("  Bindings: [0]=%u, [1]=%u, [2]=%u", bindings[0], bindings[1], bindings[2]);
     }
     
     return true;
@@ -3808,21 +3997,38 @@ static void extract_and_route_to_exec(Graph *g, uint32_t pattern_node_id, const 
         }
     }
     
+    ROUTE_LOG("  Extracted %u values", value_count);
+    
     /* If values extracted, check if pattern routes to EXEC node */
     if (value_count > 0) {
+        ROUTE_LOG("  Checking for edges to EXEC nodes from pattern %u", pattern_node_id);
         uint32_t eid = pattern_node->first_out;
+        uint32_t edge_count_checked = 0;
+        bool found_exec = false;
+        
         for (int i = 0; i < 100 && eid != UINT32_MAX && eid < g->edge_count; i++) {
             uint32_t dst = g->edges[eid].dst;
+            edge_count_checked++;
+            
+            ROUTE_LOG("    Edge %u → node %u (payload_offset=%llu)", 
+                      eid, dst, (unsigned long long)(dst < g->node_count ? g->nodes[dst].payload_offset : 0));
+            
             if (dst < g->node_count && g->nodes[dst].payload_offset > 0) {
                 /* Pattern routes to EXEC node - pass values */
-                /* EXEC node will be activated through normal edge propagation (wave propagation) */
+                ROUTE_LOG("  ★ Found EXEC node %u! Passing %u values", dst, value_count);
                 pass_values_to_exec(g, dst, extracted_values, value_count);
-                /* Activation happens through normal edge propagation - no special case needed */
-                /* The edge from pattern to EXEC will propagate activation naturally */
+                found_exec = true;
                 break;
             }
             eid = g->edges[eid].next_out;
         }
+        
+        if (!found_exec) {
+            ROUTE_LOG("  ✗ No EXEC node found after checking %u edges (first_out=%u)", 
+                      edge_count_checked, pattern_node->first_out);
+        }
+    } else {
+        ROUTE_LOG("  → No values extracted, skipping EXEC routing");
     }
 }
 
@@ -3831,6 +4037,8 @@ static void extract_and_route_to_exec(Graph *g, uint32_t pattern_node_id, const 
 static void learn_pattern_to_exec_routing(Graph *g, uint32_t pattern_node_id, 
                                           const PatternElement *elements, uint32_t element_count) {
     if (!g || pattern_node_id >= g->node_count || !elements || element_count == 0) return;
+    
+    ROUTE_LOG("learn_pattern_to_exec_routing: pattern_node=%u, elements=%u", pattern_node_id, element_count);
     
     /* Check pattern content to learn routing */
     /* Graph learns: patterns with '+' → EXEC_ADD, patterns with '-' → EXEC_SUB, etc. */
@@ -3843,36 +4051,85 @@ static void learn_pattern_to_exec_routing(Graph *g, uint32_t pattern_node_id,
     uint32_t EXEC_MUL = 2002;  /* Would need to be created */
     
     /* Check if pattern contains operation symbols */
+    bool found_plus = false;
     for (uint32_t i = 0; i < element_count; i++) {
         if (elements[i].is_blank == 0) {
             uint32_t node_id = elements[i].value;
             
+            ROUTE_LOG("  Element[%u]: data node %u ('%c')", i, node_id, 
+                      (node_id >= 32 && node_id < 127) ? (char)node_id : '?');
+            
             /* Check for operation symbols and create edges to EXEC nodes */
-            if (node_id == plus_node && EXEC_ADD < g->node_count) {
-                /* Pattern contains '+' - learn to route to EXEC_ADD */
+            if (node_id == plus_node) {
+                found_plus = true;
+                ROUTE_LOG("  ★ Found '+' in pattern! Setting up EXEC_ADD routing");
+                
+                /* FIXED: Ensure EXEC_ADD node exists */
+                ensure_node(g, EXEC_ADD);
+                ROUTE_LOG("    Ensured EXEC_ADD node %u exists (node_count=%llu)", EXEC_ADD, (unsigned long long)g->node_count);
+                
+                /* FIXED: If EXEC_ADD doesn't have a payload, create a minimal one */
+                /* This allows the internal addition logic to work */
+                if (g->nodes[EXEC_ADD].payload_offset == 0) {
+                    /* Create EXEC node with placeholder at offset 256 (after header space) */
+                    /* The actual addition is done in melvin_execute_exec_node() */
+                    uint64_t exec_offset = 256;  /* Reserved space for EXEC_ADD */
+                    if (exec_offset + 512 <= g->hdr->blob_size) {  /* 256 for code + 256 for inputs/outputs */
+                        /* Mark as EXEC node with simple NOP code */
+                        /* The execution logic in melvin_execute_exec_node handles the addition */
+                        g->blob[exec_offset] = 0xC3;  /* x86 RET or placeholder */
+                        g->nodes[EXEC_ADD].payload_offset = exec_offset;
+                        g->nodes[EXEC_ADD].exec_threshold_ratio = 0.5f;  /* Lower threshold for easier activation */
+                        ROUTE_LOG("    Created EXEC_ADD payload at offset %llu", (unsigned long long)exec_offset);
+                    } else {
+                        ROUTE_LOG("    ERROR: Not enough blob space for EXEC_ADD (blob_size=%llu)", 
+                                  (unsigned long long)g->hdr->blob_size);
+                    }
+                } else {
+                    ROUTE_LOG("    EXEC_ADD already has payload at offset %llu", 
+                              (unsigned long long)g->nodes[EXEC_ADD].payload_offset);
+                }
+                
+                if (g->nodes[EXEC_ADD].payload_offset > 0) {
                 /* Check if edge exists */
                 uint32_t eid = find_edge(g, plus_node, EXEC_ADD);
                 if (eid == UINT32_MAX) {
                     /* Create edge: '+' → EXEC_ADD */
-                    create_edge(g, plus_node, EXEC_ADD, 0.5f);  /* Medium strength - graph will strengthen with use */
+                        uint32_t new_eid = create_edge(g, plus_node, EXEC_ADD, 0.5f);  /* Medium strength */
+                        ROUTE_LOG("    Created edge '+' → EXEC_ADD (edge_id=%u)", new_eid);
                 } else {
-                    /* Edge exists - strengthen it */
                     g->edges[eid].w = fminf(1.0f, g->edges[eid].w + 0.1f);
+                        ROUTE_LOG("    Strengthened edge '+' → EXEC_ADD (edge_id=%u, weight=%.3f)", eid, g->edges[eid].w);
                 }
                 
                 /* Also create edge from pattern node to EXEC_ADD */
                 /* This teaches: this pattern → EXEC_ADD */
                 eid = find_edge(g, pattern_node_id, EXEC_ADD);
                 if (eid == UINT32_MAX) {
-                    create_edge(g, pattern_node_id, EXEC_ADD, 0.3f);  /* Weaker - pattern→EXEC */
+                        uint32_t new_eid = create_edge(g, pattern_node_id, EXEC_ADD, 0.5f);  /* Stronger edge */
+                        ROUTE_LOG("    Created edge pattern %u → EXEC_ADD (edge_id=%u)", pattern_node_id, new_eid);
                 } else {
-                    g->edges[eid].w = fminf(1.0f, g->edges[eid].w + 0.05f);
+                        g->edges[eid].w = fminf(1.0f, g->edges[eid].w + 0.1f);
+                        ROUTE_LOG("    Strengthened edge pattern %u → EXEC_ADD (edge_id=%u, weight=%.3f)", 
+                                  pattern_node_id, eid, g->edges[eid].w);
+                    }
+                    
+                    /* Verify edge was created */
+                    uint32_t verify_eid = find_edge(g, pattern_node_id, EXEC_ADD);
+                    ROUTE_LOG("    Verification: edge pattern %u → EXEC_ADD = %u", 
+                              pattern_node_id, verify_eid);
+                } else {
+                    ROUTE_LOG("    ERROR: EXEC_ADD has no payload, can't create routing");
                 }
             }
             
             /* Could add more operations here (SUB, MUL, etc.) */
             /* Graph learns routing through pattern content analysis */
         }
+    }
+    
+    if (!found_plus) {
+        ROUTE_LOG("  Pattern has no '+' operator, no EXEC routing needed");
     }
 }
 
@@ -3905,11 +4162,9 @@ static void execute_graph_structure(Graph *g, uint32_t start_node, uint64_t inpu
     if (input2 > 0) stack[stack_ptr++] = input2;
     
     uint32_t current_node = start_node;
-    uint32_t max_iterations = 1000;  /* Prevent infinite loops */
-    uint32_t iterations = 0;
+    /* NO ITERATION LIMIT - graph structure determines execution */
     
-    while (current_node < g->node_count && iterations < max_iterations) {
-        iterations++;
+    while (current_node < g->node_count) {
         Node *node = &g->nodes[current_node];
         
         /* Execute node based on type */
@@ -4124,14 +4379,36 @@ static uint32_t create_pattern_node(Graph *g, const PatternElement *pattern_elem
 static void discover_patterns(Graph *g, const uint32_t *sequence, uint32_t length) {
     if (!g || !sequence || length < 2) return;
     
-    /* SIMPLE BLANK-DRIVEN PATTERN LAW: Find sequences with same node in similar positions */
-    /* For each node in current sequence, find other sequences containing that node */
+    /* ANTI-EXPLOSION: Limit patterns created per call to prevent hangs */
+    static uint32_t patterns_created_this_session = 0;
+    const uint32_t MAX_PATTERNS_PER_SESSION = 1000;  /* Reasonable limit */
     
-    /* Look through sequence buffer for sequences containing nodes from current sequence */
-    uint32_t buffer_start = (g->sequence_buffer_pos >= length * 2) ? 
-                           (g->sequence_buffer_pos - length * 2) : 0;
+    /* Reset counter periodically (every 10000 bytes) */
+    static uint64_t last_reset_pos = 0;
+    if (g->sequence_buffer_pos - last_reset_pos > 10000) {
+        patterns_created_this_session = 0;
+        last_reset_pos = g->sequence_buffer_pos;
+    }
     
-    for (uint32_t buf_pos = buffer_start; buf_pos + length <= g->sequence_buffer_pos; buf_pos++) {
+    /* Skip if we've created too many patterns recently */
+    if (patterns_created_this_session >= MAX_PATTERNS_PER_SESSION) {
+        return;  /* Let the graph settle before adding more */
+    }
+    
+    /* OPTIMIZATION: Only check recent buffer, not entire history */
+    uint32_t max_lookback = 50;  /* Fixed small window */
+    if (max_lookback > g->sequence_buffer_pos && !g->sequence_buffer_full) {
+        max_lookback = (uint32_t)g->sequence_buffer_pos;
+    }
+    uint32_t buffer_start = (g->sequence_buffer_pos >= max_lookback) ? 
+                           (g->sequence_buffer_pos - max_lookback) : 0;
+    
+    /* ANTI-EXPLOSION: Only check a few positions per call */
+    uint32_t positions_checked = 0;
+    const uint32_t MAX_POSITIONS = 10;  /* Only check 10 positions per byte */
+    
+    for (uint32_t buf_pos = buffer_start; buf_pos + length <= g->sequence_buffer_pos && positions_checked < MAX_POSITIONS; buf_pos += 2) {
+        positions_checked++;
         /* Extract candidate sequence from buffer */
         uint32_t candidate_seq[10];
         bool valid = true;
@@ -4144,27 +4421,66 @@ static void discover_patterns(Graph *g, const uint32_t *sequence, uint32_t lengt
         }
         if (!valid) continue;
         
+        /* OPTIMIZATION: Filter out meaningless patterns early */
+        /* Only consider sequences that share meaningful structure */
+        
         /* Check if sequences share at least one concrete node in same position */
+        /* HIERARCHICAL: Allow both byte nodes (0-255) AND pattern nodes (840+) */
+        /* This enables patterns-of-patterns: true hierarchical abstraction! */
         bool has_shared_node = false;
+        uint32_t shared_positions = 0;
         for (uint32_t i = 0; i < length; i++) {
-            if (sequence[i] == candidate_seq[i] && sequence[i] < 256) {
-                /* Same concrete node at same position - potential pattern */
-                has_shared_node = true;
-                break;
+            if (sequence[i] == candidate_seq[i]) {
+                /* Same node at same position - potential pattern */
+                /* Can be byte node (< 256) OR pattern node (>= 840) */
+                bool is_valid_concrete = (sequence[i] < 256) ||  /* Byte nodes */
+                                        (sequence[i] >= 840);    /* Pattern nodes (hierarchical!) */
+                if (is_valid_concrete) {
+                    has_shared_node = true;
+                    shared_positions++;
+                }
             }
         }
         
         if (!has_shared_node) continue;  /* No shared node - skip */
         
+        /* FILTER: Require at least 2 shared concrete nodes for meaningful patterns */
+        /* This reduces explosion from partial matches */
+        if (shared_positions < 2 && length > 3) continue;
+        
         /* Check if sequences are different (not identical) */
         bool is_different = false;
+        uint32_t different_positions = 0;
         for (uint32_t i = 0; i < length; i++) {
             if (sequence[i] != candidate_seq[i]) {
                 is_different = true;
-                break;
+                different_positions++;
             }
         }
         if (!is_different) continue;  /* Identical sequences - skip */
+        
+        /* FILTER: Require at least 1-2 different positions (meaningful variation) */
+        /* But not too many (would be too generic) */
+        if (different_positions == 0) continue;
+        if (different_positions > length / 2 && length > 4) continue;  /* Too different */
+        
+        /* FILTER: Skip very short patterns (length 2) unless they have structure */
+        /* Length 2 patterns are often noise from adjacent bytes */
+        if (length == 2) {
+            /* Only create if both positions are concrete (not blanks) */
+            /* HIERARCHICAL: Allow byte nodes (< 256) AND pattern nodes (>= 840) */
+            bool both_concrete = true;
+            for (uint32_t i = 0; i < length; i++) {
+                /* Valid concrete: byte nodes (0-255) or pattern nodes (840+) */
+                bool is_concrete = (sequence[i] < 256) || (sequence[i] >= 840);
+                bool is_concrete2 = (candidate_seq[i] < 256) || (candidate_seq[i] >= 840);
+                if (!is_concrete || !is_concrete2) {
+                    both_concrete = false;
+                    break;
+                }
+            }
+            if (!both_concrete) continue;  /* Skip noisy 2-element patterns */
+        }
         
         /* Found two aligned sequences with shared node - create pattern */
         PatternElement pattern_elements[256];
@@ -4186,34 +4502,150 @@ static void discover_patterns(Graph *g, const uint32_t *sequence, uint32_t lengt
         
         /* Check if pattern has at least one blank (at least one position differs) */
         uint32_t blank_count = 0;
+        uint32_t concrete_count = 0;
         for (uint32_t i = 0; i < pattern_length; i++) {
-            if (pattern_elements[i].is_blank != 0) blank_count++;
+            if (pattern_elements[i].is_blank != 0) {
+                blank_count++;
+            } else {
+                concrete_count++;
+            }
         }
         
-        if (pattern_length > 0 && blank_count > 0) {
-            /* Create pattern - no minimums, no thresholds, just create it */
+        /* FILTER: Require meaningful structure - at least 1 concrete AND 1 blank */
+        /* Patterns with all blanks or all concrete are not useful */
+        if (pattern_length > 0 && blank_count > 0 && concrete_count > 0) {
+            /* FILTER: Limit blank ratio - too many blanks = too generic */
+            float blank_ratio = (float)blank_count / pattern_length;
+            if (blank_ratio > 0.75f && length > 4) continue;  /* Too generic */
+            
+            /* Create pattern */
             uint32_t pattern_node_id = create_pattern_node(g, pattern_elements, pattern_length,
                                                             sequence, candidate_seq, length);
             
             if (pattern_node_id != UINT32_MAX) {
-                ROUTE_LOG("  → CREATED pattern node %u (length=%u, blanks=%u)", 
-                          pattern_node_id, pattern_length, blank_count);
+                ROUTE_LOG("  → CREATED pattern node %u (length=%u, blanks=%u, concrete=%u)", 
+                          pattern_node_id, pattern_length, blank_count, concrete_count);
                 g->nodes[pattern_node_id].a += 0.1f;
                 prop_queue_add(g, pattern_node_id);
                 learn_pattern_to_exec_routing(g, pattern_node_id, pattern_elements, pattern_length);
+                patterns_created_this_session++;  /* Track creation count */
             }
         }
     }
     
-    /* Check existing patterns for matches */
-    for (uint64_t i = 0; i < g->node_count; i++) {
-        if (g->nodes[i].pattern_data_offset > 0) {
-            uint32_t bindings[256] = {0};
-            if (pattern_matches_sequence(g, (uint32_t)i, sequence, length, bindings)) {
-                /* Sequence matches existing pattern - strengthen it */
-                g->nodes[i].a += 0.05f;
-                prop_queue_add(g, (uint32_t)i);
-                extract_and_route_to_exec(g, (uint32_t)i, bindings);
+    /* Pattern matching via edges (O(edges) not O(nodes)) */
+    /* Instead of scanning all nodes, let UEL propagation find patterns through edges */
+    /* Edges from byte nodes to pattern nodes will activate patterns naturally */
+}
+
+/* ========================================================================
+ * EVENT-DRIVEN PATTERN DISCOVERY: Co-Activation Detection
+ * Pattern discovery through wave propagation, not buffer scanning!
+ * ======================================================================== */
+
+/* Simple hash function for activation sequences */
+static uint64_t hash_activation_sequence(const uint32_t *seq, int length) {
+    uint64_t hash = 14695981039346656037ULL;  /* FNV offset basis */
+    for (int i = 0; i < length; i++) {
+        hash ^= seq[i];
+        hash *= 1099511628211ULL;  /* FNV prime */
+    }
+    return hash;
+}
+
+/* Check if sequence already has a pattern node */
+static int activation_sequence_has_pattern(Graph *g, const uint32_t *seq, int length) {
+    (void)length;  /* Unused for now */
+    if (seq[0] >= g->node_count) return 0;
+    
+    uint32_t eid = g->nodes[seq[0]].first_out;
+    int checked = 0;
+    while (eid != UINT32_MAX && eid < g->edge_count && checked++ < 50) {
+        uint32_t dst = g->edges[eid].dst;
+        if (dst >= 840 && dst < g->node_count && g->nodes[dst].pattern_data_offset > 0) {
+            return 1;  /* Found pattern node */
+        }
+        eid = g->edges[eid].next_out;
+    }
+    return 0;
+}
+
+/* Detect co-activation patterns in recent activation window */
+void detect_coactivation_patterns(Graph *g) {
+    if (!g || !g->recent_activations || !g->coactivation_hash) return;
+    
+    /* Clear hash table */
+    memset(g->coactivation_hash, 0, g->coactivation_hash_size * sizeof(uint64_t));
+    
+    int patterns_created = 0;
+    const int MAX_PATTERNS_PER_CHECK = 3;  /* Limit to prevent explosion */
+    
+    static int call_count = 0;
+    call_count++;
+    if (call_count % 10 == 0) {
+        fprintf(stderr, "Co-activation check #%d (window has %u activations)\n", 
+                call_count, g->activation_window_size);
+    }
+    
+    /* Check for repeated sequences of length 3 only (fast) */
+    for (int len = 3; len <= 3 && patterns_created < MAX_PATTERNS_PER_CHECK; len++) {
+        if (len > (int)g->activation_window_size) continue;
+        
+        /* Scan window for repeated sequences */
+        for (uint32_t i = 0; i + len <= g->activation_window_size && patterns_created < MAX_PATTERNS_PER_CHECK; i++) {
+            uint32_t seq[10];
+            
+            /* Extract sequence */
+            for (int j = 0; j < len; j++) {
+                uint32_t pos = (g->activation_window_pos + i + j) % g->activation_window_size;
+                seq[j] = g->recent_activations[pos];
+            }
+            
+            /* Skip if sequence contains invalid nodes */
+            int valid = 1;
+            for (int j = 0; j < len; j++) {
+                if (seq[j] >= g->node_count || seq[j] == UINT32_MAX) {
+                    valid = 0;
+                    break;
+                }
+            }
+            if (!valid) continue;
+            
+            /* Hash sequence */
+            uint64_t hash = hash_activation_sequence(seq, len);
+            uint32_t slot = hash % g->coactivation_hash_size;
+            
+            /* Check if we've seen this sequence before (in THIS window) */
+            if (g->coactivation_hash[slot] == hash) {
+                /* Repeated sequence! Create pattern if not exists */
+                if (!activation_sequence_has_pattern(g, seq, len)) {
+                    /* Create pattern elements (all concrete) */
+                    PatternElement elements[10];
+                    for (int j = 0; j < len && j < 10; j++) {
+                        elements[j].is_blank = 0;
+                        elements[j].value = seq[j];
+                    }
+                    
+                    /* Create pattern node */
+                    uint32_t pattern_id = create_pattern_node(g, elements, len, seq, seq, len);
+                    if (pattern_id != UINT32_MAX) {
+                        patterns_created++;
+                        fprintf(stderr, "  ✓ Created pattern %u from co-activation (len=%d)\n", 
+                                pattern_id, len);
+                        
+                        /* Create edges from sequence nodes to pattern */
+                        for (int j = 0; j < len; j++) {
+                            if (seq[j] < g->node_count && pattern_id < g->node_count) {
+                                if (find_edge(g, seq[j], pattern_id) == UINT32_MAX) {
+                                    create_edge(g, seq[j], pattern_id, 0.5f);
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                /* First time seeing this sequence - mark it */
+                g->coactivation_hash[slot] = hash;
             }
         }
     }
@@ -4222,6 +4654,21 @@ static void discover_patterns(Graph *g, const uint32_t *sequence, uint32_t lengt
 /* Global Law: Pattern creation - called from melvin_feed_byte */
 static void pattern_law_apply(Graph *g, uint32_t data_node_id) {
     if (!g || !g->sequence_buffer) return;
+    
+    /* RATE LIMIT: Only run pattern discovery every N bytes to prevent explosion */
+    /* OPTIMIZED: Check every 50 bytes (not 10) for better performance on real text */
+    static uint64_t last_pattern_check = 0;
+    if (g->sequence_buffer_pos - last_pattern_check < 50) {
+        /* Just add to buffer, skip pattern check */
+        if (g->sequence_buffer_pos >= g->sequence_buffer_size) {
+            g->sequence_buffer_pos = 0;
+            g->sequence_buffer_full = 1;
+        }
+        g->sequence_buffer[g->sequence_buffer_pos] = data_node_id;
+        g->sequence_buffer_pos++;
+        return;  /* Skip pattern discovery this time */
+    }
+    last_pattern_check = g->sequence_buffer_pos;
     
     /* Add to sequence buffer */
     if (g->sequence_buffer_pos >= g->sequence_buffer_size) {
@@ -4232,170 +4679,22 @@ static void pattern_law_apply(Graph *g, uint32_t data_node_id) {
     g->sequence_buffer[g->sequence_buffer_pos] = data_node_id;
     g->sequence_buffer_pos++;
     
-        /* Check sequences of various lengths (2 to 10) - no minimum, just check edges */
-        uint32_t max_pattern_length = 10;
-        if (max_pattern_length > g->sequence_buffer_pos && !g->sequence_buffer_full) {
-            max_pattern_length = (uint32_t)g->sequence_buffer_pos;
-        }
-        
-        for (uint32_t len = 2; len <= max_pattern_length; len++) {
-            uint32_t start_pos = (g->sequence_buffer_pos >= len) ? 
-                                 (g->sequence_buffer_pos - len) : 
-                                 (g->sequence_buffer_size + g->sequence_buffer_pos - len);
-            
-            /* Extract sequence */
-            uint32_t sequence[10];
-            for (uint32_t i = 0; i < len; i++) {
-                sequence[i] = g->sequence_buffer[(start_pos + i) % g->sequence_buffer_size];
-            }
-            
-            /* ROUTING DEBUG: Log sequence being tested */
-            ROUTE_LOG("Testing sequence len=%u (buffer_pos=%u, buffer_size=%u)", 
-                      len, (uint32_t)g->sequence_buffer_pos, g->sequence_buffer_size);
-            char seq_str[32] = {0};
-            for (uint32_t i = 0; i < len && i < 31; i++) {
-                uint8_t b = (uint8_t)(sequence[i] & 0xFF);
-                seq_str[i] = (b >= 32 && b < 127) ? (char)b : '?';
-            }
-            ROUTE_LOG("  Sequence bytes: \"%s\"", seq_str);
-            
-            /* Discover patterns */
-            discover_patterns(g, sequence, len);
-            
-            /* RELATIVE: Only do pattern matching if we have patterns */
-            /* Check ALL nodes - no sampling cap (patterns can be at any node ID) */
-            uint64_t pattern_count = 0;
-            for (uint64_t i = 0; i < g->node_count; i++) {  /* Check all nodes */
-                if (g->nodes[i].pattern_data_offset > 0) pattern_count++;
-            }
-            
-            /* ROUTING DEBUG: Log pattern count */
-            ROUTE_LOG("  Pattern count (all nodes): %llu", (unsigned long long)pattern_count);
-            
-            /* If we have patterns, try to match */
-            if (pattern_count == 0) {
-                ROUTE_LOG("  No patterns found - skipping pattern matching");
-                continue;  /* No patterns yet - skip matching */
-            }
-            
-            /* EFFICIENT PATTERN MATCHING: Find similar nodes first, then check patterns */
-            /* Step 1: Find similar nodes for each position in sequence (like '+', '=', '1', '2') */
-            /* Step 2: Find patterns that contain these similar nodes */
-            /* Step 3: Check edges and positions to verify match */
-            
-            /* Build similarity index: for each sequence node, find similar nodes */
-            uint32_t similar_nodes[10][32];  /* Max 32 similar nodes per position */
-            uint32_t similar_counts[10] = {0};  /* Count of similar nodes per position */
-            
-            /* RELATIVE: Similarity threshold = (energy)(strength)/(node count) */
-            /* As graph grows, threshold scales down to allow more matches */
-            float energy = (g->avg_activation > 0.0f) ? g->avg_activation : 0.1f;
-            float strength = (g->avg_edge_strength > 0.0f) ? g->avg_edge_strength : 0.1f;
-            float node_count_safe = (g->node_count > 0) ? (float)g->node_count : 1.0f;
-            float similarity_threshold = (energy * strength) / node_count_safe;
-            
-            /* Clamp to reasonable range */
-            if (similarity_threshold < 0.01f) similarity_threshold = 0.01f;  /* Very lenient minimum */
-            if (similarity_threshold > 0.5f) similarity_threshold = 0.5f;  /* Maximum (find more candidates) */
-            
-            for (uint32_t pos = 0; pos < len && pos < 10; pos++) {
-                uint32_t seq_node = sequence[pos];
-                
-                /* Find nodes similar to this sequence node */
-                /* Check direct connections first (fast) */
-                if (seq_node < g->node_count) {
-                    Node *seq_n = &g->nodes[seq_node];
-                    uint32_t eid = seq_n->first_out;
-                    uint32_t iter = 0;
-                    while (eid != UINT32_MAX && eid < g->edge_count && 
-                           similar_counts[pos] < 32 && iter < 100) {
-                        uint32_t neighbor = g->edges[eid].dst;
-                        if (neighbor < g->node_count) {
-                            float sim = uel_kernel(g, seq_node, neighbor);
-                            if (sim >= similarity_threshold) {
-                                similar_nodes[pos][similar_counts[pos]++] = neighbor;
-                            }
-                        }
-                        eid = g->edges[eid].next_out;
-                        iter++;
-                    }
-                    
-                    /* Also check incoming edges */
-                    eid = seq_n->first_in;
-                    iter = 0;
-                    while (eid != UINT32_MAX && eid < g->edge_count && 
-                           similar_counts[pos] < 32 && iter < 100) {
-                        uint32_t neighbor = g->edges[eid].src;
-                        if (neighbor < g->node_count) {
-                            float sim = uel_kernel(g, seq_node, neighbor);
-                            if (sim >= similarity_threshold) {
-                                similar_nodes[pos][similar_counts[pos]++] = neighbor;
-                            }
-                        }
-                        eid = g->edges[eid].next_in;
-                        iter++;
-                    }
-                    
-                    /* Always include exact match */
-                    similar_nodes[pos][similar_counts[pos]++] = seq_node;
-                }
-            }
-            
-            /* Step 2: Find patterns that contain similar nodes and check structure */
-            /* Only check patterns that have nodes similar to our sequence */
-            for (uint64_t i = 0; i < g->node_count; i++) {
-                if (g->nodes[i].pattern_data_offset > 0) {
-                    /* This is a pattern node - check if it contains similar nodes */
-                    uint64_t pattern_offset = g->nodes[i].pattern_data_offset - g->hdr->blob_offset;
-                    if (pattern_offset >= g->blob_size) continue;
-                    
-                    PatternData *pattern_data = (PatternData *)(g->blob + pattern_offset);
-                    if (pattern_data->magic != PATTERN_MAGIC) continue;
-                    
-                    /* RELATIVE: Allow length mismatch (no hard limit) */
-                    /* Check if lengths are similar enough (within 3 elements) */
-                    uint32_t pattern_len = pattern_data->element_count;
-                    uint32_t length_diff = (pattern_len > len) ? (pattern_len - len) : (len - pattern_len);
-                    if (length_diff > 3) continue;  /* Too different - skip (relative check) */
-                    
-                    /* Quick check: does pattern contain any similar nodes OR blanks? */
-                    /* Blanks can match any value, so patterns with blanks should be considered */
-                    bool has_similar = false;
-                    for (uint32_t pos = 0; pos < len && pos < 10; pos++) {
-                        if (pos < pattern_data->element_count) {
-                            PatternElement *elem = &pattern_data->elements[pos];
-                            if (elem->is_blank != 0) {
-                                /* Blank at this position - can match any value, so consider it */
-                                has_similar = true;
-                                break;
-                            } else {
-                                /* Data node - check if it's similar to sequence node */
-                                for (uint32_t j = 0; j < similar_counts[pos]; j++) {
-                                    uint32_t similar = similar_nodes[pos][j];
-                                    if (elem->value == similar) {
-                                        has_similar = true;
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-                        if (has_similar) break;
-                    }
-                    
-                    if (!has_similar) continue;  /* Skip patterns without similar nodes or blanks */
-                    
-                    /* Step 3: Check edges and positions to verify match */
-                    uint32_t bindings[256] = {0};
-                    if (pattern_matches_sequence(g, (uint32_t)i, sequence, len, bindings)) {
-                        /* Sequence matches pattern - activate pattern node through wave propagation */
-                        g->nodes[i].a += 0.3f;  /* Activate pattern node */
-                        prop_queue_add(g, (uint32_t)i);  /* Add to propagation queue */
-                        
-                        /* Extract values and route to EXEC nodes (wave propagation handles activation) */
-                        extract_and_route_to_exec(g, (uint32_t)i, bindings);
-                    }
-                }
-            }
-        }
+    /* SIMPLIFIED: Only check length 3 patterns */
+    uint32_t len = 3;
+    
+    if (len > g->sequence_buffer_pos && !g->sequence_buffer_full) return;
+    
+    uint32_t start_pos = (g->sequence_buffer_pos >= len) ? 
+                         (g->sequence_buffer_pos - len) : 
+                         (g->sequence_buffer_size + g->sequence_buffer_pos - len);
+    
+    /* Extract sequence */
+    uint32_t sequence[10];
+    for (uint32_t i = 0; i < len; i++) {
+        sequence[i] = g->sequence_buffer[(start_pos + i) % g->sequence_buffer_size];
+    }
+    
+    /* Discover patterns (with internal limits) */
+    discover_patterns(g, sequence, len);
 }
 

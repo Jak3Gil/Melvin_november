@@ -129,6 +129,7 @@ typedef struct {
     /* Event-driven propagation state */
     float        *last_activation;  /* Track last activation for change detection */
     float        *last_message;     /* Track last message for change detection */
+    uint64_t     tracking_array_size; /* Actual size of tracking arrays (capped for large graphs) */
     float        avg_chaos;         /* Running average of chaos (relative measure) */
     float        avg_activation;    /* Running average of activation */
     float        avg_edge_strength;  /* Running average of edge strength */
@@ -159,6 +160,14 @@ typedef struct {
     uint64_t     sequence_hash_size;   /* Size of hash table */
     uint64_t     sequence_storage_size; /* Size of sequence storage */
     uint64_t     sequence_storage_pos;  /* Current position in sequence storage */
+    
+    /* EVENT-DRIVEN pattern discovery: co-activation tracking */
+    uint32_t     *recent_activations;   /* Circular buffer of recent node activations (fixed size) */
+    uint32_t     activation_window_size; /* Size of activation window (e.g., 200) */
+    uint32_t     activation_window_pos;  /* Current position in window */
+    uint64_t     activation_check_counter; /* Counter for checking co-activation */
+    uint64_t     *coactivation_hash;     /* Hash table for detecting repeated sequences */
+    uint32_t     coactivation_hash_size; /* Size of co-activation hash table */
 } Graph;
 
 /* ========================================================================

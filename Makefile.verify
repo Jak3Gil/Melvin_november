@@ -1,0 +1,45 @@
+# Makefile for Verification Framework
+
+CC = gcc
+CFLAGS = -std=c11 -Wall -O2 -lm
+INCLUDES = -I src
+
+# Stub functions for tools
+STUBS = /tmp/melvin_stubs.c
+
+all: verify_claims inspect_graph
+
+verify_claims: test/verify_claims.c src/melvin.c src/host_syscalls.c
+	@echo "Creating stub file..."
+	@echo 'void melvin_tool_audio_stt(void) {}' > $(STUBS)
+	@echo 'void melvin_tool_audio_tts(void) {}' >> $(STUBS)
+	@echo 'void melvin_tool_llm_generate(void) {}' >> $(STUBS)
+	@echo 'void melvin_tool_vision_identify(void) {}' >> $(STUBS)
+	$(CC) $(CFLAGS) $(INCLUDES) -o verify_claims test/verify_claims.c src/melvin.c src/host_syscalls.c $(STUBS) -lm
+
+inspect_graph: tools/inspect_graph.c src/melvin.c src/host_syscalls.c
+	@if [ ! -f $(STUBS) ]; then \
+		echo 'void melvin_tool_audio_stt(void) {}' > $(STUBS); \
+		echo 'void melvin_tool_audio_tts(void) {}' >> $(STUBS); \
+		echo 'void melvin_tool_llm_generate(void) {}' >> $(STUBS); \
+		echo 'void melvin_tool_vision_identify(void) {}' >> $(STUBS); \
+	fi
+	$(CC) $(CFLAGS) $(INCLUDES) -o tools/inspect_graph tools/inspect_graph.c src/melvin.c src/host_syscalls.c $(STUBS) -lm
+
+verify: verify_claims
+	@echo "Running verification test..."
+	./verify_claims --examples=10 --queries=20 > verification_report.txt
+	@echo "Report saved to verification_report.txt"
+
+verify-stats: verify_claims
+	@echo "Running statistical analysis (100 trials)..."
+	./verify_claims --examples=10 --queries=20 --trials=100 > statistical_report.txt
+	@echo "Report saved to statistical_report.txt"
+
+clean:
+	rm -f verify_claims tools/inspect_graph
+	rm -f verification_report.txt statistical_report.txt
+	rm -f verify_brain.m
+
+.PHONY: all verify verify-stats clean
+
