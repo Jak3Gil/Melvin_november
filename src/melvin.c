@@ -1715,6 +1715,11 @@ static uint32_t create_edge(Graph *g, uint32_t src, uint32_t dst, float w) {
     return eid;
 }
 
+/* Public wrapper for tools - export edge creation */
+uint32_t melvin_create_edge(Graph *g, uint32_t src, uint32_t dst, float w) {
+    return create_edge(g, src, dst, w);
+}
+
 /* ========================================================================
  * UEL PHYSICS PARAMETERS (must be before event-driven code)
  * ======================================================================== */

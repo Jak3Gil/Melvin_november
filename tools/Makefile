@@ -1,40 +1,18 @@
-# Melvin Dashboard - Build and Launch
+CC = gcc
+CFLAGS = -O2 -Wall -Wextra -I.. -std=c11
+LDFLAGS = -lm
 
-.PHONY: install launch electron python clean
+MELVIN_OBJ = ../src/melvin.o
 
-# Install Electron dependencies
-install:
-	@echo "Installing Electron..."
-	cd tools && npm install
+all: create_exec_routing inspect_graph
 
-# Launch as Python app (opens browser window)
-python:
-	@echo "Launching Melvin Dashboard (Python app)..."
-	python3 tools/melvin_dashboard_app.py
+create_exec_routing: create_exec_routing.c $(MELVIN_OBJ)
+	$(CC) $(CFLAGS) -o $@ $< $(MELVIN_OBJ) $(LDFLAGS)
 
-# Launch as Electron app (true desktop app)
-electron:
-	@echo "Launching Melvin Dashboard (Electron app)..."
-	cd tools && npm start
+inspect_graph: inspect_graph.c $(MELVIN_OBJ)
+	$(CC) $(CFLAGS) -o $@ $< $(MELVIN_OBJ) $(LDFLAGS)
 
-# Launch (auto-detects best option)
-launch: python
-
-# Clean build artifacts
 clean:
-	rm -rf tools/node_modules
-	rm -rf tools/dist
-	rm -rf tools/package-lock.json
+	rm -f create_exec_routing inspect_graph *.o
 
-# Help
-help:
-	@echo "Melvin Dashboard - Makefile"
-	@echo ""
-	@echo "Targets:"
-	@echo "  make install   - Install Electron dependencies"
-	@echo "  make python   - Launch as Python app (opens browser)"
-	@echo "  make electron - Launch as Electron app (desktop app)"
-	@echo "  make launch   - Launch (defaults to Python app)"
-	@echo "  make clean    - Clean build artifacts"
-	@echo ""
-
+.PHONY: all clean

@@ -263,6 +263,9 @@ void melvin_copy_from_cold(Graph *g, uint64_t cold_offset, uint64_t length, uint
 /* Returns node_id on success, UINT32_MAX on error */
 uint32_t melvin_create_exec_node(Graph *g, uint32_t node_id, uint64_t blob_offset, float threshold_ratio);
 
+/* Create edge (exported for tools) */
+uint32_t melvin_create_edge(Graph *g, uint32_t src, uint32_t dst, float w);
+
 /* Progress indicators */
 void melvin_set_progress_callback(void (*callback)(const char *message, float percent));
 void melvin_progress(const char *message, float percent);
