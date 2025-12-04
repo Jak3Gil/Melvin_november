@@ -13,9 +13,12 @@ TOOLS = melvin_pack_corpus melvin_seed_instincts melvin_seed_patterns melvin_see
 # Hardware runners (require ALSA and V4L2)
 HARDWARE = melvin_hardware_runner melvin_run_continuous
 
+# Motor control programs (require CAN)
+MOTORS = test_motor_exec melvin_motor_runtime
+
 .PHONY: all clean tools test_0_0_exec_smoke test_exec_basic test_0_7_multihop_math test_1_0_graph_add32 test_1_1_tool_selection test_master_8_capabilities
 
-all: $(TESTS) tools $(HARDWARE)
+all: $(TESTS) tools $(HARDWARE) $(MOTORS)
 
 tools: $(TOOLS)
 
@@ -117,6 +120,14 @@ instinct_functions.o: src/instinct_functions.c
 melvin_build_learning_env: src/melvin_build_learning_env.c
 	$(CC) $(CFLAGS) -o melvin_build_learning_env src/melvin_build_learning_env.c $(LDFLAGS)
 
+# Motor control test
+test_motor_exec: test_motor_exec.c src/melvin.c src/melvin.h
+	$(CC) $(CFLAGS) -o test_motor_exec test_motor_exec.c src/melvin.c $(LDFLAGS) -pthread
+
+# Motor runtime (requires CAN on Linux)
+melvin_motor_runtime: melvin_motor_runtime.c src/melvin.c src/melvin.h
+	$(CC) $(CFLAGS) -o melvin_motor_runtime melvin_motor_runtime.c src/melvin.c $(LDFLAGS) -pthread
+
 clean:
-	rm -f $(TESTS) $(TOOLS) *.o *.m
+	rm -f $(TESTS) $(TOOLS) $(MOTORS) *.o *.m
 

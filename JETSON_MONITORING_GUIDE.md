@@ -141,3 +141,4 @@ Common additions:
 - Network traffic: `ifconfig`
 - Temperature: `cat /sys/class/thermal/thermal_zone*/temp`
 
+

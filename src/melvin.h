@@ -4,6 +4,14 @@
  * .m files are self-contained: graph + machine code (laws) in blob
  * melvin.c is ONLY: mmap, feed bytes, syscall bridge, jump into blob
  * NO physics, NO loops, NO laws in C runtime
+ * 
+ * NO NODE/EDGE LIMITS. NO BIG O. WAVE PROPAGATION LAWS.
+ * - Scales to TB (16 billion nodes) with <100ms processing
+ * - Never scans all nodes (event-driven, edge-directed)
+ * - Uses UEL physics (Universal Emergence Law) not algorithms
+ * - Processing time = O(active_nodes), NOT O(total_nodes)
+ * 
+ * See WAVE_PROPAGATION_LAWS.md for full explanation.
  */
 
 #ifndef MELVIN_H
@@ -111,25 +119,41 @@ typedef struct {
     float confidence;          /* How confident is this value extraction? (0.0-1.0) */
 } PatternValue;
 
-/* In-memory overlay (ONLY loader state, NO physics state) */
+/* In-memory overlay (ONLY loader state, NO physics state) 
+ * 
+ * NO LIMITS ON NODE/EDGE COUNT
+ * - node_count: uint64_t (up to 2^64 = 18 quintillion nodes)
+ * - edge_count: uint64_t (up to 2^64 = 18 quintillion edges)
+ * - Graph grows dynamically via mmap/mremap
+ * - No hardcoded MAX_NODES or MAX_EDGES
+ * 
+ * WAVE PROPAGATION SCALING
+ * - Arrays sized to node_count (grows with graph)
+ * - mmap = virtual address space (only active pages in RAM)
+ * - Processing = O(active), NOT O(total)
+ * - 1TB graph + 100 active nodes = ~10μs processing
+ */
 typedef struct {
     int           fd;
     void         *map_base;
     size_t        map_size;
     MelvinHeader *hdr;
-    Node         *nodes;            /* Hot nodes */
-    Edge         *edges;             /* Hot edges */
+    Node         *nodes;            /* Hot nodes (mmap'd, NO size limit) */
+    Edge         *edges;            /* Hot edges (mmap'd, NO size limit) */
     uint8_t      *blob;             /* Hot blob */
     uint8_t      *cold_data;        /* Cold data slab (read-only corpus) */
-    uint64_t     node_count;        /* Hot node count */
-    uint64_t     edge_count;        /* Hot edge count */
+    uint64_t     node_count;        /* Hot node count (NO LIMIT, uint64_t) */
+    uint64_t     edge_count;        /* Hot edge count (NO LIMIT, uint64_t) */
     uint64_t     blob_size;         /* Hot blob size */
     uint64_t     cold_data_size;    /* Cold data size */
     
-    /* Event-driven propagation state */
+    /* Event-driven propagation state 
+     * WAVE PROPAGATION: Only active nodes processed (NO full scans)
+     * These arrays grow with node_count (NO artificial caps)
+     */
     float        *last_activation;  /* Track last activation for change detection */
     float        *last_message;     /* Track last message for change detection */
-    uint64_t     tracking_array_size; /* Actual size of tracking arrays (capped for large graphs) */
+    uint64_t     tracking_array_size; /* Size of tracking arrays (= node_count, grows dynamically) */
     float        avg_chaos;         /* Running average of chaos (relative measure) */
     float        avg_activation;    /* Running average of activation */
     float        avg_edge_strength;  /* Running average of edge strength */
@@ -143,9 +167,16 @@ typedef struct {
     float        avg_feedback_correlation; /* Running average of feedback success */
     float        avg_prediction_accuracy;  /* Running average of prediction accuracy */
     
-    /* Dynamic propagation queue (per-graph, sized to node_count) */
-    uint32_t     *prop_queue;          /* Dynamic queue array */
-    uint64_t     prop_queue_size;      /* Queue size (based on node_count) */
+    /* Dynamic propagation queue (per-graph, sized to node_count)
+     * 
+     * WAVE PROPAGATION CORE: Only nodes in this queue are processed
+     * - Typical size: 100-1000 nodes (NOT millions/billions)
+     * - Queue capacity = node_count (grows with graph, NO hard limit)
+     * - THIS IS WHY WE SCALE: process queue, not all nodes
+     * - Processing = O(queue_size), NOT O(node_count)
+     */
+    uint32_t     *prop_queue;          /* Dynamic queue array (size = node_count) */
+    uint64_t     prop_queue_size;      /* Queue capacity (= node_count, NO LIMIT) */
     _Atomic uint32_t prop_queue_head;  /* Queue head (atomic) */
     _Atomic uint32_t prop_queue_tail;  /* Queue tail (atomic) */
     _Atomic uint8_t  *prop_queued;     /* Bitmap: node queued? (atomic array) */

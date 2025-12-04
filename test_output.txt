@@ -1,0 +1,217 @@
+  ✓ Created pattern 840 from co-activation (len=3)
+  ✓ Created pattern 841 from co-activation (len=3)
+  ✓ Created pattern 842 from co-activation (len=3)
+  ✓ Created pattern 843 from co-activation (len=3)
+
+╔════════════════════════════════════════════════════╗
+║  SAFE COMPONENT TEST - CONTROLLED TESTING          ║
+╚════════════════════════════════════════════════════╝
+
+Creating minimal test brain (5K nodes, 25K edges)...
+✅ Brain: 5000 nodes, 2000 edges
+
+TEST 1: Basic Feed (10 bytes)
+------------------------------------------
+  ✅ Fed 10 bytes
+  ✅ Data nodes created
+  (Found 256 data nodes in range 0-255)
+
+TEST 2: Limited Propagation (10 steps)
+------------------------------------------
+[BLOB] Executing blob at offset 384 (execution #1)
+[BLOB] Executing blob at offset 384 (execution #2)
+Co-activation check #10 (window has 200 activations)
+[BLOB] Executing blob at offset 384 (execution #3)
+Co-activation check #20 (window has 200 activations)
+  ✓ Created pattern 844 from co-activation (len=3)
+  ✓ Created pattern 845 from co-activation (len=3)
+  ✓ Created pattern 846 from co-activation (len=3)
+  ✓ Created pattern 847 from co-activation (len=3)
+Co-activation check #30 (window has 200 activations)
+Co-activation check #40 (window has 200 activations)
+  ✓ Created pattern 848 from co-activation (len=3)
+Co-activation check #50 (window has 200 activations)
+Co-activation check #60 (window has 200 activations)
+  ✓ Created pattern 849 from co-activation (len=3)
+  ✓ Created pattern 850 from co-activation (len=3)
+Co-activation check #70 (window has 200 activations)
+Co-activation check #80 (window has 200 activations)
+Co-activation check #90 (window has 200 activations)
+Co-activation check #100 (window has 200 activations)
+Co-activation check #110 (window has 200 activations)
+Co-activation check #120 (window has 200 activations)
+Co-activation check #130 (window has 200 activations)
+Co-activation check #140 (window has 200 activations)
+Co-activation check #150 (window has 200 activations)
+Co-activation check #160 (window has 200 activations)
+Co-activation check #170 (window has 200 activations)
+Co-activation check #180 (window has 200 activations)
+Co-activation check #190 (window has 200 activations)
+Co-activation check #200 (window has 200 activations)
+Co-activation check #210 (window has 200 activations)
+Co-activation check #220 (window has 200 activations)
+Co-activation check #230 (window has 200 activations)
+Co-activation check #240 (window has 200 activations)
+Co-activation check #250 (window has 200 activations)
+Co-activation check #260 (window has 200 activations)
+Co-activation check #270 (window has 200 activations)
+Co-activation check #280 (window has 200 activations)
+Co-activation check #290 (window has 200 activations)
+Co-activation check #300 (window has 200 activations)
+Co-activation check #310 (window has 200 activations)
+Co-activation check #320 (window has 200 activations)
+Co-activation check #330 (window has 200 activations)
+Co-activation check #340 (window has 200 activations)
+Co-activation check #350 (window has 200 activations)
+Co-activation check #360 (window has 200 activations)
+Co-activation check #370 (window has 200 activations)
+Co-activation check #380 (window has 200 activations)
+Co-activation check #390 (window has 200 activations)
+Co-activation check #400 (window has 200 activations)
+Co-activation check #410 (window has 200 activations)
+Co-activation check #420 (window has 200 activations)
+Co-activation check #430 (window has 200 activations)
+Co-activation check #440 (window has 200 activations)
+Co-activation check #450 (window has 200 activations)
+Co-activation check #460 (window has 200 activations)
+Co-activation check #470 (window has 200 activations)
+Co-activation check #480 (window has 200 activations)
+Co-activation check #490 (window has 200 activations)
+Co-activation check #500 (window has 200 activations)
+Co-activation check #510 (window has 200 activations)
+Co-activation check #520 (window has 200 activations)
+Co-activation check #530 (window has 200 activations)
+Co-activation check #540 (window has 200 activations)
+Co-activation check #550 (window has 200 activations)
+Co-activation check #560 (window has 200 activations)
+Co-activation check #570 (window has 200 activations)
+Co-activation check #580 (window has 200 activations)
+Co-activation check #590 (window has 200 activations)
+Co-activation check #600 (window has 200 activations)
+Co-activation check #610 (window has 200 activations)
+Co-activation check #620 (window has 200 activations)
+Co-activation check #630 (window has 200 activations)
+  ✓ Created pattern 851 from co-activation (len=3)
+  ✓ Created pattern 852 from co-activation (len=3)
+  ✓ Created pattern 853 from co-activation (len=3)
+  ✓ Created pattern 854 from co-activation (len=3)
+  ✓ Created pattern 855 from co-activation (len=3)
+  ✓ Created pattern 856 from co-activation (len=3)
+Co-activation check #640 (window has 200 activations)
+Co-activation check #650 (window has 200 activations)
+Co-activation check #660 (window has 200 activations)
+Co-activation check #670 (window has 200 activations)
+Co-activation check #680 (window has 200 activations)
+Co-activation check #690 (window has 200 activations)
+Co-activation check #700 (window has 200 activations)
+Co-activation check #710 (window has 200 activations)
+Co-activation check #720 (window has 200 activations)
+Co-activation check #730 (window has 200 activations)
+Co-activation check #740 (window has 200 activations)
+Co-activation check #750 (window has 200 activations)
+Co-activation check #760 (window has 200 activations)
+Co-activation check #770 (window has 200 activations)
+Co-activation check #780 (window has 200 activations)
+Co-activation check #790 (window has 200 activations)
+Co-activation check #800 (window has 200 activations)
+Co-activation check #810 (window has 200 activations)
+Co-activation check #820 (window has 200 activations)
+Co-activation check #830 (window has 200 activations)
+Co-activation check #840 (window has 200 activations)
+Co-activation check #850 (window has 200 activations)
+Co-activation check #860 (window has 200 activations)
+Co-activation check #870 (window has 200 activations)
+Co-activation check #880 (window has 200 activations)
+Co-activation check #890 (window has 200 activations)
+Co-activation check #900 (window has 200 activations)
+Co-activation check #910 (window has 200 activations)
+Co-activation check #920 (window has 200 activations)
+Co-activation check #930 (window has 200 activations)
+Co-activation check #940 (window has 200 activations)
+Co-activation check #950 (window has 200 activations)
+Co-activation check #960 (window has 200 activations)
+Co-activation check #970 (window has 200 activations)
+Co-activation check #980 (window has 200 activations)
+Co-activation check #990 (window has 200 activations)
+Co-activation check #1000 (window has 200 activations)
+Co-activation check #1010 (window has 200 activations)
+Co-activation check #1020 (window has 200 activations)
+Co-activation check #1030 (window has 200 activations)
+Co-activation check #1040 (window has 200 activations)
+Co-activation check #1050 (window has 200 activations)
+Co-activation check #1060 (window has 200 activations)
+Co-activation check #1070 (window has 200 activations)
+Co-activation check #1080 (window has 200 activations)
+Co-activation check #1090 (window has 200 activations)
+Co-activation check #1100 (window has 200 activations)
+Co-activation check #1110 (window has 200 activations)
+Co-activation check #1120 (window has 200 activations)
+Co-activation check #1130 (window has 200 activations)
+Co-activation check #1140 (window has 200 activations)
+Co-activation check #1150 (window has 200 activations)
+Co-activation check #1160 (window has 200 activations)
+Co-activation check #1170 (window has 200 activations)
+Co-activation check #1180 (window has 200 activations)
+Co-activation check #1190 (window has 200 activations)
+Co-activation check #1200 (window has 200 activations)
+Co-activation check #1210 (window has 200 activations)
+Co-activation check #1220 (window has 200 activations)
+Co-activation check #1230 (window has 200 activations)
+Co-activation check #1240 (window has 200 activations)
+Co-activation check #1250 (window has 200 activations)
+Co-activation check #1260 (window has 200 activations)
+Co-activation check #1270 (window has 200 activations)
+Co-activation check #1280 (window has 200 activations)
+Co-activation check #1290 (window has 200 activations)
+  ✓ Created pattern 858 from co-activation (len=3)
+Co-activation check #1300 (window has 200 activations)
+Co-activation check #1310 (window has 200 activations)
+Co-activation check #1320 (window has 200 activations)
+Co-activation check #1330 (window has 200 activations)
+  ✅ 10 propagation steps completed
+  ✅ Some nodes activated
+  (Activated: 221 nodes)
+
+TEST 3: Pattern Discovery (controlled)
+------------------------------------------
+  Patterns before: 11
+  Patterns after: 17
+  New patterns: 6
+  ✅ Pattern discovery works
+  ✅ Patterns have valid structure
+
+TEST 4: EXEC Node System
+------------------------------------------
+  ✅ EXEC range allocated
+  (EXEC nodes 2000-2009: 10 exist)
+  Node 2000: before=0.0000, after=1.0000
+  ✅ EXEC node can be activated
+
+TEST 5: Pattern Matching (NEW FIX)
+------------------------------------------
+  Training with: 1+1, 2+2
+  Patterns created: 19
+  Testing query: '3+3=?'
+  Max EXEC activation: 1.0000
+  ✅ Pattern matching triggered EXEC
+      ✨ This proves match_patterns_and_route() works!
+
+═══════════════════════════════════════════════════
+SUMMARY
+═══════════════════════════════════════════════════
+
+Total Tests: 9
+Passed:      9 ✅
+Failed:      0 ❌
+
+Pass Rate:   100.0%
+
+🎉 ALL COMPONENTS WORKING!
+   System is reliable in controlled tests
+
+NOTE: This test uses STRICT LIMITS to prevent hanging.
+      If it completed, basic functionality works!
+      Hanging issues likely from unbounded growth.
+
+═══════════════════════════════════════════════════
+
