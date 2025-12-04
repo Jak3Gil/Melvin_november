@@ -297,6 +297,18 @@ uint32_t melvin_create_exec_node(Graph *g, uint32_t node_id, uint64_t blob_offse
 /* Create edge (exported for tools) */
 uint32_t melvin_create_edge(Graph *g, uint32_t src, uint32_t dst, float w);
 
+/* Create pattern node (exported for external teaching) */
+/* Returns pattern node ID on success, UINT32_MAX on error */
+uint32_t melvin_create_pattern_node(Graph *g, const PatternElement *pattern_elements, 
+                                     uint32_t element_count, const uint32_t *instance1,
+                                     const uint32_t *instance2, uint32_t instance_length);
+
+/* Teach operation (exported for external teaching) */
+/* Feed machine code as an operation the graph can execute */
+/* Returns EXEC node ID on success, UINT32_MAX on error */
+uint32_t melvin_teach_operation(Graph *g, const uint8_t *machine_code, 
+                                 size_t code_len, const char *name);
+
 /* Progress indicators */
 void melvin_set_progress_callback(void (*callback)(const char *message, float percent));
 void melvin_progress(const char *message, float percent);

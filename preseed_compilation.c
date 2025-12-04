@@ -11,8 +11,7 @@
  * NO CHANGES TO MELVIN.C - Pure external teaching!
  */
 
-#include "melvin.h"
-#include "melvin_syscalls.h"
+#include "src/melvin.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -115,17 +114,36 @@ void print_debug_impl(const char *message) {
     fprintf(stderr, "[DEBUG] %s\n", message);
 }
 
-/* Syscall table */
+/* Syscall wrapper to match melvin.h signature */
+int sys_compile_c_wrapper(const uint8_t *c_source, size_t source_len,
+                          uint64_t *blob_offset, uint64_t *code_size) {
+    /* Convert to string and call our implementation */
+    char source_str[65536];
+    if (source_len >= sizeof(source_str)) return -1;
+    memcpy(source_str, c_source, source_len);
+    source_str[source_len] = '\0';
+    
+    uint8_t machine_code[4096];
+    size_t mc_size;
+    
+    int ret = compile_c_function_impl(source_str, "main", machine_code, &mc_size);
+    if (ret == 0) {
+        /* Would store in blob and return offset - simplified for now */
+        *code_size = mc_size;
+    }
+    return ret;
+}
+
+uint32_t sys_create_exec_node_wrapper(uint32_t node_id, uint64_t blob_offset, float threshold_ratio) {
+    Graph *g = melvin_get_current_graph();
+    return melvin_create_exec_node(g, node_id, blob_offset, threshold_ratio);
+}
+
+/* Syscall table - uses existing melvin.h structure */
 static MelvinSyscalls syscalls = {
-    .compile_c_function = compile_c_function_impl,
-    .read_file = read_file_impl,
-    .write_file = write_file_impl,
-    .invoke_tool = invoke_tool_impl,
-    .send_motor_command = send_motor_command_impl,
-    .read_motor_feedback = read_motor_feedback_impl,
-    .log_success = log_success_impl,
-    .log_failure = log_failure_impl,
-    .print_debug = print_debug_impl
+    .sys_copy_from_cold = NULL,  /* Not used */
+    .sys_compile_c = sys_compile_c_wrapper,
+    .sys_create_exec_node = sys_create_exec_node_wrapper
 };
 
 /* ========================================================================

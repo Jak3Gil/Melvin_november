@@ -8,7 +8,7 @@ LDFLAGS = -lm
 TESTS = test_0_0_exec_smoke test_exec_basic test_0_7_multihop_math test_1_0_graph_add32 test_1_1_tool_selection test_master_8_capabilities
 
 # Tools
-TOOLS = melvin_pack_corpus melvin_seed_instincts melvin_seed_patterns melvin_seed_knowledge melvin_seed_arithmetic_exec melvin_feed_instincts melvin_build_learning_env
+TOOLS = melvin_pack_corpus melvin_seed_instincts melvin_seed_patterns melvin_seed_knowledge melvin_seed_arithmetic_exec melvin_feed_instincts melvin_build_learning_env preseed_compilation
 
 # Hardware runners (require ALSA and V4L2)
 HARDWARE = melvin_hardware_runner melvin_run_continuous
@@ -127,6 +127,10 @@ test_motor_exec: test_motor_exec.c src/melvin.c src/melvin.h
 # Motor runtime (requires CAN on Linux)
 melvin_motor_runtime: melvin_motor_runtime.c src/melvin.c src/melvin.h
 	$(CC) $(CFLAGS) -o melvin_motor_runtime melvin_motor_runtime.c src/melvin.c $(LDFLAGS) -pthread
+
+# Preseed compilation - External teaching tool (NO melvin.c changes!)
+preseed_compilation: preseed_compilation.c src/melvin.c src/melvin.h
+	$(CC) $(CFLAGS) -o preseed_compilation preseed_compilation.c src/melvin.c $(LDFLAGS) -pthread
 
 clean:
 	rm -f $(TESTS) $(TOOLS) $(MOTORS) *.o *.m

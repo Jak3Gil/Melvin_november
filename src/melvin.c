@@ -5248,3 +5248,15 @@ static void pattern_law_apply(Graph *g, uint32_t data_node_id) {
     }
 }
 
+/* ========================================================================
+ * PUBLIC API EXPORTS - For External Tools
+ * ======================================================================== */
+
+/* Export pattern creation for external teaching tools */
+uint32_t melvin_create_pattern_node(Graph *g, const PatternElement *pattern_elements, 
+                                     uint32_t element_count, const uint32_t *instance1,
+                                     const uint32_t *instance2, uint32_t instance_length) {
+    return create_pattern_node(g, pattern_elements, element_count, 
+                               instance1, instance2, instance_length);
+}
+
