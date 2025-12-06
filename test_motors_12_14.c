@@ -46,7 +46,7 @@ static bool init_can(void) {
     struct sockaddr_can addr;
     struct ifreq ifr;
     
-    printf("📡 Initializing CAN...\n");
+    printf("📡 Initializing USB-to-CAN...\n");
     
     can_socket = socket(PF_CAN, SOCK_RAW, CAN_RAW);
     if (can_socket < 0) {
@@ -54,11 +54,16 @@ static bool init_can(void) {
         return false;
     }
     
-    strcpy(ifr.ifr_name, "can0");
+    // Use slcan0 (USB-based CAN) instead of can0 (native CAN)
+    strcpy(ifr.ifr_name, "slcan0");
     if (ioctl(can_socket, SIOCGIFINDEX, &ifr) < 0) {
-        perror("CAN interface");
-        close(can_socket);
-        return false;
+        // Fallback to can0 if slcan0 doesn't exist
+        strcpy(ifr.ifr_name, "can0");
+        if (ioctl(can_socket, SIOCGIFINDEX, &ifr) < 0) {
+            perror("CAN interface (tried slcan0 and can0)");
+            close(can_socket);
+            return false;
+        }
     }
     
     addr.can_family = AF_CAN;
@@ -70,7 +75,7 @@ static bool init_can(void) {
         return false;
     }
     
-    printf("✅ CAN ready\n\n");
+    printf("✅ USB-to-CAN ready (interface: %s)\n\n", ifr.ifr_name);
     return true;
 }
 

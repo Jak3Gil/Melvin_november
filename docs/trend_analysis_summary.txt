@@ -1,0 +1,52 @@
+=== TREND ANALYSIS ===
+
+1. ACTIVE COUNT TRENDS
+--------------------------------------------------
+  Early (steps 0-32): 104.9
+  Late (steps 64-95): 100.0
+  Trend: → STABLE
+  Min: 100, Max: 256
+
+2. ENERGY TRENDS
+--------------------------------------------------
+  Early: 4.7254
+  Late: 4.7321
+  Trend: → STABLE
+  Min: 4.3427, Max: 11.9409
+
+3. CHAOS/ERROR TRENDS
+--------------------------------------------------
+  Early: 0.0052
+  Late: 0.0025
+  Trend: ↓ DECREASING (decreasing = more stable)
+  Min: 0.0025, Max: 0.0100
+
+4. PATTERN FORMATION
+--------------------------------------------------
+  Early: 0.0 patterns
+  Late: 0.0 patterns
+  → Pattern count stable
+  Active patterns - Early: 0.0, Late: 0.0
+
+5. EXEC NODE ACTIVITY
+--------------------------------------------------
+  EXEC nodes: 3
+  Total fires: 0
+  Early fires: 0
+  Late fires: 0
+  ⚠ EXEC nodes not firing (may need pattern matching)
+
+6. PREDICTION ERROR TRENDS
+--------------------------------------------------
+  Early: 0.1284
+  Late: 0.1160
+  Change: +9.7% (→ STABLE)
+  Sensory error - Early: 0.0917, Late: 0.0993
+  Change: -8.2% (→ STABLE)
+
+7. VALUE DYNAMICS
+--------------------------------------------------
+  Global value - Early: 0.0000, Late: 0.0000
+  → Value stable
+  Predicted delta - Early: 0.0000, Late: 0.0000
+

@@ -1,0 +1,39 @@
+LLM BASELINE (Theoretical Analysis)
+====================================
+
+Test 1: Pattern Stability & Compression
+- Pattern detection: YES (via attention mechanism)
+- Compression: NO (tokens remain as embeddings)
+- Stable chunk: NO (no persistent memory)
+- Units needed: O(sequence_length) tokens
+Score: 4/10 (correct behavior, no compression)
+
+Test 2: Locality of Activation
+- Active region: ENTIRE transformer stack
+- Activation: ALL layers process ALL tokens
+- Bounded: NO (activation = O(sequence_length))
+- Irrelevant memory: N/A (no persistent memory)
+Score: 2/10 (no locality mechanism)
+
+Test 3: Reaction to Surprise
+- Response: Next-token probability changes
+- Activation spread: GLOBAL (entire model)
+- Prediction error: Propagates through all layers
+- Localization: NO
+Score: 3/10 (detects but spreads globally)
+
+Test 4: Memory Recall Under Load
+- Memory: NO persistent memory
+- Retrieval: N/A (no memory to search)
+- Cost: N/A
+- Pattern finding: Via attention over context window
+Score: 1/10 (no persistent memory)
+
+Test 5: EXEC Function Triggering
+- EXEC nodes: NO (no machine code execution)
+- Activation: Pattern matching via embeddings
+- Code execution: N/A
+- Errors: N/A
+Score: 0/10 (no EXEC mechanism)
+
+TOTAL: 10/50

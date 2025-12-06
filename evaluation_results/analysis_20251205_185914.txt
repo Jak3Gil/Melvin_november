@@ -1,0 +1,49 @@
+============================================================
+MELVIN METRICS ANALYSIS
+============================================================
+
+Test 1: Pattern Stability & Compression
+------------------------------------------------------------
+  Initial active: 0
+  Final active: 10
+  Max active: 10
+  Pattern formed: False
+  Max patterns: 0
+  Compression ratio: -10.000
+
+Test 2: Locality of Activation
+------------------------------------------------------------
+  Max active: 10
+  Avg active: 10.00
+  Max groups: 4
+  Final node count: 1201
+  Locality ratio: 0.008326
+  Groups bounded: True
+
+Test 3: Reaction to Surprise
+------------------------------------------------------------
+  Baseline active: 10.00
+  Anomaly active: 10.00
+  Active delta: 0.00
+  Energy delta: -0.015344
+  Max anomaly active: 10
+  Localized: True
+
+Test 4: Memory Recall Under Load
+------------------------------------------------------------
+  Final node count: 1442
+  Avg recall active: 10.00
+  Max recall active: 10
+  Recall cost ratio: 0.006935
+  Recall bounded: True
+
+Test 5: EXEC Function Triggering
+------------------------------------------------------------
+  Initial exec fires: 0
+  Final exec fires: 0
+  Exec delta: 0
+  Exec fired: False
+
+============================================================
+Analysis complete. See CSV files for raw data.
+============================================================

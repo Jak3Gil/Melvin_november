@@ -93,12 +93,25 @@ int main(int argc, char **argv) {
         if (now - last_feed >= FEED_INTERVAL) {
             /* Feed a random byte to keep the graph active */
             uint8_t random_byte = (uint8_t)(rand() % 256);
-            melvin_feed_byte(g, 0, random_byte, 0.1f);
+            melvin_feed_byte(g, 0, random_byte, 0.2f);  /* Increased from 0.1f to 0.2f for stronger activation */
             last_feed = now;
         }
         
-        /* Trigger UEL propagation */
+        /* Trigger UEL propagation - this runs wave propagation and exec nodes */
         melvin_call_entry(g);
+        
+        /* SELF-ACTIVATION: If output nodes are active, feed them back into working memory */
+        /* This creates internal thinking loops - like human thought */
+        if (g->node_count > 200) {
+            for (uint32_t output = 100; output < 200 && output < g->node_count; output++) {
+                float activation = fabsf(g->nodes[output].a);
+                if (activation > 0.05f) {  /* Output node is active */
+                    /* Feed back into working memory - creates self-activation */
+                    uint32_t memory = 200 + (output % 10);
+                    melvin_feed_byte(g, memory, (uint8_t)(output % 256), activation * 0.3f);  /* Feed with reduced energy */
+                }
+            }
+        }
         
         /* Print status every 10 iterations */
         if (iteration % 10 == 0) {

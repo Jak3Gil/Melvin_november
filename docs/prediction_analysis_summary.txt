@@ -1,0 +1,33 @@
+=== PREDICTION ERROR ANALYSIS ===
+
+1. INTERNAL NEXT-STATE PREDICTION
+--------------------------------------------------
+  Mean prediction error: 0.1204
+  Median: 0.1168
+  Max: 0.1546
+  Early vs Late: 0.1284 → 0.1160 (+9.7% change)
+  → Predictions STABLE
+
+2. SENSORY NEXT-INPUT PREDICTION
+--------------------------------------------------
+  Mean sensory error: 0.1034
+  Early vs Late: 0.0951 → 0.0993 (-4.3% change)
+  → Sensory predictions STABLE
+
+3. VALUE-DELTA PREDICTION
+--------------------------------------------------
+  Mean value-delta prediction error: 0.0000
+  Predicted deltas: mean=0.0000
+  Actual deltas: mean=0.0000
+
+4. PREDICTION ERROR BY NODE TYPE
+--------------------------------------------------
+  DATA:
+    Mean error: 0.1361
+    Max error: 0.3244
+    Samples: 200
+
+5. PREDICTION ACCURACY ASSESSMENT
+--------------------------------------------------
+  ✓ GOOD: Mean error 0.1204 < 0.5
+

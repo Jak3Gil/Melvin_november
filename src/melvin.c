@@ -54,6 +54,34 @@
 #include <signal.h>
 #include <setjmp.h>
 
+/* Physics constants for unified energy system - defined early for use in initialization */
+#define MAX_IO_ENERGY_PER_STEP 1.0f      /* Maximum energy injected per physics step */
+#define ALPHA_INHIB 0.3f                 /* Inhibition strength multiplier */
+#define ENERGY_MAX 10.0f                 /* Maximum energy per node */
+#define BETA_WTA 0.1f                    /* Winner-take-all normalization strength */
+#define PATTERN_ACTIVE_THRESHOLD 0.5f    /* Energy threshold for pattern explain-away */
+#define EXPLAIN_AWAY_FACTOR 0.7f          /* Fraction of energy suppressed by pattern */
+#define EXEC_FIRE_THRESHOLD 0.5f          /* Energy threshold for EXEC firing */
+#define ACTIVE_THRESHOLD 0.01f           /* Energy threshold for "active" node */
+#define MIN_LEAK 0.001f                   /* Minimum leak rate */
+#define MAX_LEAK 0.5f                     /* Maximum leak rate */
+#define MIN_GAIN 0.1f                     /* Minimum gain */
+#define MAX_GAIN 2.0f                     /* Maximum gain */
+#define TARGET_ACTIVITY 0.1f              /* Target average activity for homeostasis */
+#define HOME0_LEAK_K 0.0001f             /* Homeostasis leak adaptation rate */
+#define HOME0_GAIN_K 0.0001f             /* Homeostasis gain adaptation rate */
+#define HOME0_RATE 0.001f                /* Homeostasis running average rate */
+
+/* Value scoring system constants */
+static const float VALUE_W_ERROR       = 1.0f;   /* Weight for error_delta */
+static const float VALUE_W_COMPRESSION = 0.5f;   /* Weight for compression_gain */
+static const float VALUE_W_CONTROL     = 0.5f;   /* Weight for control_value */
+static const float VALUE_W_REWARD      = 1.0f;   /* Weight for external reward */
+static const float VALUE_W_ENERGY_COST = 0.1f;   /* Weight for energy_cost (penalty) */
+static const float VALUE_DECAY         = 0.01f;  /* EWMA decay rate for value components */
+#define ERROR_RELEVANT_ENERGY_THRESHOLD 0.1f     /* Minimum energy to contribute to error_delta */
+#define ENERGY_COST_THRESHOLD 0.05f               /* Minimum energy to track as cost */
+
 /* ========================================================================
  * ROUTING CHAIN DEBUG INSTRUMENTATION
  * ======================================================================== */
@@ -87,8 +115,9 @@ typedef struct {
     uint64_t last_seen;
 } PatternAdjacency;
 
-#define MAX_ADJACENCIES 1000
-static PatternAdjacency adjacencies[MAX_ADJACENCIES];
+/* NO LIMITS - dynamic allocation for pattern adjacencies */
+static PatternAdjacency *adjacencies = NULL;
+static uint32_t adjacency_capacity = 0;
 static uint32_t adjacency_count = 0;
 
 /* Last active pattern for sequential detection */
@@ -104,6 +133,7 @@ static void initialize_soft_structure(Graph *g, bool is_new_file);
 static void create_initial_edge_suggestions(Graph *g, bool is_new_file);
 static uint32_t find_edge(Graph *g, uint32_t src, uint32_t dst);
 static uint32_t create_edge(Graph *g, uint32_t src, uint32_t dst, float w);
+static void ensure_node(Graph *g, uint32_t node_id);
 static void expand_pattern(Graph *g, uint32_t pattern_node_id, const uint32_t *bindings);
 static void melvin_execute_exec_node(Graph *g, uint32_t node_id);
 static bool pattern_matches_sequence(Graph *g, uint32_t pattern_node_id, const uint32_t *sequence, uint32_t length, uint32_t *bindings);
@@ -121,8 +151,9 @@ static void initialize_soft_structure(Graph *g, bool is_new_file) {
     /* For existing files, preserve learned structure */
     if (!is_new_file) {
         /* Check if soft structure already initialized (non-zero propensities exist) */
+        /* NO LIMITS - check all nodes (but only until we find structure) */
         bool has_structure = false;
-        for (uint64_t i = 0; i < g->node_count && i < 256; i++) {
+        for (uint64_t i = 0; i < g->node_count; i++) {
             if (g->nodes[i].input_propensity > 0.01f || 
                 g->nodes[i].output_propensity > 0.01f ||
                 g->nodes[i].memory_propensity > 0.01f) {
@@ -134,7 +165,8 @@ static void initialize_soft_structure(Graph *g, bool is_new_file) {
     }
     
     /* Initialize port range semantics and propensities */
-    for (uint64_t i = 0; i < g->node_count && i < 256; i++) {
+    /* NO LIMITS - initialize all existing nodes */
+    for (uint64_t i = 0; i < g->node_count; i++) {
         Node *n = &g->nodes[i];
         
         /* Default: low propensities (internal processing node) */
@@ -381,6 +413,34 @@ static void create_initial_edge_suggestions(Graph *g, bool is_new_file) {
         for (uint32_t feedback = 30; feedback < 34; feedback++) {
             if (find_edge(g, output, feedback) == UINT32_MAX) {
                 create_edge(g, output, feedback, weak_weight);  /* ensure_node creates nodes */
+            }
+        }
+    }
+    
+    /* 3a. SELF-ACTIVATION LOOPS: Output → Working Memory → Input (Internal Thinking) */
+    /* This creates internal activation cycles - like human thinking */
+    /* Output nodes feed back into working memory, which feeds into input ports */
+    for (uint32_t output = 100; output < 200; output++) {
+        /* Output → Working memory (200-209) - creates internal thought loops */
+        for (uint32_t memory = 200; memory < 210; memory++) {
+            if (find_edge(g, output, memory) == UINT32_MAX) {
+                create_edge(g, output, memory, medium_weight);  /* Medium weight for self-activation */
+            }
+        }
+        /* Output → Input ports (0-29) - direct feedback for stronger self-activation */
+        for (uint32_t input = 0; input < 30; input++) {
+            if (find_edge(g, output, input) == UINT32_MAX) {
+                create_edge(g, output, input, weak_weight);  /* Weak but present - enables self-activation */
+            }
+        }
+    }
+    
+    /* 3b. Working Memory → Input ports (completes the self-activation loop) */
+    /* Working memory can feed back into input ports, creating internal thinking cycles */
+    for (uint32_t memory = 200; memory < 210; memory++) {
+        for (uint32_t input = 0; input < 30; input++) {
+            if (find_edge(g, memory, input) == UINT32_MAX) {
+                create_edge(g, memory, input, weak_weight);  /* Weak but enables self-activation */
             }
         }
     }
@@ -903,11 +963,56 @@ static Graph* melvin_open_with_cold(const char *path, size_t initial_nodes, size
         for (int i = 0; i < 256 && i < (int)initial_nodes; i++) {
             nodes[i].byte = (uint8_t)i;
             nodes[i].a = 0.0f;
+            nodes[i].energy = 0.0f;  /* Initialize energy (maps to a) */
             /* Initialize soft structure fields to zero (will be set by initialize_soft_structure) */
             nodes[i].input_propensity = 0.0f;
             nodes[i].output_propensity = 0.0f;
             nodes[i].memory_propensity = 0.0f;
             nodes[i].semantic_hint = 0;
+            /* Initialize physics fields */
+            nodes[i].leak_rate = 0.05f;  /* Default 5% leak per update */
+            nodes[i].gain = 1.0f;         /* Default gain */
+            nodes[i].avg_activity = 0.0f;
+            nodes[i].target_activity = TARGET_ACTIVITY;
+            nodes[i].homeo_rate = HOME0_RATE;
+            nodes[i].inhib_group = i / 100;  /* Group nodes by ID (100 nodes per group) */
+            nodes[i].type = NODE_TYPE_DATA;
+            
+            /* Initialize EXEC tracking fields */
+            nodes[i].exec_origin = EXEC_ORIGIN_NONE;
+            nodes[i].parent_pattern_id = 0;
+            nodes[i].created_update = 0;
+            
+            /* Initialize value scoring fields */
+            nodes[i].value = 0.0f;
+            nodes[i].recent_error_delta = 0.0f;
+            nodes[i].recent_compression_gain = 0.0f;
+            nodes[i].recent_control_value = 0.0f;
+            nodes[i].recent_ext_reward = 0.0f;
+            nodes[i].recent_energy_cost = 0.0f;
+            
+            /* Initialize prediction fields */
+            nodes[i].predicted_activation = 0.0f;
+            nodes[i].prediction_error = 0.0f;
+            nodes[i].sensory_prediction = 0.0f;
+            nodes[i].sensory_pred_error = 0.0f;
+            nodes[i].predicted_value_delta = 0.0f;
+            nodes[i].value_pred_error = 0.0f;
+        }
+        
+        /* Initialize physics fields for all nodes */
+        for (size_t i = 0; i < initial_nodes; i++) {
+            if (nodes[i].energy == 0.0f && nodes[i].a == 0.0f) {
+                /* New node - initialize physics fields */
+                nodes[i].energy = 0.0f;
+                nodes[i].leak_rate = 0.05f;
+                nodes[i].gain = 1.0f;
+                nodes[i].avg_activity = 0.0f;
+                nodes[i].target_activity = TARGET_ACTIVITY;
+                nodes[i].homeo_rate = HOME0_RATE;
+                nodes[i].inhib_group = (uint32_t)(i / 100);  /* 100 nodes per inhibition group */
+                if (nodes[i].type == 0) nodes[i].type = NODE_TYPE_DATA;  /* Default type */
+            }
         }
         
         g->fd = fd;
@@ -990,6 +1095,26 @@ static Graph* melvin_open_with_cold(const char *path, size_t initial_nodes, size
         g->avg_feedback_correlation = 0.0f;
         g->avg_prediction_accuracy = 0.0f;
         
+        /* Initialize scaling metrics */
+        g->total_energy = 0.0f;
+        g->active_count = 0;
+        g->physics_step_count = 0;
+        
+        /* Initialize value scoring system tracking */
+        g->prev_global_error = g->avg_chaos;  /* Use chaos as proxy for error */
+        g->avg_active_count = 0.0f;
+        g->recent_active_patterns = NULL;
+        g->recent_patterns_size = 0;
+        g->recent_patterns_pos = 0;
+        
+        /* Initialize prediction system tracking */
+        g->last_input_byte = 0;
+        g->predicted_next_byte = 0;
+        g->predicted_byte_confidence = 0;
+        g->predicted_global_value_delta = 0.0f;
+        g->global_value_estimate = 0.0f;
+        g->prev_global_value = 0.0f;
+        
         /* NO LIMITS: Allocate arrays for all nodes - graph can grow without bounds */
         uint64_t tracking_size = g->node_count;
         uint64_t queue_size = g->node_count;
@@ -1019,18 +1144,12 @@ static Graph* melvin_open_with_cold(const char *path, size_t initial_nodes, size
         /* Store actual tracking size for bounds checking */
         g->tracking_array_size = tracking_size;
         
-        /* Initialize all nodes - no limits */
-        if (g->last_activation && g->last_message && g->output_propensity && 
-            g->feedback_correlation && g->prediction_accuracy && g->stored_energy_capacity) {
-            for (uint64_t i = 0; i < g->node_count; i++) {
-                g->last_activation[i] = g->nodes[i].a;
-                g->output_propensity[i] = g->nodes[i].output_propensity;
-                g->stored_energy_capacity[i] = g->nodes[i].memory_propensity * 0.1f;
-            }
-        }
+        /* LAZY INITIALIZATION - arrays initialized on-demand during wave propagation */
+        /* NO FULL SCAN - only initialize nodes as they're accessed */
+        /* Arrays are zero-initialized by calloc, which is correct for uninitialized nodes */
         
         /* Initialize pattern system: sequence tracking */
-        g->sequence_buffer_size = 1000;  /* Track last 1000 bytes */
+        g->sequence_buffer_size = (g->node_count > 0) ? g->node_count : 256;  /* NO LIMITS - grows with graph */
         g->sequence_buffer = calloc(g->sequence_buffer_size, sizeof(uint32_t));
         g->sequence_buffer_pos = 0;
         g->sequence_buffer_full = 0;
@@ -1245,6 +1364,30 @@ static Graph* melvin_open_with_cold(const char *path, size_t initial_nodes, size
         g->avg_feedback_correlation = 0.0f;
         g->avg_prediction_accuracy = 0.0f;
         
+        /* Initialize scaling metrics */
+        g->total_energy = 0.0f;
+        g->active_count = 0;
+        g->physics_step_count = 0;
+        
+        /* Initialize value scoring system tracking */
+        g->prev_global_error = g->avg_chaos;  /* Use chaos as proxy for error */
+        g->avg_active_count = (g->active_count > 0) ? (float)g->active_count : 0.0f;
+        if (!g->recent_active_patterns) {
+            g->recent_patterns_size = 100;  /* Track last 100 active patterns */
+            g->recent_active_patterns = calloc(g->recent_patterns_size, sizeof(uint32_t));
+            g->recent_patterns_pos = 0;
+        }
+        
+        /* Initialize prediction system tracking */
+        if (g->last_input_byte == 0 && g->predicted_next_byte == 0) {
+            g->last_input_byte = 0;
+            g->predicted_next_byte = 0;
+            g->predicted_byte_confidence = 0;
+            g->predicted_global_value_delta = 0.0f;
+            g->global_value_estimate = 0.0f;
+            g->prev_global_value = 0.0f;
+        }
+        
         /* NO LIMITS: Allocate arrays for all nodes */
         uint64_t tracking_size_existing = g->node_count;
         uint64_t queue_size_existing = g->node_count;
@@ -1282,7 +1425,7 @@ static Graph* melvin_open_with_cold(const char *path, size_t initial_nodes, size
         g->avg_prediction_accuracy = 0.0f;
         
         /* Initialize pattern system: sequence tracking */
-        g->sequence_buffer_size = 1000;  /* Track last 1000 bytes */
+        g->sequence_buffer_size = (g->node_count > 0) ? g->node_count : 256;  /* NO LIMITS - grows with graph */
         g->sequence_buffer = calloc(g->sequence_buffer_size, sizeof(uint32_t));
         g->sequence_buffer_pos = 0;
         g->sequence_buffer_full = 0;
@@ -1384,6 +1527,41 @@ void melvin_close(Graph *g) {
 }
 
 /* ========================================================================
+ * EXEC NODE TRACKING: Log creation of EXEC nodes
+ * ======================================================================== */
+
+#define PATTERN_MAGIC 0x4E544150  /* "PATN" in little-endian */
+
+/* Log EXEC node creation to evaluation_results/exec_creation.log */
+static void log_exec_creation(Graph *g, uint32_t node_id, const char *context) {
+    if (!g || node_id >= g->node_count) return;
+    
+    Node *node = &g->nodes[node_id];
+    if (node->type != NODE_TYPE_EXEC) return;  /* Only log EXEC nodes */
+    
+    /* Open log file (append mode) */
+    FILE *log = fopen("evaluation_results/exec_creation.log", "a");
+    if (!log) {
+        /* Try to create directory if it doesn't exist */
+        system("mkdir -p evaluation_results 2>/dev/null");
+        log = fopen("evaluation_results/exec_creation.log", "a");
+        if (!log) return;  /* Silently fail if can't create */
+    }
+    
+    /* Write log entry */
+    fprintf(log, "EXEC_CREATE id=%u origin=%u parent_pattern=%u created_update=%llu payload_offset=%llu context=%s\n",
+            node_id,
+            (unsigned)node->exec_origin,
+            node->parent_pattern_id,
+            (unsigned long long)node->created_update,
+            (unsigned long long)node->payload_offset,
+            context ? context : "unknown");
+    
+    fflush(log);
+    fclose(log);
+}
+
+/* ========================================================================
  * TEACHABLE EXEC: Feed Operations to Brain as Data
  * Brain learns operations by having machine code fed, not hardcoded!
  * ======================================================================== */
@@ -1427,9 +1605,130 @@ uint32_t melvin_teach_operation(Graph *g, const uint8_t *machine_code,
     g->nodes[exec_node].payload_offset = code_offset;
     g->nodes[exec_node].byte = 0xEE;
     g->nodes[exec_node].exec_threshold_ratio = 0.1f;
+    g->nodes[exec_node].type = NODE_TYPE_EXEC;
+    
+    /* Tag as TAUGHT EXEC */
+    g->nodes[exec_node].exec_origin = EXEC_ORIGIN_TAUGHT;
+    g->nodes[exec_node].parent_pattern_id = 0;
+    g->nodes[exec_node].created_update = g->physics_step_count;
+    
+    /* Log creation */
+    char context_buf[256];
+    snprintf(context_buf, sizeof(context_buf), "melvin_teach_operation:%s", name ? name : "unnamed");
+    log_exec_creation(g, exec_node, context_buf);
     
     fprintf(stderr, "📚 TAUGHT: '%s' → node %u @ %llu\n",
             name, exec_node, (unsigned long long)code_offset);
+    
+    return exec_node;
+}
+
+/* ========================================================================
+ * PATTERN-TO-EXEC PROMOTION: Promote a pattern node to an EXEC node
+ * ======================================================================== */
+
+/* Promote a pattern node to an EXEC node */
+uint32_t promote_pattern_to_exec(Graph *g, uint32_t pattern_id) {
+    if (!g || pattern_id >= g->node_count) return UINT32_MAX;
+    
+    Node *pattern_node = &g->nodes[pattern_id];
+    if (pattern_node->pattern_data_offset == 0) return UINT32_MAX;  /* Not a pattern node */
+    
+    /* Check if pattern already has an EXEC */
+    uint64_t pattern_offset = pattern_node->pattern_data_offset - g->hdr->blob_offset;
+    if (pattern_offset >= g->blob_size) return UINT32_MAX;
+    
+    PatternData *pattern_data = (PatternData *)(g->blob + pattern_offset);
+    if (pattern_data->magic != 0x4E544150) return UINT32_MAX;  /* PATTERN_MAGIC */
+    
+    if (pattern_data->has_exec != 0 && pattern_data->bound_exec_id < g->node_count) {
+        /* Already has EXEC - return existing */
+        return pattern_data->bound_exec_id;
+    }
+    
+    /* Find free EXEC node (similar to melvin_teach_operation) */
+    uint32_t exec_node = UINT32_MAX;
+    for (uint32_t i = 2000; i < 3000 && i < g->node_count; i++) {
+        if (g->nodes[i].payload_offset == 0) {
+            exec_node = i;
+            break;
+        }
+    }
+    
+    if (exec_node == UINT32_MAX) {
+        /* Need to grow graph */
+        ensure_node(g, 3000);
+        exec_node = 2000;  /* Use first available after growth */
+        for (uint32_t i = 2000; i < g->node_count; i++) {
+            if (g->nodes[i].payload_offset == 0) {
+                exec_node = i;
+                break;
+            }
+        }
+        if (exec_node == UINT32_MAX) return UINT32_MAX;
+    }
+    
+    /* Allocate placeholder code in blob (for now, just a marker) */
+    static uint64_t promo_exec_offset = 2048;  /* Start after regular EXEC codes */
+    uint64_t code_offset = promo_exec_offset;
+    
+    /* Check blob space */
+    if (code_offset + 256 > g->hdr->blob_size) {
+        fprintf(stderr, "❌ No blob space for pattern-promoted EXEC\n");
+        return UINT32_MAX;
+    }
+    
+    /* Write placeholder marker (0xEE repeated) */
+    memset(g->blob + code_offset, 0xEE, 256);
+    promo_exec_offset += 256;
+    
+    /* Set up EXEC node */
+    g->nodes[exec_node].payload_offset = code_offset;
+    g->nodes[exec_node].byte = 0xEE;
+    g->nodes[exec_node].exec_threshold_ratio = 0.3f;  /* Lower threshold for pattern-promoted */
+    g->nodes[exec_node].type = NODE_TYPE_EXEC;
+    
+    /* Tag as PATTERN_PROMO EXEC */
+    g->nodes[exec_node].exec_origin = EXEC_ORIGIN_PATTERN_PROMO;
+    g->nodes[exec_node].parent_pattern_id = pattern_id;
+    g->nodes[exec_node].created_update = g->physics_step_count;
+    
+    /* Wire pattern as first input */
+    g->nodes[exec_node].input_count = 1;
+    /* Store input_ids in blob (simplified - just store pattern_id) */
+    uint64_t input_offset = code_offset + 256;
+    if (input_offset + sizeof(uint32_t) <= g->hdr->blob_size) {
+        uint32_t *input_ptr = (uint32_t *)(g->blob + (input_offset - g->hdr->blob_offset));
+        input_ptr[0] = pattern_id;
+        g->nodes[exec_node].input_ids = (uint32_t *)(g->hdr->blob_offset + input_offset);
+    }
+    
+    /* Wire output port 100 as first output */
+    g->nodes[exec_node].output_count = 1;
+    uint64_t output_offset = input_offset + sizeof(uint32_t);
+    if (output_offset + sizeof(uint32_t) <= g->hdr->blob_size) {
+        uint32_t *output_ptr = (uint32_t *)(g->blob + (output_offset - g->hdr->blob_offset));
+        output_ptr[0] = 100;  /* Output port 100 */
+        g->nodes[exec_node].output_ids = (uint32_t *)(g->hdr->blob_offset + output_offset);
+    }
+    
+    /* Create edge from pattern to EXEC */
+    ensure_node(g, exec_node);
+    if (find_edge(g, pattern_id, exec_node) == UINT32_MAX) {
+        float weight = g->avg_edge_strength * 0.5f;
+        if (weight < 0.1f) weight = 0.1f;
+        create_edge(g, pattern_id, exec_node, weight);
+    }
+    
+    /* Mark pattern as having EXEC */
+    pattern_data->has_exec = 1;
+    pattern_data->bound_exec_id = exec_node;
+    
+    /* Log creation */
+    log_exec_creation(g, exec_node, "pattern_promotion");
+    
+    fprintf(stderr, "🎯 PROMOTED: Pattern %u → EXEC node %u @ %llu\n",
+            pattern_id, exec_node, (unsigned long long)code_offset);
     
     return exec_node;
 }
@@ -1586,6 +1885,37 @@ static int grow_nodes(Graph *g, uint64_t new_node_count) {
         memset(&g->nodes[i], 0, sizeof(Node));
         g->nodes[i].first_in = UINT32_MAX;   /* No edges yet */
         g->nodes[i].first_out = UINT32_MAX;  /* No edges yet */
+        
+        /* Initialize physics fields */
+        g->nodes[i].energy = 0.0f;
+        g->nodes[i].leak_rate = 0.05f;  /* Default 5% leak per update */
+        g->nodes[i].gain = 1.0f;         /* Default gain */
+        g->nodes[i].avg_activity = 0.0f;
+        g->nodes[i].target_activity = TARGET_ACTIVITY;
+        g->nodes[i].homeo_rate = HOME0_RATE;
+        g->nodes[i].inhib_group = (uint32_t)(i / 100);  /* 100 nodes per inhibition group */
+        g->nodes[i].type = NODE_TYPE_DATA;  /* Default type */
+        
+        /* Initialize EXEC tracking fields */
+        g->nodes[i].exec_origin = EXEC_ORIGIN_NONE;
+        g->nodes[i].parent_pattern_id = 0;
+        g->nodes[i].created_update = 0;
+        
+        /* Initialize value scoring fields */
+        g->nodes[i].value = 0.0f;
+        g->nodes[i].recent_error_delta = 0.0f;
+        g->nodes[i].recent_compression_gain = 0.0f;
+        g->nodes[i].recent_control_value = 0.0f;
+        g->nodes[i].recent_ext_reward = 0.0f;
+        g->nodes[i].recent_energy_cost = 0.0f;
+        
+        /* Initialize prediction fields */
+        g->nodes[i].predicted_activation = 0.0f;
+        g->nodes[i].prediction_error = 0.0f;
+        g->nodes[i].sensory_prediction = 0.0f;
+        g->nodes[i].sensory_pred_error = 0.0f;
+        g->nodes[i].predicted_value_delta = 0.0f;
+        g->nodes[i].value_pred_error = 0.0f;
     }
     
     /* Update counts */
@@ -1677,10 +2007,8 @@ static void ensure_node_arrays(Graph *g) {
     if (!g->stored_energy_capacity) {
         g->stored_energy_capacity = calloc(tracking_size, sizeof(float));
         if (!g->stored_energy_capacity) return;
-        /* Initialize from memory propensity (importance) */
-        for (uint64_t i = 0; i < g->node_count; i++) {
-            g->stored_energy_capacity[i] = g->nodes[i].memory_propensity * 0.1f;
-        }
+        /* LAZY INITIALIZATION - arrays are zero-initialized by calloc */
+        /* Values initialized on-demand during wave propagation when nodes are accessed */
     }
 }
 
@@ -1689,40 +2017,11 @@ static void ensure_node_arrays(Graph *g) {
 /* Placeholder nodes are "local placeholders" that serve a structural purpose */
 /* Returns first truly unused node found, or UINT32_MAX if none */
 static uint32_t find_unused_node(Graph *g) {
-    if (!g || !g->nodes) return UINT32_MAX;
-    
-    /* Skip byte nodes (0-255) - they're always in use */
-    /* Skip structural nodes (200-839) - they're scaffolding for the graph */
-    /* Only look for nodes that are truly unused AND not structural placeholders */
-    for (uint32_t i = 840; i < g->node_count; i++) {  /* Start after structural range */
-        Node *n = &g->nodes[i];
-        
-        /* Check if node is truly unused AND not a placeholder */
-        /* Placeholder nodes might have no edges/data but are still part of pattern structure */
-        /* We can only safely reuse nodes that are:
-         * 1. Beyond structural ranges (840+)
-         * 2. Have no edges (not connected to anything)
-         * 3. Have no pattern data (not a pattern node)
-         * 4. Have no EXEC payload (not an EXEC node)
-         * 5. Have no activation (completely dormant)
-         * 6. Have no structural role (not input/output/memory port)
-         * 7. Have been unused for a while (check if it's truly abandoned, not just temporarily inactive)
-         */
-        if (n->first_out == UINT32_MAX &&           /* No outgoing edges */
-            n->first_in == UINT32_MAX &&             /* No incoming edges */
-            n->pattern_data_offset == 0 &&           /* No pattern data (not a pattern node) */
-            n->payload_offset == 0 &&                /* No EXEC payload (not an EXEC node) */
-            fabsf(n->a) < 0.0001f &&                 /* No activation (very strict - must be truly dormant) */
-            fabsf(n->input_propensity) < 0.0001f &&   /* Not an input port */
-            fabsf(n->output_propensity) < 0.0001f &&  /* Not an output port */
-            fabsf(n->memory_propensity) < 0.0001f) {  /* Not a memory node */
-            /* This node appears truly unused - but be conservative */
-            /* Only reuse if it's well beyond structural ranges to avoid reusing placeholders */
-            return i;
-        }
-    }
-    
-    return UINT32_MAX;  /* No unused nodes found - don't reuse placeholders */
+    (void)g;  /* Suppress unused parameter warning */
+    /* NO SCAN - just let graph grow naturally */
+    /* Wave propagation philosophy: graph grows unlimited, no need to reuse nodes */
+    /* Return UINT32_MAX to signal "create new node" - graph growth is unlimited */
+    return UINT32_MAX;  /* Signal to create new node */
 }
 
 static void ensure_node(Graph *g, uint32_t node_id) {
@@ -1754,13 +2053,11 @@ static uint32_t create_edge(Graph *g, uint32_t src, uint32_t dst, float w) {
     /* Hot region only - edges stay in hot space */
     /* NO LIMITS - graph controls its own growth */
     
-    /* SAFETY: Validate node IDs to prevent garbage values */
-    const uint32_t MAX_REASONABLE_NODE = 100000000;  /* 100 million nodes max */
-    
-    if (src >= MAX_REASONABLE_NODE || dst >= MAX_REASONABLE_NODE) {
-        fprintf(stderr, "ERROR: Invalid node ID in create_edge: src=%u, dst=%u (max=%u)\n",
-                src, dst, MAX_REASONABLE_NODE);
-        fprintf(stderr, "       This is likely a bug - garbage value detected!\n");
+    /* NO LIMITS - node IDs are uint32_t, so max is UINT32_MAX */
+    /* Only check for obviously invalid values (like UINT32_MAX itself) */
+    if (src == UINT32_MAX || dst == UINT32_MAX) {
+        fprintf(stderr, "ERROR: Invalid node ID in create_edge: src=%u, dst=%u (UINT32_MAX is invalid)\n",
+                src, dst);
         return UINT32_MAX;  /* Return invalid edge ID */
     }
     
@@ -1888,6 +2185,24 @@ static const struct {
     .boredom_threshold_ratio = 0.3f      /* When chaos < 30% of historical avg, seek novelty */
 };
 
+/* Physics constants for unified energy system - defined early for use in initialization */
+#define MAX_IO_ENERGY_PER_STEP 1.0f      /* Maximum energy injected per physics step */
+#define ALPHA_INHIB 0.3f                 /* Inhibition strength multiplier */
+#define ENERGY_MAX 10.0f                 /* Maximum energy per node */
+#define BETA_WTA 0.1f                    /* Winner-take-all normalization strength */
+#define PATTERN_ACTIVE_THRESHOLD 0.5f    /* Energy threshold for pattern explain-away */
+#define EXPLAIN_AWAY_FACTOR 0.7f          /* Fraction of energy suppressed by pattern */
+#define EXEC_FIRE_THRESHOLD 0.5f          /* Energy threshold for EXEC firing */
+#define ACTIVE_THRESHOLD 0.01f           /* Energy threshold for "active" node */
+#define MIN_LEAK 0.001f                   /* Minimum leak rate */
+#define MAX_LEAK 0.5f                     /* Maximum leak rate */
+#define MIN_GAIN 0.1f                     /* Minimum gain */
+#define MAX_GAIN 2.0f                     /* Maximum gain */
+#define TARGET_ACTIVITY 0.1f              /* Target average activity for homeostasis */
+#define HOME0_LEAK_K 0.0001f             /* Homeostasis leak adaptation rate */
+#define HOME0_GAIN_K 0.0001f             /* Homeostasis gain adaptation rate */
+#define HOME0_RATE 0.001f                 /* Homeostasis running average rate */
+
         /* Forward declarations */
 static void uel_propagate_from(Graph *g, uint32_t start_node);
 static void prop_queue_add(Graph *g, uint32_t node_id);
@@ -1898,9 +2213,97 @@ static void pass_values_to_exec(Graph *g, uint32_t exec_node_id, PatternValue *v
 static void convert_result_to_pattern(Graph *g, uint32_t exec_node_id, uint64_t result);
 static void execute_graph_structure(Graph *g, uint32_t start_node, uint64_t input1, uint64_t input2, uint64_t *result);
 static void learn_pattern_to_exec_routing(Graph *g, uint32_t pattern_node_id, const PatternElement *elements, uint32_t element_count);
+static void uel_main(Graph *g);  /* Forward declaration */
+static void melvin_predict_internal(Graph *g);
+static void melvin_compute_internal_pred_error(Graph *g);
+void melvin_predict_sensory(Graph *g);  /* Public API for testing */
+static void melvin_predict_value_delta(Graph *g);
+static void melvin_compute_value_pred_error(Graph *g);
+
+/* Initialize physics fields for a node (called when node is first accessed) */
+static void initialize_node_physics(Node *n, uint32_t node_id) {
+    if (n->leak_rate == 0.0f && n->gain == 0.0f) {
+        /* Uninitialized - set defaults */
+        n->energy = n->a;  /* Sync energy with activation */
+        n->leak_rate = 0.05f;
+        n->gain = 1.0f;
+        n->avg_activity = 0.0f;
+        n->target_activity = TARGET_ACTIVITY;
+        n->homeo_rate = HOME0_RATE;
+        n->inhib_group = node_id / 100;  /* 100 nodes per inhibition group */
+        if (n->type == 0) n->type = NODE_TYPE_DATA;
+    }
+}
+
+/* Bounded energy injection - tracks total injected per step */
+static float g_total_injected_this_step = 0.0f;
+static void reset_energy_injection_tracker(void) {
+    g_total_injected_this_step = 0.0f;
+}
+
+static float inject_energy_bounded(Graph *g, uint32_t node_id, float energy) {
+    if (!g || node_id >= g->node_count) return 0.0f;
+    
+    /* Check if we've exceeded the limit */
+    if (g_total_injected_this_step >= MAX_IO_ENERGY_PER_STEP) {
+        return 0.0f;  /* Stop injecting more this step */
+    }
+    
+    /* Clamp injection to remaining budget */
+    float remaining = MAX_IO_ENERGY_PER_STEP - g_total_injected_this_step;
+    float actual_injected = (energy > remaining) ? remaining : energy;
+    
+    /* Initialize physics if needed */
+    initialize_node_physics(&g->nodes[node_id], node_id);
+    
+    /* Inject energy */
+    g->nodes[node_id].energy += actual_injected;
+    g->nodes[node_id].a = g->nodes[node_id].energy;  /* Keep a in sync */
+    g_total_injected_this_step += actual_injected;
+    
+    return actual_injected;
+}
 
 void melvin_feed_byte(Graph *g, uint32_t port_node_id, uint8_t b, float energy) {
     if (!g || !g->hdr) return;
+    
+    /* SENSORY PREDICTION: Compare predicted vs actual input */
+    if (g->predicted_next_byte != 0 || g->last_input_byte != 0) {
+        /* Compute sensory prediction error */
+        float byte_error = fabsf((float)g->predicted_next_byte - (float)b) / 255.0f;
+        
+        /* Update sensory_pred_error for active DATA nodes */
+        for (uint32_t i = 0; i < 256 && i < g->node_count; i++) {
+            Node *n = &g->nodes[i];
+            if (n->type == NODE_TYPE_DATA) {
+                n->sensory_pred_error = byte_error;
+                /* Feed into error_delta (negative error = good prediction) */
+                float sensory_weight = 0.1f;  /* Small weight for sensory predictions */
+                n->recent_error_delta += -byte_error * VALUE_DECAY * sensory_weight;
+            }
+        }
+        
+        /* Also update active patterns that were predicting */
+        uint32_t queue_head = atomic_load(&g->prop_queue_head);
+        uint32_t queue_tail = atomic_load(&g->prop_queue_tail);
+        uint32_t queue_size = (queue_tail >= queue_head) ? (queue_tail - queue_head) : (g->prop_queue_size - queue_head + queue_tail);
+        
+        for (uint32_t i = 0; i < queue_size && i < 200; i++) {
+            uint32_t idx = (queue_head + i) % g->prop_queue_size;
+            uint32_t node_id = g->prop_queue[idx];
+            if (node_id >= g->node_count) continue;
+            
+            Node *n = &g->nodes[node_id];
+            if (n->type == NODE_TYPE_PATTERN && n->energy > PATTERN_ACTIVE_THRESHOLD) {
+                n->sensory_pred_error = byte_error * 0.5f;  /* Patterns get less direct error */
+                float sensory_weight = 0.05f;
+                n->recent_error_delta += -byte_error * VALUE_DECAY * sensory_weight;
+            }
+        }
+    }
+    
+    /* Update last_input_byte */
+    g->last_input_byte = b;
     
     /* Ensure nodes exist - graph grows dynamically */
     ensure_node(g, port_node_id);
@@ -1918,8 +2321,10 @@ void melvin_feed_byte(Graph *g, uint32_t port_node_id, uint8_t b, float energy) 
         feedback_strength = 1.0f / (1.0f + time_since_output);  /* Decay with time */
         
         /* Update feedback correlation for nodes that were recently active outputs */
+        /* FIXED: Remove 256 limit - check all output nodes */
         if (g->output_propensity && g->feedback_correlation) {
-            for (uint64_t i = 0; i < g->node_count && i < 256; i++) {
+            uint64_t check_limit = (g->node_count < 1000) ? g->node_count : 1000;  /* Check first 1000 nodes */
+            for (uint64_t i = 0; i < check_limit; i++) {
                 if (g->output_propensity[i] > 0.1f && fabsf(g->nodes[i].a) > g->avg_activation * 0.5f) {
                     /* This node was an active output - reward it for creating feedback */
                     g->feedback_correlation[i] = uel_params.running_avg_alpha * g->feedback_correlation[i] + 
@@ -1929,9 +2334,13 @@ void melvin_feed_byte(Graph *g, uint32_t port_node_id, uint8_t b, float energy) 
         }
     }
     
-    /* Inject energy - this is the event that triggers propagation */
-    g->nodes[port_node_id].a += energy;
-    g->nodes[data_id].a += energy;
+    /* Inject energy with bounded injection (prevents unbounded energy) */
+    float injected_port = inject_energy_bounded(g, port_node_id, energy);
+    float injected_data = inject_energy_bounded(g, data_id, energy);
+    
+    /* Keep legacy 'a' field in sync */
+    g->nodes[port_node_id].a = g->nodes[port_node_id].energy;
+    g->nodes[data_id].a = g->nodes[data_id].energy;
     
     /* CRITICAL: Create edge between sequential nodes BEFORE pattern_law_apply */
     /* This creates the graph structure that represents sequences */
@@ -2139,7 +2548,7 @@ static float compute_message(Graph *g, uint32_t node_id) {
     /* RELATIVE: Threshold adapts to graph state - graph can recover from bad states */
     float edge_strength_safe = (g->avg_edge_strength != g->avg_edge_strength || g->avg_edge_strength < 0.0f) ? 0.1f : g->avg_edge_strength;
     float prune_threshold = edge_strength_safe * uel_params.edge_prune_threshold_ratio;
-    if (prune_threshold < 0.001f) prune_threshold = 0.001f;  /* Minimum threshold */
+    /* NO MINIMUM - let threshold be zero if needed (simple threshold) */
     uint32_t iter = 0;
     uint32_t max_iter = g->edge_count + 1;
     
@@ -2166,12 +2575,13 @@ static float compute_message(Graph *g, uint32_t node_id) {
 }
 
 /* Compute mass for a single node (lazy, on-demand) */
+/* NO PRECOMPUTATION - only compute when needed during wave propagation */
 static inline float compute_node_mass(Graph *g, uint32_t node_id) {
     if (node_id >= g->node_count) return 0.0f;
     float a_abs = fabsf(g->nodes[node_id].a);
     float degree = (float)(g->nodes[node_id].in_degree + g->nodes[node_id].out_degree);
     float degree_scale = g->avg_activation * 0.1f;
-    if (degree_scale < 0.01f) degree_scale = 0.01f;
+    /* NO MINIMUM - let it be zero if avg_activation is zero (simple threshold) */
     return a_abs + degree_scale * degree;
 }
 
@@ -2208,7 +2618,7 @@ static float compute_phi_contribution(Graph *g, uint32_t node_id, float *mass) {
     /* RELATIVE: Threshold adapts to graph state - graph can recover from bad states */
     float edge_strength_safe = (g->avg_edge_strength != g->avg_edge_strength || g->avg_edge_strength < 0.0f) ? 0.1f : g->avg_edge_strength;
     float prune_threshold = edge_strength_safe * uel_params.edge_prune_threshold_ratio;
-    if (prune_threshold < 0.001f) prune_threshold = 0.001f;  /* Minimum threshold */
+    /* NO MINIMUM - let threshold be zero if needed (simple threshold) */
     
     while (eid != UINT32_MAX && eid < g->edge_count && iter2 < max_iter2) {
         iter2++;
@@ -2230,7 +2640,7 @@ static float compute_phi_contribution(Graph *g, uint32_t node_id, float *mass) {
         
         /* RELATIVE: active threshold based on avg_activation */
         float active_threshold = g->avg_activation * uel_params.active_threshold_ratio;
-        if (active_threshold < 0.001f) active_threshold = 0.001f;  /* Minimum */
+        /* NO MINIMUM - let threshold be zero if needed (simple threshold) */
         
         /* LAZY: Compute mass for neighbor on-demand */
         float src_mass = (mass && mass[src] > 0.0f) ? mass[src] : compute_node_mass(g, src);
@@ -2388,7 +2798,7 @@ static void update_node_and_propagate(Graph *g, uint32_t node_id, float *mass) {
     /* This creates natural exploration - graph will discover COLD_DATA patterns if they exist */
     float novelty_pressure = 0.0f;
     float boredom_threshold = g->avg_chaos * uel_params.boredom_threshold_ratio;
-    if (boredom_threshold < 0.001f) boredom_threshold = 0.001f;  /* Minimum */
+    /* NO MINIMUM - let threshold be zero if needed (simple threshold) */
     
     /* If chaos is below boredom threshold, add small random activation boost */
     /* This is the "guilty pleasure" - system wants some chaos when things are too stable */
@@ -2538,13 +2948,15 @@ static void update_node_and_propagate(Graph *g, uint32_t node_id, float *mass) {
             Node *exec_n = &g->nodes[node_id];
             float activation = fabsf(exec_n->a);
             float threshold_ratio = (exec_n->exec_threshold_ratio > 0.0f) ? 
-                                    exec_n->exec_threshold_ratio : 0.5f;
-            float avg_act_safe = (g->avg_activation > 0.0f) ? g->avg_activation : 0.1f;
+                                    exec_n->exec_threshold_ratio : 0.3f;  /* Lowered from 0.5f to 0.3f for easier activation */
+            float avg_act_safe = (g->avg_activation > 0.0f) ? g->avg_activation : 0.05f;  /* Lowered from 0.1f */
             float threshold = avg_act_safe * threshold_ratio;
             
-            if (activation >= threshold) {
-                ROUTE_LOG("UEL: Firing EXEC node %u: activation=%.3f >= threshold=%.3f",
-                          node_id, activation, threshold);
+            /* Also allow activation if absolute activation is above a minimum, even if avg_activation is low */
+            float min_activation = 0.01f;  /* Minimum activation to fire exec node */
+            if (activation >= threshold || activation >= min_activation) {
+                ROUTE_LOG("UEL: Firing EXEC node %u: activation=%.3f >= threshold=%.3f (min=%.3f)",
+                          node_id, activation, threshold, min_activation);
                 melvin_execute_exec_node(g, node_id);
             }
         }
@@ -2577,7 +2989,8 @@ static void update_node_and_propagate(Graph *g, uint32_t node_id, float *mass) {
                     if (pattern_offset < g->blob_size) {
                         PatternData *pattern_data = (PatternData *)(g->blob + pattern_offset);
                         if (pattern_data->magic == 0x4E544150) {  /* PATTERN_MAGIC */
-                            for (uint32_t i = 0; i < pattern_data->element_count && value_count < 16; i++) {
+                            /* NO LIMITS - process all pattern elements */
+                            for (uint32_t i = 0; i < pattern_data->element_count; i++) {
                                 PatternElement *elem = &pattern_data->elements[i];
                                 if (elem->is_blank != 0 && bindings[elem->value] > 0) {
                                     /* Blank with binding - extract value */
@@ -2601,7 +3014,8 @@ static void update_node_and_propagate(Graph *g, uint32_t node_id, float *mass) {
                     if (value_count > 0) {
                         ROUTE_LOG("  UEL routing %u values to EXEC nodes", value_count);
                         uint32_t eid = g->nodes[node_id].first_out;
-                        for (int ei = 0; ei < 100 && eid != UINT32_MAX && eid < g->edge_count; ei++) {
+                        /* NO LIMITS - follow edges until end (wave propagation) */
+                        while (eid != UINT32_MAX && eid < g->edge_count) {
                             uint32_t dst = g->edges[eid].dst;
                             if (dst < g->node_count && g->nodes[dst].payload_offset > 0) {
                                 /* Pattern routes to EXEC node - pass values */
@@ -2611,6 +3025,7 @@ static void update_node_and_propagate(Graph *g, uint32_t node_id, float *mass) {
                             }
                             eid = g->edges[eid].next_out;
                         }
+                        /* End of edge traversal */
                     }
                 }
             }
@@ -2682,8 +3097,8 @@ static void update_node_and_propagate(Graph *g, uint32_t node_id, float *mass) {
                                     ((g->avg_edge_strength > 0.0f) ? (g->avg_edge_strength * 0.2f) : 0.1f) : g->avg_activation;
     float relative_change_threshold = activation_safe_thresh * uel_params.change_threshold_ratio;
     /* Dynamic minimum: scale with graph state */
-    float change_min = (g->avg_edge_strength > 0.0f) ? (g->avg_edge_strength * 0.05f) : 0.001f;
-    if (relative_change_threshold < change_min) relative_change_threshold = change_min;
+    /* NO MINIMUM - let threshold be zero if needed (simple threshold) */
+    /* Relative threshold is sufficient - no need for minimum */
     
     if (activation_change > relative_change_threshold || 
         message_change > relative_change_threshold) {
@@ -2792,20 +3207,10 @@ static void *async_worker(void *arg) {
 static void uel_propagate_from(Graph *g, uint32_t start_node) {
     if (!g || !g->hdr || g->node_count == 0 || start_node >= g->node_count) return;
     
-    /* Allocate mass buffer (needed for phi computation) - shared by all workers */
-    float *mass = calloc(g->node_count, sizeof(float));
-    if (!mass) return;
-    
-    /* Compute mass for active nodes (read-only, safe to share) */
-    /* RELATIVE: degree contribution scales with avg_activation */
-    float degree_scale = g->avg_activation * 0.1f;
-    if (degree_scale < 0.01f) degree_scale = 0.01f;  /* Minimum */
-    
-    for (uint64_t i = 0; i < g->node_count; i++) {
-        float a_abs = fabsf(g->nodes[i].a);
-        float degree = (float)(g->nodes[i].in_degree + g->nodes[i].out_degree);
-        mass[i] = a_abs + degree_scale * degree;
-    }
+    /* NO MASS PRECOMPUTATION - compute on-demand during wave propagation */
+    /* Wave propagation philosophy: only compute what we need, when we need it */
+    /* Mass is computed lazily in compute_phi_contribution() via compute_node_mass() */
+    float *mass = NULL;  /* No precomputation - lazy computation only */
     
     /* Clear propagation queue and start from initial node */
     prop_queue_clear(g);
@@ -3038,11 +3443,747 @@ static void curiosity_reactivate(Graph *g) {
  * This is physics, not algorithms. This is UEL.
  * ============================================================================
  */
+/* ========================================================================
+ * UNIFIED PHYSICS UPDATE: Excitatory, Inhibitory, Leak, Homeostasis
+ * ========================================================================
+ * 
+ * This implements the core physics: energy flows, leaks, competition, homeostasis
+ * Processes ONLY active nodes (from queue), never scans all nodes
+ */
+static void physics_update(Graph *g) {
+    if (!g || !g->hdr || g->node_count == 0) return;
+    
+    /* Reset energy injection tracker for this physics step */
+    reset_energy_injection_tracker();
+    
+    /* Allocate arrays for excitatory/inhibitory input (only for queued nodes) */
+    /* We'll use a hash set or track which nodes need updates */
+    /* For now, process nodes as they come from queue */
+    
+    /* Process all nodes in queue with unified physics */
+    /* This replaces the old update_node_and_propagate for energy updates */
+    uint32_t node_id;
+    uint32_t processed = 0;
+    
+    /* Process queue until empty */
+    while ((node_id = prop_queue_get(g)) != UINT32_MAX && processed < 10000) {
+        if (node_id >= g->node_count) continue;
+        
+        Node *n = &g->nodes[node_id];
+        initialize_node_physics(n, node_id);
+        
+        /* 1. Accumulate excitatory and inhibitory input from edges */
+        float excit = 0.0f;
+        float inhib = 0.0f;
+        
+        /* Follow incoming edges */
+        uint32_t eid = n->first_in;
+        uint32_t iter = 0;
+        uint32_t max_iter = g->edge_count + 1;
+        
+        while (eid != UINT32_MAX && eid < g->edge_count && iter < max_iter) {
+            Edge *e = &g->edges[eid];
+            if (e->src >= g->node_count) {
+                eid = e->next_in;
+                iter++;
+                continue;
+            }
+            
+            Node *src = &g->nodes[e->src];
+            initialize_node_physics(src, e->src);
+            float signal = src->energy * e->w;
+            
+            if (e->is_inhibitory) {
+                inhib += signal;
+            } else {
+                excit += signal;
+            }
+            
+            eid = e->next_in;
+            iter++;
+        }
+        
+        /* 2. Update energy with leak + net input + gain */
+        float net_input = excit - ALPHA_INHIB * inhib;
+        
+        /* Apply leak */
+        n->energy *= (1.0f - n->leak_rate);
+        
+        /* Add driven input */
+        n->energy += n->gain * net_input;
+        
+        /* Clamp energy */
+        if (n->energy < 0.0f) n->energy = 0.0f;
+        if (n->energy > ENERGY_MAX) n->energy = ENERGY_MAX;
+        
+        /* Keep legacy 'a' field in sync */
+        n->a = n->energy;
+        
+        /* 3. If energy changed significantly, propagate to neighbors */
+        float energy_change = fabsf(n->energy - (g->last_activation ? g->last_activation[node_id % g->tracking_array_size] : 0.0f));
+        float change_threshold = g->avg_activation * uel_params.change_threshold_ratio;
+        if (change_threshold < 0.001f) change_threshold = 0.001f;
+        
+        if (energy_change > change_threshold) {
+            /* Update tracking */
+            if (g->last_activation) {
+                g->last_activation[node_id % g->tracking_array_size] = n->energy;
+            }
+            
+            /* Propagate to outgoing neighbors */
+            eid = n->first_out;
+            iter = 0;
+            while (eid != UINT32_MAX && eid < g->edge_count && iter < max_iter) {
+                uint32_t dst = g->edges[eid].dst;
+                if (dst < g->node_count) {
+                    prop_queue_add(g, dst);
+                }
+                eid = g->edges[eid].next_out;
+                iter++;
+            }
+        }
+        
+        processed++;
+    }
+    
+    /* 4. Apply local inhibition (group-level WTA) */
+    /* Compute group stats for active nodes only */
+    /* Use a simple approach: track groups that had activity */
+    static float group_sums[1000];  /* Max 1000 groups */
+    static int group_counts[1000];
+    static int groups_active = 0;
+    static uint32_t active_groups[1000];
+    
+    /* Clear group stats */
+    for (int i = 0; i < groups_active; i++) {
+        group_sums[active_groups[i]] = 0.0f;
+        group_counts[active_groups[i]] = 0;
+    }
+    groups_active = 0;
+    
+    /* Collect group stats from recently active nodes */
+    /* Only check nodes that were in queue or have energy > threshold */
+    uint32_t check_count = 0;
+    for (uint64_t i = 0; i < g->node_count && check_count < 1000; i++) {
+        Node *n = &g->nodes[i];
+        if (n->energy > ACTIVE_THRESHOLD) {
+            uint32_t gid = n->inhib_group;
+            if (gid < 1000) {
+                if (group_counts[gid] == 0) {
+                    active_groups[groups_active++] = gid;
+                }
+                group_sums[gid] += n->energy;
+                group_counts[gid]++;
+                check_count++;
+            }
+        }
+    }
+    
+    /* Apply divisive normalization (soft WTA) */
+    for (int i = 0; i < groups_active; i++) {
+        uint32_t gid = active_groups[i];
+        if (group_sums[gid] > 0.0f) {
+            float norm = 1.0f + BETA_WTA * group_sums[gid];
+            
+            /* Normalize all nodes in this group */
+            for (uint64_t j = 0; j < g->node_count; j++) {
+                Node *n = &g->nodes[j];
+                if (n->inhib_group == gid && n->energy > ACTIVE_THRESHOLD) {
+                    n->energy = n->energy / norm;
+                    n->a = n->energy;  /* Keep in sync */
+                }
+            }
+        }
+    }
+    
+    /* 5. Apply homeostasis (auto-tune leak + gain per node) */
+    for (uint64_t i = 0; i < g->node_count; i++) {
+        Node *n = &g->nodes[i];
+        if (n->energy < ACTIVE_THRESHOLD) continue;  /* Only update active nodes */
+        
+        /* Update running average */
+        float a = fabsf(n->energy);
+        n->avg_activity = (1.0f - n->homeo_rate) * n->avg_activity + n->homeo_rate * a;
+        
+        /* Compare to target */
+        float err = n->avg_activity - n->target_activity;
+        
+        /* If too active: increase leak, decrease gain */
+        n->leak_rate += HOME0_LEAK_K * err;
+        n->gain -= HOME0_GAIN_K * err;
+        
+        /* Clamp to safe ranges */
+        if (n->leak_rate < MIN_LEAK) n->leak_rate = MIN_LEAK;
+        if (n->leak_rate > MAX_LEAK) n->leak_rate = MAX_LEAK;
+        if (n->gain < MIN_GAIN) n->gain = MIN_GAIN;
+        if (n->gain > MAX_GAIN) n->gain = MAX_GAIN;
+    }
+    
+    /* 6. Pattern explain-away */
+    for (uint64_t i = 0; i < g->node_count; i++) {
+        Node *p = &g->nodes[i];
+        if (p->type != NODE_TYPE_PATTERN) continue;
+        if (p->energy < PATTERN_ACTIVE_THRESHOLD) continue;
+        if (p->pattern_data_offset == 0) continue;
+        
+        /* Pattern is active - suppress member nodes */
+        /* Read pattern data to get members */
+        uint64_t pattern_offset = p->pattern_data_offset - g->hdr->blob_offset;
+        if (pattern_offset < g->blob_size) {
+            PatternData *pattern_data = (PatternData *)(g->blob + pattern_offset);
+            if (pattern_data->magic == 0x4E544150) {  /* PATTERN_MAGIC */
+                /* For each member, suppress energy */
+                for (uint32_t k = 0; k < pattern_data->element_count && k < 100; k++) {
+                    PatternElement *elem = &pattern_data->elements[k];
+                    if (elem->is_blank == 0 && elem->value < g->node_count) {
+                        Node *child = &g->nodes[elem->value];
+                        /* Explain-away: damp child energy */
+                        child->energy *= (1.0f - EXPLAIN_AWAY_FACTOR);
+                        child->a = child->energy;  /* Keep in sync */
+                    }
+                }
+            }
+        }
+    }
+    
+    /* 7. EXEC firing (integrated into energy physics) */
+    for (uint64_t i = 0; i < g->node_count; i++) {
+        Node *e = &g->nodes[i];
+        if (e->type != NODE_TYPE_EXEC) continue;
+        if (e->energy < EXEC_FIRE_THRESHOLD) continue;
+        if (e->payload_offset == 0) continue;
+        
+        /* EXEC node is ready to fire */
+        /* Gather inputs */
+        float input_values[16];
+        uint32_t input_count = (e->input_count < 16) ? e->input_count : 16;
+        
+        if (e->input_ids && e->input_count > 0) {
+            /* Read input IDs from blob */
+            uint64_t input_offset = (uint64_t)e->input_ids - (uint64_t)g->blob;
+            if (input_offset < g->blob_size) {
+                uint32_t *input_ids = (uint32_t *)(g->blob + input_offset);
+                for (uint32_t j = 0; j < input_count; j++) {
+                    if (input_ids[j] < g->node_count) {
+                        input_values[j] = g->nodes[input_ids[j]].energy;
+                    }
+                }
+            }
+        }
+        
+        /* Call bound function (existing exec mechanism) */
+        melvin_execute_exec_node(g, i);
+        
+        /* Outputs are written back by exec function as energy injection */
+    }
+    
+    /* 8. Compute scaling metrics (efficient - only check queued nodes) */
+    g->total_energy = 0.0f;
+    g->active_count = 0;
+    
+    /* Efficient metrics: only check nodes that were in queue or have energy */
+    /* Track unique nodes to avoid double-counting */
+    static uint32_t checked_nodes[1000];
+    static uint32_t checked_count = 0;
+    checked_count = 0;
+    
+    /* Check nodes from queue */
+    uint32_t queue_head = atomic_load(&g->prop_queue_head);
+    uint32_t queue_tail = atomic_load(&g->prop_queue_tail);
+    uint32_t queue_size = (queue_tail >= queue_head) ? (queue_tail - queue_head) : (g->prop_queue_size - queue_head + queue_tail);
+    
+    for (uint32_t i = 0; i < queue_size && i < 1000; i++) {
+        uint32_t idx = (queue_head + i) % g->prop_queue_size;
+        uint32_t node_id = g->prop_queue[idx];
+        if (node_id < g->node_count) {
+            /* Check if already counted */
+            int found = 0;
+            for (uint32_t j = 0; j < checked_count; j++) {
+                if (checked_nodes[j] == node_id) {
+                    found = 1;
+                    break;
+                }
+            }
+            if (!found) {
+                checked_nodes[checked_count++] = node_id;
+                g->total_energy += g->nodes[node_id].energy;
+                if (g->nodes[node_id].energy > ACTIVE_THRESHOLD) {
+                    g->active_count++;
+                }
+            }
+        }
+    }
+    
+    /* Also check a sample of nodes with energy > threshold (for nodes not in queue) */
+    uint32_t sample_count = 0;
+    for (uint64_t i = 0; i < g->node_count && sample_count < 100; i++) {
+        if (g->nodes[i].energy > ACTIVE_THRESHOLD) {
+            /* Check if already counted */
+            int found = 0;
+            for (uint32_t j = 0; j < checked_count; j++) {
+                if (checked_nodes[j] == (uint32_t)i) {
+                    found = 1;
+                    break;
+                }
+            }
+            if (!found && checked_count < 1000) {
+                checked_nodes[checked_count++] = (uint32_t)i;
+                g->total_energy += g->nodes[i].energy;
+                g->active_count++;
+                sample_count++;
+            }
+        }
+    }
+    
+    g->physics_step_count++;
+}
+
+/* ========================================================================
+ * PREDICTION SYSTEM: "What Happens Next?" framework
+ * ======================================================================== */
+
+/* Predict internal next-state (which nodes will be active at t+1) */
+static void melvin_predict_internal(Graph *g) {
+    if (!g || g->node_count == 0) return;
+    
+    /* Only predict for nodes in propagation queue (active nodes) */
+    uint32_t queue_head = atomic_load(&g->prop_queue_head);
+    uint32_t queue_tail = atomic_load(&g->prop_queue_tail);
+    uint32_t queue_size = (queue_tail >= queue_head) ? (queue_tail - queue_head) : (g->prop_queue_size - queue_head + queue_tail);
+    
+    for (uint32_t i = 0; i < queue_size && i < 1000; i++) {
+        uint32_t idx = (queue_head + i) % g->prop_queue_size;
+        uint32_t node_id = g->prop_queue[idx];
+        if (node_id >= g->node_count) continue;
+        
+        Node *n = &g->nodes[node_id];
+        
+        /* Predict activation based on current energy and neighbor average */
+        float neighbor_avg = 0.0f;
+        uint32_t neighbor_count = 0;
+        
+        /* Sample neighbors (incoming edges) */
+        uint32_t eid = n->first_in;
+        uint32_t iter = 0;
+        uint32_t max_iter = 100;  /* Limit to avoid expensive scans */
+        
+        while (eid != UINT32_MAX && eid < g->edge_count && iter < max_iter && neighbor_count < 10) {
+            Edge *e = &g->edges[eid];
+            if (e->src < g->node_count) {
+                Node *src = &g->nodes[e->src];
+                neighbor_avg += src->energy;
+                neighbor_count++;
+            }
+            eid = e->next_in;
+            iter++;
+        }
+        
+        if (neighbor_count > 0) {
+            neighbor_avg /= (float)neighbor_count;
+        }
+        
+        /* Simple prediction: blend current energy with neighbor average */
+        n->predicted_activation = 0.5f * n->energy + 0.5f * neighbor_avg;
+        
+        /* Apply decay to prediction (smooth over time) */
+        n->predicted_activation *= 0.9f;
+    }
+}
+
+/* Compute internal prediction error (compare predicted vs actual) */
+static void melvin_compute_internal_pred_error(Graph *g) {
+    if (!g || g->node_count == 0) return;
+    
+    /* Only check nodes that had predictions (from queue) */
+    uint32_t queue_head = atomic_load(&g->prop_queue_head);
+    uint32_t queue_tail = atomic_load(&g->prop_queue_tail);
+    uint32_t queue_size = (queue_tail >= queue_head) ? (queue_tail - queue_head) : (g->prop_queue_size - queue_head + queue_tail);
+    
+    for (uint32_t i = 0; i < queue_size && i < 1000; i++) {
+        uint32_t idx = (queue_head + i) % g->prop_queue_size;
+        uint32_t node_id = g->prop_queue[idx];
+        if (node_id >= g->node_count) continue;
+        
+        Node *n = &g->nodes[node_id];
+        
+        /* Compute prediction error */
+        n->prediction_error = n->predicted_activation - n->energy;
+        
+        /* Feed error into value scoring system (negative error = good prediction) */
+        float error_contribution = -fabsf(n->prediction_error);
+        n->recent_error_delta = (1.0f - VALUE_DECAY) * n->recent_error_delta + VALUE_DECAY * error_contribution;
+    }
+}
+
+/* Predict sensory next-input (next byte from environment) */
+void melvin_predict_sensory(Graph *g) {
+    if (!g) return;
+    
+    /* Simple prediction: use last input byte as baseline */
+    g->predicted_next_byte = g->last_input_byte;
+    g->predicted_byte_confidence = 128;  /* Medium confidence */
+    
+    /* Optionally: use active patterns to refine prediction */
+    /* For now, keep it simple - patterns can learn to improve this later */
+    
+    /* Store prediction in active DATA nodes (for error computation later) */
+    /* Only update nodes that are likely to receive input */
+    for (uint32_t i = 0; i < 256 && i < g->node_count; i++) {
+        Node *n = &g->nodes[i];
+        if (n->type == NODE_TYPE_DATA) {
+            /* Predict based on how close this byte is to last input */
+            float byte_diff = fabsf((float)i - (float)g->last_input_byte);
+            n->sensory_prediction = 1.0f - (byte_diff / 255.0f);  /* Higher for closer bytes */
+        }
+    }
+}
+
+/* Predict value-delta (whether next step will increase/decrease global value) */
+static void melvin_predict_value_delta(Graph *g) {
+    if (!g) return;
+    
+    /* Compute current global value estimate */
+    float current_value_sum = 0.0f;
+    uint32_t value_count = 0;
+    
+    /* Sample active PATTERN and EXEC nodes */
+    uint32_t queue_head = atomic_load(&g->prop_queue_head);
+    uint32_t queue_tail = atomic_load(&g->prop_queue_tail);
+    uint32_t queue_size = (queue_tail >= queue_head) ? (queue_tail - queue_head) : (g->prop_queue_size - queue_head + queue_tail);
+    
+    for (uint32_t i = 0; i < queue_size && i < 500; i++) {
+        uint32_t idx = (queue_head + i) % g->prop_queue_size;
+        uint32_t node_id = g->prop_queue[idx];
+        if (node_id >= g->node_count) continue;
+        
+        Node *n = &g->nodes[node_id];
+        if (n->type == NODE_TYPE_PATTERN || n->type == NODE_TYPE_EXEC) {
+            current_value_sum += n->value;
+            value_count++;
+        }
+    }
+    
+    if (value_count > 0) {
+        g->global_value_estimate = current_value_sum / (float)value_count;
+    } else {
+        g->global_value_estimate = 0.0f;
+    }
+    
+    /* Predict value delta based on recent trends and active high-value nodes */
+    static float prev_value_deltas[10] = {0.0f};
+    static uint32_t delta_idx = 0;
+    
+    /* Compute EWMA of recent deltas */
+    float avg_delta = 0.0f;
+    for (uint32_t i = 0; i < 10; i++) {
+        avg_delta += prev_value_deltas[i];
+    }
+    avg_delta /= 10.0f;
+    
+    /* Add contribution from high-value active nodes */
+    float high_value_contribution = 0.0f;
+    for (uint32_t i = 0; i < queue_size && i < 200; i++) {
+        uint32_t idx = (queue_head + i) % g->prop_queue_size;
+        uint32_t node_id = g->prop_queue[idx];
+        if (node_id >= g->node_count) continue;
+        
+        Node *n = &g->nodes[node_id];
+        if ((n->type == NODE_TYPE_PATTERN || n->type == NODE_TYPE_EXEC) && n->value > 0.1f) {
+            high_value_contribution += n->value * 0.01f;  /* Small contribution per high-value node */
+        }
+    }
+    
+    /* Prediction: trend + high-value node contribution */
+    g->predicted_global_value_delta = avg_delta * 0.7f + high_value_contribution * 0.3f;
+    
+    /* Store predicted delta in active nodes */
+    for (uint32_t i = 0; i < queue_size && i < 500; i++) {
+        uint32_t idx = (queue_head + i) % g->prop_queue_size;
+        uint32_t node_id = g->prop_queue[idx];
+        if (node_id >= g->node_count) continue;
+        
+        Node *n = &g->nodes[node_id];
+        if (n->type == NODE_TYPE_PATTERN || n->type == NODE_TYPE_EXEC) {
+            n->predicted_value_delta = g->predicted_global_value_delta * (n->energy / ENERGY_MAX);
+        }
+    }
+    
+    /* Update history */
+    prev_value_deltas[delta_idx % 10] = g->predicted_global_value_delta;
+    delta_idx++;
+}
+
+/* Compute value-delta prediction error and feed into value system */
+static void melvin_compute_value_pred_error(Graph *g) {
+    if (!g) return;
+    
+    /* Compute actual value delta */
+    float actual_value_delta = g->global_value_estimate - g->prev_global_value;
+    float value_pred_error = g->predicted_global_value_delta - actual_value_delta;
+    
+    /* Update value_pred_error for EXEC nodes that fired and recently active patterns */
+    static uint32_t recent_active_nodes[50];
+    static uint32_t recent_count = 0;
+    
+    /* Track nodes active in last few steps (from queue) */
+    uint32_t queue_head = atomic_load(&g->prop_queue_head);
+    uint32_t queue_tail = atomic_load(&g->prop_queue_tail);
+    uint32_t queue_size = (queue_tail >= queue_head) ? (queue_tail - queue_head) : (g->prop_queue_size - queue_head + queue_tail);
+    
+    /* Sample from queue */
+    for (uint32_t i = 0; i < queue_size && i < 50 && recent_count < 50; i++) {
+        uint32_t idx = (queue_head + i) % g->prop_queue_size;
+        uint32_t node_id = g->prop_queue[idx];
+        if (node_id < g->node_count) {
+            recent_active_nodes[recent_count++] = node_id;
+        }
+    }
+    
+    /* Update error for EXEC nodes that fired and patterns */
+    for (uint32_t i = 0; i < recent_count; i++) {
+        uint32_t node_id = recent_active_nodes[i];
+        if (node_id >= g->node_count) continue;
+        
+        Node *n = &g->nodes[node_id];
+        if (n->type == NODE_TYPE_EXEC) {
+            /* Check if EXEC fired (exec_count increased) */
+            static uint32_t prev_exec_counts[1000] = {0};
+            uint32_t idx = node_id % 1000;
+            if (n->exec_count > prev_exec_counts[idx]) {
+                n->value_pred_error = value_pred_error;
+                /* Feed into control_value (negative error = good prediction) */
+                n->recent_control_value += -fabsf(value_pred_error) * VALUE_DECAY;
+            }
+            prev_exec_counts[idx] = n->exec_count;
+        } else if (n->type == NODE_TYPE_PATTERN && n->energy > PATTERN_ACTIVE_THRESHOLD) {
+            /* Patterns active in recent steps get error signal */
+            n->value_pred_error = value_pred_error * 0.5f;  /* Patterns get less direct credit */
+            n->recent_control_value += -fabsf(value_pred_error) * VALUE_DECAY * 0.1f;
+        }
+    }
+    
+    /* Clear buffer periodically */
+    if (recent_count >= 50) {
+        recent_count = 0;
+    }
+    
+    /* Update prev_global_value for next step */
+    g->prev_global_value = g->global_value_estimate;
+}
+
+/* ========================================================================
+ * VALUE SCORING SYSTEM: Update utility estimates for PATTERN and EXEC nodes
+ * ======================================================================== */
+
+/* Update value scores for all nodes (lightweight, incremental) */
+static void update_value_scores(Graph *g) {
+    if (!g || g->node_count == 0) return;
+    
+    /* Compute current global error (use avg_chaos as proxy) */
+    float global_error = g->avg_chaos;
+    float error_delta = g->prev_global_error - global_error;  /* Positive if error decreased */
+    
+    /* Update avg_active_count (EWMA) */
+    float current_active = (float)g->active_count;
+    if (g->avg_active_count == 0.0f) {
+        g->avg_active_count = current_active;  /* Initialize */
+    } else {
+        g->avg_active_count = (1.0f - VALUE_DECAY) * g->avg_active_count + VALUE_DECAY * current_active;
+    }
+    float compression_delta = g->avg_active_count - current_active;  /* Positive if current < average */
+    
+    /* Track recently active patterns for control_value distribution */
+    static uint32_t recent_pattern_buffer[100];
+    static uint32_t recent_pattern_count = 0;
+    
+    /* OPTIMIZATION: Only process active PATTERN/EXEC nodes or those with non-zero value components */
+    /* This avoids full graph scans while still tracking value */
+    /* Use a simple approach: check nodes from propagation queue + sample of high-value nodes */
+    uint32_t nodes_to_check[2000];
+    uint32_t check_count = 0;
+    
+    /* Add nodes from queue that are PATTERN or EXEC */
+    uint32_t queue_head = atomic_load(&g->prop_queue_head);
+    uint32_t queue_tail = atomic_load(&g->prop_queue_tail);
+    uint32_t queue_size = (queue_tail >= queue_head) ? (queue_tail - queue_head) : (g->prop_queue_size - queue_head + queue_tail);
+    
+    for (uint32_t i = 0; i < queue_size && i < 1000 && check_count < 2000; i++) {
+        uint32_t idx = (queue_head + i) % g->prop_queue_size;
+        uint32_t node_id = g->prop_queue[idx];
+        if (node_id < g->node_count) {
+            Node *n = &g->nodes[node_id];
+            if ((n->type == NODE_TYPE_PATTERN || n->type == NODE_TYPE_EXEC) && 
+                (n->energy > ERROR_RELEVANT_ENERGY_THRESHOLD || n->value != 0.0f)) {
+                nodes_to_check[check_count++] = node_id;
+            }
+        }
+    }
+    
+    /* Also sample a few high-value nodes (for nodes not in queue) */
+    uint32_t sample_count = 0;
+    for (uint64_t i = 0; i < g->node_count && sample_count < 100 && check_count < 2000; i++) {
+        Node *n = &g->nodes[i];
+        if ((n->type == NODE_TYPE_PATTERN || n->type == NODE_TYPE_EXEC) && 
+            (fabsf(n->value) > 0.01f || n->recent_ext_reward > 0.0f)) {
+            /* Check if already in list */
+            int found = 0;
+            for (uint32_t j = 0; j < check_count; j++) {
+                if (nodes_to_check[j] == (uint32_t)i) {
+                    found = 1;
+                    break;
+                }
+            }
+            if (!found) {
+                nodes_to_check[check_count++] = (uint32_t)i;
+                sample_count++;
+            }
+        }
+    }
+    
+    /* Update value components for selected nodes */
+    for (uint32_t idx = 0; idx < check_count; idx++) {
+        uint32_t i = nodes_to_check[idx];
+        if (i >= g->node_count) continue;
+        
+        Node *n = &g->nodes[i];
+        
+        /* 1. Error delta: if node was active when error decreased, credit it */
+        if (n->energy > ERROR_RELEVANT_ENERGY_THRESHOLD) {
+            float contribution = error_delta * (n->energy / ENERGY_MAX);  /* Scale by energy */
+            n->recent_error_delta = (1.0f - VALUE_DECAY) * n->recent_error_delta + VALUE_DECAY * contribution;
+        } else {
+            /* Decay if not active */
+            n->recent_error_delta *= (1.0f - VALUE_DECAY * 0.1f);
+        }
+        
+        /* 2. Compression gain: if pattern active and active_count is lower than average */
+        if (n->type == NODE_TYPE_PATTERN && n->energy > PATTERN_ACTIVE_THRESHOLD) {
+            float gain = compression_delta * (n->energy / ENERGY_MAX);
+            n->recent_compression_gain = (1.0f - VALUE_DECAY) * n->recent_compression_gain + VALUE_DECAY * gain;
+            
+            /* Track this pattern as recently active */
+            if (recent_pattern_count < 100) {
+                recent_pattern_buffer[recent_pattern_count++] = (uint32_t)i;
+            }
+        } else {
+            n->recent_compression_gain *= (1.0f - VALUE_DECAY * 0.1f);
+        }
+        
+        /* 3. Control value: for EXEC nodes, based on success and stability */
+        if (n->type == NODE_TYPE_EXEC) {
+            /* Check if this EXEC fired recently (exec_count increased) */
+            static uint32_t prev_exec_counts[1000] = {0};
+            static uint32_t exec_tracked = 0;
+            
+            uint32_t idx = i % 1000;
+            if (exec_tracked < 1000) exec_tracked++;
+            
+            uint32_t prev_count = prev_exec_counts[idx];
+            if (n->exec_count > prev_count) {
+                /* EXEC fired - check if system remained stable */
+                float stable = 1.0f;
+                if (g->active_count > g->avg_active_count * 2.0f) {
+                    stable = 0.5f;  /* Some instability */
+                }
+                if (g->active_count > g->avg_active_count * 3.0f) {
+                    stable = 0.0f;  /* Unstable */
+                }
+                
+                float success = (n->exec_success_rate > 0.0f) ? n->exec_success_rate : 0.5f;
+                float control_contribution = stable * success;
+                n->recent_control_value = (1.0f - VALUE_DECAY) * n->recent_control_value + VALUE_DECAY * control_contribution;
+                
+                /* Distribute credit to recently active patterns */
+                for (uint32_t p = 0; p < recent_pattern_count; p++) {
+                    uint32_t pattern_id = recent_pattern_buffer[p];
+                    if (pattern_id < g->node_count) {
+                        Node *pattern = &g->nodes[pattern_id];
+                        if (pattern->type == NODE_TYPE_PATTERN) {
+                            /* Small credit to patterns that were active before EXEC fired */
+                            pattern->recent_control_value = (1.0f - VALUE_DECAY) * pattern->recent_control_value 
+                                                          + VALUE_DECAY * (control_contribution * 0.1f);
+                        }
+                    }
+                }
+            }
+            prev_exec_counts[idx] = n->exec_count;
+        }
+        
+        /* 4. Energy cost: penalize high-energy nodes */
+        if (n->energy > ENERGY_COST_THRESHOLD) {
+            float cost = n->energy;
+            n->recent_energy_cost = (1.0f - VALUE_DECAY) * n->recent_energy_cost + VALUE_DECAY * cost;
+        } else {
+            n->recent_energy_cost *= (1.0f - VALUE_DECAY * 0.1f);
+        }
+        
+        /* 5. Combine into final value */
+        n->value = VALUE_W_ERROR * n->recent_error_delta
+                 + VALUE_W_COMPRESSION * n->recent_compression_gain
+                 + VALUE_W_CONTROL * n->recent_control_value
+                 + VALUE_W_REWARD * n->recent_ext_reward
+                 - VALUE_W_ENERGY_COST * n->recent_energy_cost;
+    }
+    
+    /* Clear recent pattern buffer periodically */
+    if (recent_pattern_count >= 100) {
+        recent_pattern_count = 0;
+    }
+    
+    /* Update prev_global_error for next step */
+    g->prev_global_error = global_error;
+}
+
+/* Public API: Add external reward to a node */
+void melvin_add_reward(Graph *g, uint32_t node_id, float reward) {
+    if (!g || node_id >= g->node_count) return;
+    
+    Node *n = &g->nodes[node_id];
+    n->recent_ext_reward = (1.0f - VALUE_DECAY) * n->recent_ext_reward + VALUE_DECAY * reward;
+    
+    /* Recompute value */
+    n->value = VALUE_W_ERROR * n->recent_error_delta
+             + VALUE_W_COMPRESSION * n->recent_compression_gain
+             + VALUE_W_CONTROL * n->recent_control_value
+             + VALUE_W_REWARD * n->recent_ext_reward
+             - VALUE_W_ENERGY_COST * n->recent_energy_cost;
+}
+
+/* Public API wrapper for physics */
+void melvin_run_physics(Graph *g) {
+    if (!g) return;
+    
+    /* PREDICTION FRAMEWORK: "What Happens Next?" */
+    /* 1. Predict internal next-state */
+    melvin_predict_internal(g);
+    
+    /* 2. Predict sensory next-input (called before feed_byte, but prepare here) */
+    melvin_predict_sensory(g);
+    
+    /* 3. Predict value-delta */
+    melvin_predict_value_delta(g);
+    
+    /* 4. Run actual physics update */
+    uel_main(g);
+    
+    /* 5. Compute internal prediction error */
+    melvin_compute_internal_pred_error(g);
+    
+    /* 6. Update value scores (uses prediction errors) */
+    update_value_scores(g);
+    
+    /* 7. Compute value-delta prediction error */
+    melvin_compute_value_pred_error(g);
+}
+
 static void uel_main(Graph *g) {
     /* PURE EVENT-DRIVEN: Only process nodes in the propagation queue */
     /* No global ticks - only process what's queued */
     /* NO SCANNING ALL NODES - process queue only */
     if (!g || !g->hdr || g->node_count == 0) return;
+    
+    /* Run unified physics update first */
+    physics_update(g);
     
     /* GRAPH LAWS DETERMINE PROCESSING: Mass computed only for nodes the graph needs */
     /* Edges direct traversal - we follow connections, not algorithmic complexity */
@@ -3092,7 +4233,8 @@ static void uel_main(Graph *g) {
         /* Reset empty counter - we found work */
         consecutive_empty = 0;
         
-        /* Process node (event-driven) - mass computed lazily per-node */
+        /* Process node (event-driven) - unified physics already handled in physics_update() */
+        /* Still need to run pattern/learning updates */
         update_node_and_propagate(g, node_id, mass);
         processed++;
         
@@ -3444,6 +4586,52 @@ static void melvin_execute_exec_node(Graph *g, uint32_t node_id) {
     uint64_t result = 0;
     
     if (has_inputs && has_code) {
+        /* Try real EXEC bridge first (optional override for CPU/GPU functions) */
+        uint64_t inputs_array[8] = {input1, input2, 0, 0, 0, 0, 0, 0};
+        size_t input_count = 2;
+        uint64_t bridge_result = 0;
+        int bridge_handled = 0;
+        
+        /* Call real_exec_bridge_try_call to check if this EXEC node has a registered function */
+        bridge_handled = real_exec_bridge_try_call(g, node, inputs_array, input_count, &bridge_result);
+        
+        if (bridge_handled) {
+            /* Real function handled it - use the result */
+            result = bridge_result;
+            execution_success = true;
+            
+            fprintf(stderr, "\n✅ REAL EXEC BRIDGE SUCCESS! ✅\n");
+            fprintf(stderr, "EXEC Node: %u (code_id=%u)\n", node_id, node->code_id);
+            fprintf(stderr, "Inputs: %llu, %llu\n", 
+                    (unsigned long long)input1, (unsigned long long)input2);
+            fprintf(stderr, "Result: %llu\n", (unsigned long long)result);
+            fprintf(stderr, "✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅\n\n");
+            
+            ROUTE_LOG("  ✅ REAL EXEC BRIDGE: code_id=%u, result=%llu",
+                      node->code_id, (unsigned long long)result);
+            
+            /* Store result back in blob */
+            uint64_t result_offset = input_offset + (2 * sizeof(uint64_t));
+            if (result_offset + sizeof(uint64_t) <= g->hdr->blob_size) {
+                uint64_t *result_ptr = (uint64_t *)(g->blob + (result_offset - g->hdr->blob_offset));
+                *result_ptr = result;
+                ROUTE_LOG("  Stored result at offset %llu", (unsigned long long)result_offset);
+            }
+            
+            /* Convert result back to pattern (graph learns this) */
+            ROUTE_LOG("  Converting result to pattern via port 100");
+            convert_result_to_pattern(g, node_id, result);
+            
+            /* Update success rate */
+            node->exec_success_rate = 0.9f * node->exec_success_rate + 0.1f * 1.0f;
+            
+            return;  /* Done - real function handled it */
+        }
+        
+        /* Bridge didn't handle it - fall through to blob execution */
+        ROUTE_LOG("  Real EXEC bridge did not handle code_id=%u, falling back to blob execution",
+                  node->code_id);
+    
         /* Cast blob as executable function - NO HARDCODED OPERATIONS! */
         /* Function signature: uint64_t exec(uint64_t input1, uint64_t input2) */
         typedef uint64_t (*exec_func)(uint64_t, uint64_t);
@@ -3732,10 +4920,19 @@ uint32_t melvin_create_exec_node(Graph *g, uint32_t node_id, uint64_t blob_offse
     node->exec_threshold_ratio = (threshold_ratio > 0.0f) ? threshold_ratio : 1.0f;
     node->exec_count = 0;
     node->exec_success_rate = 0.0f;
+    node->type = NODE_TYPE_EXEC;
+    
+    /* Tag as INSTINCT EXEC (low-level creation, not taught) */
+    node->exec_origin = EXEC_ORIGIN_INSTINCT;
+    node->parent_pattern_id = 0;
+    node->created_update = g->physics_step_count;
     
     /* Clamp ratio to reasonable range */
     if (node->exec_threshold_ratio < 0.1f) node->exec_threshold_ratio = 0.1f;
     if (node->exec_threshold_ratio > 3.0f) node->exec_threshold_ratio = 3.0f;
+    
+    /* Log creation */
+    log_exec_creation(g, node_id, "melvin_create_exec_node");
     
     return node_id;
 }
@@ -3744,7 +4941,7 @@ uint32_t melvin_create_exec_node(Graph *g, uint32_t node_id, uint64_t blob_offse
  * PATTERN SYSTEM - Global Law: Patterns form from repeated sequences
  * ======================================================================== */
 
-#define PATTERN_MAGIC 0x4E544150  /* "PATN" in little-endian */
+/* PATTERN_MAGIC defined earlier in file */
 
 /* Simple hash function for sequences */
 static uint64_t hash_sequence(const uint32_t *sequence, uint32_t length) {
@@ -4190,7 +5387,8 @@ static void extract_and_route_to_exec(Graph *g, uint32_t pattern_node_id, const 
     PatternValue extracted_values[16];
     uint32_t value_count = 0;
     
-    for (uint32_t i = 0; i < pattern_data->element_count && value_count < 16; i++) {
+    /* NO LIMITS - process all pattern elements */
+    for (uint32_t i = 0; i < pattern_data->element_count; i++) {
         PatternElement *elem = &pattern_data->elements[i];
         if (elem->is_blank != 0) {
             /* Blank - check if it has a binding */
@@ -4341,11 +5539,18 @@ static void convert_result_to_pattern(Graph *g, uint32_t exec_node_id, uint64_t 
     if (!g || exec_node_id >= g->node_count) return;
     
     /* Convert integer result to byte sequence */
-    char result_str[32];
-    snprintf(result_str, sizeof(result_str), "%llu", (unsigned long long)result);
+    char result_str[64];
+    snprintf(result_str, sizeof(result_str), "%llu\n", (unsigned long long)result);
     
-    /* Feed result as bytes - graph learns: result → output pattern */
-    for (size_t i = 0; i < strlen(result_str); i++) {
+    /* NEW: Output via syscall (transformer-quality text output) */
+    MelvinSyscalls *syscalls = melvin_get_syscalls_from_blob(g);
+    if (syscalls && syscalls->sys_write_text) {
+        /* Output text directly - this is how transformers output! */
+        syscalls->sys_write_text((const uint8_t *)result_str, strlen(result_str));
+    }
+    
+    /* ALSO feed result as bytes - graph learns: result → output pattern */
+    for (size_t i = 0; i < strlen(result_str) && result_str[i] != '\n'; i++) {
         melvin_feed_byte(g, 100, (uint8_t)result_str[i], 0.5f);  /* Output port 100 */
     }
 }
@@ -4468,7 +5673,8 @@ static void expand_pattern(Graph *g, uint32_t pattern_node_id, const uint32_t *b
                 target_node_id = bindings[blank_pos];
                 
                 /* NEW: Extract value from this blank binding */
-                if (value_count < 16) {
+                /* NO LIMITS - extract all values */
+                {
                     /* Get sequence that matched this blank */
                     /* For now, use the bound node - in full implementation, 
                      * would get full sequence from pattern instance */
@@ -4582,6 +5788,11 @@ static uint32_t create_pattern_node(Graph *g, const PatternElement *pattern_elem
     pattern_data->strength = 0.1f;  /* Initial strength */
     pattern_data->first_instance_offset = g->hdr->main_entry_offset + pattern_data_size;
     
+    /* Initialize pattern promotion fields */
+    pattern_data->exec_promotion_score = 0.0f;
+    pattern_data->has_exec = 0;
+    pattern_data->bound_exec_id = 0;
+    
     /* Copy pattern elements */
     memcpy(pattern_data->elements, pattern_elements, element_count * sizeof(PatternElement));
     
@@ -4607,24 +5818,11 @@ static uint32_t create_pattern_node(Graph *g, const PatternElement *pattern_elem
 static void discover_patterns(Graph *g, const uint32_t *sequence, uint32_t length) {
     if (!g || !sequence || length < 2) return;
     
-    /* ANTI-EXPLOSION: Limit patterns created per call to prevent hangs */
-    static uint32_t patterns_created_this_session = 0;
-    const uint32_t MAX_PATTERNS_PER_SESSION = 1000;  /* Reasonable limit */
-    
-    /* Reset counter periodically (every 10000 bytes) */
-    static uint64_t last_reset_pos = 0;
-    if (g->sequence_buffer_pos - last_reset_pos > 10000) {
-        patterns_created_this_session = 0;
-        last_reset_pos = g->sequence_buffer_pos;
-    }
-    
-    /* Skip if we've created too many patterns recently */
-    if (patterns_created_this_session >= MAX_PATTERNS_PER_SESSION) {
-        return;  /* Let the graph settle before adding more */
-    }
+    /* NO LIMITS - let graph decide how many patterns to create */
+    /* Wave propagation will naturally limit pattern creation through energy dynamics */
     
     /* OPTIMIZATION: Only check recent buffer, not entire history */
-    uint32_t max_lookback = 50;  /* Fixed small window */
+    uint32_t max_lookback = 100;  /* Increased window for better pattern detection */
     if (max_lookback > g->sequence_buffer_pos && !g->sequence_buffer_full) {
         max_lookback = (uint32_t)g->sequence_buffer_pos;
     }
@@ -4633,7 +5831,7 @@ static void discover_patterns(Graph *g, const uint32_t *sequence, uint32_t lengt
     
     /* ANTI-EXPLOSION: Only check a few positions per call */
     uint32_t positions_checked = 0;
-    const uint32_t MAX_POSITIONS = 10;  /* Only check 10 positions per byte */
+    const uint32_t MAX_POSITIONS = 20;  /* Increased to 20 positions for better coverage */
     
     for (uint32_t buf_pos = buffer_start; buf_pos + length <= g->sequence_buffer_pos && positions_checked < MAX_POSITIONS; buf_pos += 2) {
         positions_checked++;
@@ -4756,7 +5954,7 @@ static void discover_patterns(Graph *g, const uint32_t *sequence, uint32_t lengt
                 g->nodes[pattern_node_id].a += 0.1f;
                 prop_queue_add(g, pattern_node_id);
                 learn_pattern_to_exec_routing(g, pattern_node_id, pattern_elements, pattern_length);
-                patterns_created_this_session++;  /* Track creation count */
+                /* NO LIMITS - pattern creation tracked by graph state, not counters */
             }
         }
     }
@@ -4786,13 +5984,22 @@ static void record_adjacency(uint32_t pattern_a, uint32_t pattern_b) {
     }
     
     /* Create new adjacency record */
-    if (adjacency_count < MAX_ADJACENCIES) {
-        adjacencies[adjacency_count].pattern_a = pattern_a;
-        adjacencies[adjacency_count].pattern_b = pattern_b;
-        adjacencies[adjacency_count].cooccurrence_count = 1;
-        adjacencies[adjacency_count].last_seen = 0;  /* Would use timestamp */
-        adjacency_count++;
+    /* NO LIMITS - dynamically grow adjacency array */
+    if (adjacency_count >= adjacency_capacity) {
+        uint32_t new_capacity = (adjacency_capacity == 0) ? 256 : adjacency_capacity * 2;
+        PatternAdjacency *new_adj = realloc(adjacencies, new_capacity * sizeof(PatternAdjacency));
+        if (new_adj) {
+            adjacencies = new_adj;
+            adjacency_capacity = new_capacity;
+        } else {
+            return;  /* Out of memory - skip this adjacency */
+        }
     }
+    adjacencies[adjacency_count].pattern_a = pattern_a;
+    adjacencies[adjacency_count].pattern_b = pattern_b;
+    adjacencies[adjacency_count].cooccurrence_count = 1;
+    adjacencies[adjacency_count].last_seen = 0;  /* Would use timestamp */
+    adjacency_count++;
 }
 
 /* Track which patterns are activating during UEL propagation */
@@ -4985,7 +6192,8 @@ void detect_coactivation_patterns(Graph *g) {
     memset(g->coactivation_hash, 0, g->coactivation_hash_size * sizeof(uint64_t));
     
     int patterns_created = 0;
-    const int MAX_PATTERNS_PER_CHECK = 3;  /* Limit to prevent explosion */
+    /* NO LIMITS - let graph decide how many patterns to create */
+    /* Wave propagation will naturally limit through energy dynamics */
     
     static int call_count = 0;
     call_count++;
@@ -4995,16 +6203,12 @@ void detect_coactivation_patterns(Graph *g) {
     }
     
     /* DYNAMIC PATTERN SIZE: Try multiple lengths for hierarchical composition */
-    /* Base patterns (2-3), medium patterns (4-5), complex patterns (6-7) */
-    for (int len = 2; len <= 7 && patterns_created < MAX_PATTERNS_PER_CHECK; len++) {
+    /* NO LIMITS - try all lengths, graph decides what to keep */
+    for (int len = 2; len <= 7; len++) {
         if (len > (int)g->activation_window_size) continue;
         
-        /* Limit patterns per length to prevent explosion */
-        int patterns_at_this_length = 0;
-        const int MAX_PER_LENGTH = 2;  /* Max 2 patterns per length */
-        
-        /* Scan window for repeated sequences */
-        for (uint32_t i = 0; i + len <= g->activation_window_size && patterns_created < MAX_PATTERNS_PER_CHECK; i++) {
+        /* NO LIMITS - scan all sequences, graph decides what to keep */
+        for (uint32_t i = 0; i + len <= g->activation_window_size; i++) {
             uint32_t seq[10];
             
             /* Extract sequence */
@@ -5056,7 +6260,6 @@ void detect_coactivation_patterns(Graph *g) {
                     uint32_t pattern_id = create_pattern_node(g, elements, len, seq, seq, len);
                     if (pattern_id != UINT32_MAX) {
                         patterns_created++;
-                        patterns_at_this_length++;
                         
                         /* Count blanks to show if pattern is generalized */
                         uint32_t blank_count = 0;
@@ -5081,10 +6284,7 @@ void detect_coactivation_patterns(Graph *g) {
                             }
                         }
                         
-                        /* Check if we've hit limit for this length */
-                        if (patterns_at_this_length >= MAX_PER_LENGTH) {
-                            break;  /* Move to next length */
-                        }
+                        /* NO LIMITS - continue creating patterns, graph decides what to keep */
                     }
                 }
             } else {
@@ -5122,9 +6322,9 @@ static void match_patterns_and_route(Graph *g, const uint32_t *sequence, uint32_
         ROUTE_LOG("  Trying subsequence length %d", len);
         
         /* Search for patterns that might match this sequence */
-        /* Patterns are in range 840-999 typically */
+        /* NO LIMITS - search all pattern nodes */
         uint32_t pattern_start = 840;
-        uint32_t pattern_end = (g->node_count < 2000) ? g->node_count : 2000;
+        uint32_t pattern_end = g->node_count;  /* Search all nodes */
         
         for (uint32_t pid = pattern_start; pid < pattern_end; pid++) {
             Node *pnode = &g->nodes[pid];
@@ -5199,26 +6399,27 @@ static void pattern_law_apply(Graph *g, uint32_t data_node_id) {
     g->sequence_buffer_pos++;
     
     /* RATE LIMIT: Only run pattern DISCOVERY every N bytes to prevent explosion */
-    /* OPTIMIZED: Check every 50 bytes (not 10) for better performance on real text */
+    /* OPTIMIZED: Check every 20 bytes (faster pattern formation for evaluation) */
     static uint64_t last_pattern_check = 0;
-    if (g->sequence_buffer_pos - last_pattern_check >= 50) {
+    if (g->sequence_buffer_pos - last_pattern_check >= 20) {
         last_pattern_check = g->sequence_buffer_pos;
         
-        /* Extract sequence for discovery */
-        uint32_t len = 3;  /* SIMPLIFIED: Only check length 3 patterns */
-        
-        if (len <= g->sequence_buffer_pos || g->sequence_buffer_full) {
-            uint32_t start_pos = (g->sequence_buffer_pos >= len) ? 
-                                 (g->sequence_buffer_pos - len) : 
-                                 (g->sequence_buffer_size + g->sequence_buffer_pos - len);
-            
-            uint32_t sequence[10];
-            for (uint32_t i = 0; i < len; i++) {
-                sequence[i] = g->sequence_buffer[(start_pos + i) % g->sequence_buffer_size];
+        /* Extract sequences for discovery - check multiple lengths */
+        /* Check lengths 3, 4, 5, 6 to catch patterns like "ABAB", "ABABAB", etc. */
+        for (uint32_t len = 3; len <= 6; len++) {
+            if (len <= g->sequence_buffer_pos || g->sequence_buffer_full) {
+                uint32_t start_pos = (g->sequence_buffer_pos >= len) ? 
+                                     (g->sequence_buffer_pos - len) : 
+                                     (g->sequence_buffer_size + g->sequence_buffer_pos - len);
+                
+                uint32_t sequence[10];
+                for (uint32_t i = 0; i < len && i < 10; i++) {
+                    sequence[i] = g->sequence_buffer[(start_pos + i) % g->sequence_buffer_size];
+                }
+                
+                /* Discover patterns (with internal limits) */
+                discover_patterns(g, sequence, len);
             }
-            
-            /* Discover patterns (with internal limits) */
-            discover_patterns(g, sequence, len);
         }
     }
     

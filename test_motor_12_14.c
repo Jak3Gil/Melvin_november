@@ -18,7 +18,7 @@
 #include <signal.h>
 #include <stdbool.h>
 
-#define CAN_INTERFACE "can0"
+#define CAN_INTERFACE "slcan0"  // USB-based CAN (not native CAN hardware)
 
 static int can_socket = -1;
 static bool running = true;
@@ -34,7 +34,7 @@ static bool init_can(void) {
     struct sockaddr_can addr;
     struct ifreq ifr;
     
-    printf("📡 Initializing CAN interface: %s\n", CAN_INTERFACE);
+    printf("📡 Initializing USB-to-CAN interface: %s\n", CAN_INTERFACE);
     
     can_socket = socket(PF_CAN, SOCK_RAW, CAN_RAW);
     if (can_socket < 0) {
@@ -44,12 +44,16 @@ static bool init_can(void) {
     
     strcpy(ifr.ifr_name, CAN_INTERFACE);
     if (ioctl(can_socket, SIOCGIFINDEX, &ifr) < 0) {
-        perror("Failed to get CAN interface");
-        printf("\nMake sure CAN is configured:\n");
-        printf("  sudo ip link set can0 type can bitrate 125000\n");
-        printf("  sudo ip link set can0 up\n");
-        close(can_socket);
-        return false;
+        // Fallback to can0 if slcan0 doesn't exist
+        strcpy(ifr.ifr_name, "can0");
+        if (ioctl(can_socket, SIOCGIFINDEX, &ifr) < 0) {
+            perror("Failed to get CAN interface (tried slcan0 and can0)");
+            printf("\nMake sure USB-to-CAN is configured:\n");
+            printf("  sudo slcand -o -c -s6 /dev/ttyUSB0 slcan0\n");
+            printf("  sudo ip link set slcan0 up\n");
+            close(can_socket);
+            return false;
+        }
     }
     
     addr.can_family = AF_CAN;

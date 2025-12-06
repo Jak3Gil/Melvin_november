@@ -48,34 +48,94 @@ typedef struct {
 
 _Static_assert(sizeof(MelvinHeader) == 4096, "MelvinHeader must be exactly 4096 bytes");
 
+/* Node types */
+#define NODE_TYPE_DATA     0
+#define NODE_TYPE_PATTERN  1
+#define NODE_TYPE_EXEC     2
+#define NODE_TYPE_SENSOR   3
+#define NODE_TYPE_OUTPUT   4
+
+/* EXEC node origins */
+#define EXEC_ORIGIN_NONE           0
+#define EXEC_ORIGIN_INSTINCT       1
+#define EXEC_ORIGIN_TAUGHT         2
+#define EXEC_ORIGIN_PATTERN_PROMO  3
+
 /* Binary node layout */
 typedef struct {
-    float    a;
-    uint8_t  byte;
+    /* Core energy state */
+    float    a;                  /* Activation (legacy - maps to energy) */
+    float    energy;             /* Current activation / energy */
+    float    leak_rate;          /* 0-1, fraction lost per update */
+    float    gain;               /* Scales incoming excitation */
+    
+    /* Homeostasis */
+    float    avg_activity;       /* Running average of |energy| */
+    float    target_activity;    /* Desired avg activity */
+    float    homeo_rate;         /* How fast to adapt (small, ~1e-4) */
+    
+    /* Inhibition */
+    uint32_t inhib_group;        /* ID for local inhibition pool */
+    
+    /* Node type and structure */
+    uint8_t  type;               /* DATA / PATTERN / EXEC / SENSOR / OUTPUT */
+    uint8_t  byte;               /* Byte value (for DATA nodes) */
     uint16_t in_degree;
     uint16_t out_degree;
     uint32_t first_in;
     uint32_t first_out;
+    
     /* Soft structure hints (learnable, can be modified by UEL physics) */
     float    input_propensity;   /* 0.0-1.0: tendency to receive external input */
     float    output_propensity;  /* 0.0-1.0: tendency to produce external output */
     float    memory_propensity;  /* 0.0-1.0: tendency to retain state (slow decay) */
     uint32_t semantic_hint;      /* Port range hint (0-99=input, 100-199=output, 200-255=control) */
+    
     /* Pattern node support */
     uint64_t pattern_data_offset; /* If > 0: blob offset to PatternData structure (pattern node) */
     uint64_t pattern_value_offset; /* If > 0: blob offset to PatternValue (learned value extraction) */
+    uint32_t *member_ids;        /* For PATTERN nodes: array of member node IDs (stored in blob) */
+    uint32_t member_count;       /* Number of members in pattern */
+    
     /* EXEC node support */
     uint64_t payload_offset;      /* If > 0: blob offset to machine code (EXEC node) */
+    uint32_t code_id;             /* Function pointer index or code block ID */
+    uint32_t *input_ids;          /* Array of input node IDs (stored in blob) */
+    uint32_t input_count;         /* Number of input nodes */
+    uint32_t *output_ids;         /* Array of output node IDs (stored in blob) */
+    uint32_t output_count;        /* Number of output nodes */
     float    exec_threshold_ratio; /* Threshold as ratio of avg_activation (default 1.0 = 100%) */
     uint32_t exec_count;          /* Number of times this EXEC node has executed */
     float    exec_success_rate;   /* Success rate of executions (0.0-1.0, updated by feedback) */
+    
+    /* EXEC node origin tracking */
+    uint8_t  exec_origin;         /* 0=NONE, 1=INSTINCT, 2=TAUGHT, 3=PATTERN_PROMO */
+    uint32_t parent_pattern_id;   /* Pattern this EXEC was promoted from, else 0 */
+    uint64_t created_update;      /* Global update counter at creation time */
+    
+    /* Value scoring system (lightweight utility estimate) */
+    float    value;                  /* Aggregated utility estimate: w1*error_delta + w2*compression + w3*control + w4*reward - w5*energy_cost */
+    float    recent_error_delta;     /* Recent contribution to prediction error reduction */
+    float    recent_compression_gain;/* Recent contribution to compression (active_count reduction) */
+    float    recent_control_value;   /* Recent contribution to "options / stable futures" */
+    float    recent_ext_reward;      /* Recent external reward credit */
+    float    recent_energy_cost;     /* Recent energy used */
+    
+    /* Prediction system (lightweight "What Happens Next?" framework) */
+    float    predicted_activation;    /* Predicted energy/activation for next timestep */
+    float    prediction_error;       /* Internal next-state prediction error (updated each step) */
+    float    sensory_prediction;     /* Optional prediction about upcoming input byte (0-255 scaled) */
+    float    sensory_pred_error;     /* Error between predicted and actual input */
+    float    predicted_value_delta;   /* Predicted change in node->value or global value */
+    float    value_pred_error;       /* Error between predicted and actual value delta */
 } Node;
 
 /* Binary edge layout */
 typedef struct {
     uint32_t src;
     uint32_t dst;
-    float    w;
+    float    w;                  /* Weight / conductance */
+    uint8_t  is_inhibitory;      /* 0 = excitatory, 1 = inhibitory */
     uint32_t next_in;
     uint32_t next_out;
 } Edge;
@@ -98,6 +158,12 @@ typedef struct {
     float frequency;                   /* How often this pattern occurs */
     float strength;                    /* Pattern strength (from edge weights/usage) */
     uint64_t first_instance_offset;    /* Offset to first instance (or 0 if none) */
+    
+    /* Pattern-to-EXEC promotion tracking */
+    float    exec_promotion_score;     /* Score for promoting this pattern to EXEC */
+    uint8_t  has_exec;                 /* 1 if pattern has bound EXEC node, else 0 */
+    uint32_t bound_exec_id;            /* EXEC node ID if has_exec=1, else 0 */
+    
     PatternElement elements[];         /* Variable length: pattern elements */
 } PatternData;
 
@@ -199,6 +265,26 @@ typedef struct {
     uint64_t     activation_check_counter; /* Counter for checking co-activation */
     uint64_t     *coactivation_hash;     /* Hash table for detecting repeated sequences */
     uint32_t     coactivation_hash_size; /* Size of co-activation hash table */
+    
+    /* Scaling metrics (for debugging/proof) */
+    float        total_energy;           /* Total energy in system (for boundedness proof) */
+    uint32_t     active_count;           /* Number of nodes with energy > ACTIVE_THRESHOLD */
+    uint64_t     physics_step_count;     /* Number of physics steps executed */
+    
+    /* Value scoring system tracking */
+    float        prev_global_error;     /* Previous global error/chaos (for error_delta computation) */
+    float        avg_active_count;       /* EWMA of active_count (for compression_gain computation) */
+    uint32_t     *recent_active_patterns; /* Circular buffer of recently active pattern node IDs (for control_value) */
+    uint32_t     recent_patterns_size;    /* Size of recent_active_patterns buffer */
+    uint32_t     recent_patterns_pos;     /* Current position in buffer */
+    
+    /* Prediction system tracking */
+    uint8_t      last_input_byte;        /* Last input byte fed (for sensory prediction) */
+    uint8_t      predicted_next_byte;    /* Predicted next input byte */
+    uint8_t      predicted_byte_confidence; /* Confidence in byte prediction (0-255) */
+    float        predicted_global_value_delta; /* Predicted change in global value */
+    float        global_value_estimate;   /* Current global value estimate (sum/average of node values) */
+    float        prev_global_value;       /* Previous global value (for delta computation) */
 } Graph;
 
 /* ========================================================================
@@ -283,6 +369,20 @@ void melvin_load_patterns(Graph *g, const char *pattern_file, float strength);
 /* Jump into .m blob at main entrypoint (ONLY way to "run" - blob does everything) */
 void melvin_call_entry(Graph *g);
 
+/* Run UEL physics update (processes propagation queue) */
+void melvin_run_physics(Graph *g);
+
+/* Add external reward to a node (for value scoring system) */
+void melvin_add_reward(Graph *g, uint32_t node_id, float reward);
+
+/* Prediction system API (for testing) */
+void melvin_predict_sensory(Graph *g);  /* Predict next sensory input */
+
+/* Real EXEC bridge: optional override for EXEC nodes to call real CPU/GPU functions */
+int real_exec_bridge_try_call(Graph *g, Node *exec_node, 
+                                uint64_t *inputs, size_t input_count,
+                                uint64_t *out_result);  /* Returns 1 if handled, 0 if not */
+
 /* Debug helpers (read-only inspection) */
 float melvin_get_activation(Graph *g, uint32_t node_id);
 
@@ -308,6 +408,9 @@ uint32_t melvin_create_pattern_node(Graph *g, const PatternElement *pattern_elem
 /* Returns EXEC node ID on success, UINT32_MAX on error */
 uint32_t melvin_teach_operation(Graph *g, const uint8_t *machine_code, 
                                  size_t code_len, const char *name);
+
+/* Promote a pattern node to an EXEC node */
+uint32_t promote_pattern_to_exec(Graph *g, uint32_t pattern_id);
 
 /* Progress indicators */
 void melvin_set_progress_callback(void (*callback)(const char *message, float percent));
